@@ -2,8 +2,20 @@ import { supabase } from '@/lib/supabase';
 
 // Generic edge function caller
 async function callGroupOps(action: string, params: Record<string, any> = {}): Promise<any> {
-  const { data, error } = await supabase.functions.invoke('group-operations', {
-    body: { action, ...params },
+  const { data: { user } } = await supabase.auth.getUser();
+
+const { data, error } = await supabase
+  .from("groups")
+  .insert([
+    {
+      name: groupName,
+      created_by: user?.id
+    }
+  ]);
+
+if (error) {
+  console.error("Error creating group:", error);
+}
   });
   if (error) throw new Error(error.message || 'Edge function error');
   if (data?.error) throw new Error(data.error);

@@ -105,13 +105,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const refreshGroups = useCallback(async () => {
     if (!user?.member_id) return;
     try {
-      const { data, error } = await supabase.functions.invoke('group-operations', {
-        body: { action: 'list_groups', member_id: user.member_id },
-      });
-      if (!error && data?.groups) {
-        setGroups(data.groups);
-        if (!selectedGroupId && data.groups.length > 0) {
-          setSelectedGroupId(data.groups[0].id);
+      const { data: { user } } = await supabase.auth.getUser();
+
+const { data, error } = await supabase
+  .from("groups")
+  .insert([
+    {
+      name: groupName,
+      created_by: user?.id
+    }
+  ]);
+
+if (error) {
+  console.error("Error creating group:", error);
+} else {
+  console.log("Group created:", data);
+}
         }
       }
     } catch (e) {
