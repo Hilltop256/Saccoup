@@ -1,3 +1,9 @@
-# React + TypeScript + Vite
+# SaccoUp
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Multi-Tenant Finance Savings Groups Platform.
+
+A web application for managing SACCOs, savings groups, and investment clubs including:
+- Member management
+- Contributions tracking
+- Loans management
+- Financial reporting
