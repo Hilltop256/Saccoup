@@ -42,16 +42,16 @@ export async function createGroup(params: {
       interest_rate: params.interest_rate || 5,
       late_fee: params.late_fee || 0,
       grace_period_days: params.grace_period_days || 3,
-      created_by: params.member_id,
+      // created_by omitted: the original groups table has a FK to auth.users
+      // which we don't use. We track group creator via group_memberships (role=admin) instead.
       is_active: true,
     })
     .select('*')
     .single();
 
   if (error) {
-    // Give a clear message if the table doesn't exist yet
     if (error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('does not exist')) {
-      throw new Error('Database not set up yet. Please run the SQL schema in your Supabase project dashboard (SQL Editor → New query → paste supabase_schema.sql → Run).');
+      throw new Error('Database not set up yet. Please run the SQL schema in your Supabase project dashboard.');
     }
     throw new Error(error.message);
   }
