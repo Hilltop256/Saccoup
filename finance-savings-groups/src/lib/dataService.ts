@@ -79,8 +79,11 @@ export async function listGroups(member_id: string) {
 }
 
 export async function getGroupStats(group_id: string) {
-  const [membersRes, contribRes, loansRes] = await Promise.all([
+  const [membersRes, membersCountRes, contribRes, loansRes] = await Promise.all([
+    // head:true count (fast but may be blocked by some RLS configs)
     supabase.from('group_memberships').select('*', { count: 'exact', head: true }).eq('group_id', group_id).eq('is_active', true),
+    // also fetch member_id list so we can count rows directly as a reliable fallback
+    supabase.from('group_memberships').select('member_id').eq('group_id', group_id).eq('is_active', true),
     supabase.from('contributions').select('amount, status').eq('group_id', group_id),
     supabase.from('loans').select('amount, status').eq('group_id', group_id),
   ]);
@@ -93,7 +96,8 @@ export async function getGroupStats(group_id: string) {
   const pendingContributions = contributions.filter((c: any) => c.status === 'pending').length;
   const failedContributions = contributions.filter((c: any) => c.status === 'failed').length;
   const confirmedCount = contributions.filter((c: any) => c.status === 'confirmed').length;
-  const memberCount = membersRes.count || 0;
+  // Use whichever count is larger (head count vs actual row count) for accuracy
+  const memberCount = Math.max(membersRes.count || 0, (membersCountRes.data || []).length);
   const totalLoansOutstanding = loans
     .filter((l: any) => ['disbursed', 'repaying'].includes(l.status))
     .reduce((s: number, l: any) => s + Number(l.amount), 0);
