@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppContext } from '@/contexts/AppContext';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { IMAGES } from '@/lib/constants';
 import LandingPage from './saccoUp/LandingPage';
 import LoginModal from './saccoUp/LoginModal';
@@ -15,17 +14,23 @@ import ChatPage from './saccoUp/ChatPage';
 import AnnouncementsPage from './saccoUp/AnnouncementsPage';
 import SettingsPage from './saccoUp/SettingsPage';
 
-type AppView = 'landing' | 'dashboard';
+type AppView = 'loading' | 'landing' | 'dashboard';
 
 const AppLayout: React.FC = () => {
-  const { sidebarOpen, toggleSidebar, user, selectedGroup, logout } = useAppContext();
-  const isMobile = useIsMobile();
+  const { user, isAuthLoading, selectedGroup, logout } = useAppContext();
 
-  const [appView, setAppView] = useState<AppView>('landing');
+  const [appView, setAppView] = useState<AppView>('loading');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginMode, setLoginMode] = useState<'login' | 'register'>('login');
   const [currentPage, setCurrentPage] = useState<DashboardPage>('overview');
   const [sidebarIsOpen, setSidebarIsOpen] = useState(false);
+
+  // Resolve app view once auth loading completes
+  useEffect(() => {
+    if (!isAuthLoading) {
+      setAppView(user ? 'dashboard' : 'landing');
+    }
+  }, [isAuthLoading, user]);
 
   const handleGetStarted = () => {
     setLoginMode('register');
@@ -78,6 +83,27 @@ const AppLayout: React.FC = () => {
     }
   };
 
+  // Auth loading splash
+  if (appView === 'loading') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0066CC]/5 via-white to-[#00CC99]/5 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#0066CC] to-[#00CC99] flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+          </div>
+          <p className="text-lg font-bold text-gray-900">Sacco<span className="text-[#0066CC]">Up</span></p>
+          <div className="flex items-center justify-center gap-1.5 mt-3">
+            <div className="w-2 h-2 bg-[#0066CC] rounded-full animate-bounce [animation-delay:0ms]" />
+            <div className="w-2 h-2 bg-[#0066CC] rounded-full animate-bounce [animation-delay:150ms]" />
+            <div className="w-2 h-2 bg-[#0066CC] rounded-full animate-bounce [animation-delay:300ms]" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Landing Page View
   if (appView === 'landing') {
     return (
@@ -113,6 +139,7 @@ const AppLayout: React.FC = () => {
               <button
                 onClick={() => setSidebarIsOpen(true)}
                 className="lg:hidden p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                aria-label="Open menu"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -123,28 +150,8 @@ const AppLayout: React.FC = () => {
                 <p className="text-xs text-gray-500 hidden sm:block">{selectedGroup?.name || 'No group selected'}</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              {/* Search */}
-              <div className="hidden md:block relative">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg w-64 focus:ring-2 focus:ring-[#0066CC] focus:border-transparent outline-none"
-                />
-              </div>
-
-              {/* Notifications */}
-              <button className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-                </svg>
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-              </button>
-
-              {/* Quick Actions */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* Quick Pay button */}
               <button
                 onClick={() => setCurrentPage('contributions')}
                 className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-[#0066CC] rounded-lg hover:bg-[#004C99] transition-colors"
@@ -155,16 +162,28 @@ const AppLayout: React.FC = () => {
                 Quick Pay
               </button>
 
-              {/* User Avatar */}
-              <div className="flex items-center gap-2">
-                <img
-                  src={user?.photo_url || IMAGES.avatars[0]}
-                  alt={user?.full_name || 'User'}
-                  className="w-8 h-8 rounded-full object-cover border-2 border-gray-100"
-                  onError={(e) => { (e.target as HTMLImageElement).src = IMAGES.avatars[0]; }}
-                />
-                <span className="hidden lg:block text-sm font-medium text-gray-700">{user?.full_name?.split(' ')[0] || 'User'}</span>
-              </div>
+              {/* User Avatar + Name */}
+              <button
+                onClick={() => setCurrentPage('settings')}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                title="My settings"
+              >
+                <div className="relative">
+                  <img
+                    src={user?.photo_url || IMAGES.avatars[0]}
+                    alt={user?.full_name || 'User'}
+                    className="w-8 h-8 rounded-full object-cover border-2 border-gray-100"
+                    onError={(e) => { (e.target as HTMLImageElement).src = IMAGES.avatars[0]; }}
+                  />
+                  {user?.kyc_verified && (
+                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-[#00CC99] rounded-full border-2 border-white" title="KYC Verified" />
+                  )}
+                </div>
+                <div className="hidden lg:block text-left">
+                  <p className="text-sm font-medium text-gray-700 leading-tight">{user?.full_name?.split(' ')[0] || 'User'}</p>
+                  <p className="text-[10px] text-gray-400 capitalize">{selectedGroup?.user_role || 'member'}</p>
+                </div>
+              </button>
             </div>
           </div>
         </header>

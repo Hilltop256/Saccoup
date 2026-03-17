@@ -107,10 +107,11 @@ const ReportsPage: React.FC = () => {
           full_name: m.full_name || 'Unknown',
           phone: m.phone || '',
           role: m.role || 'member',
-          total_contributions: m.total_contributions || 0,
-          savings_balance: m.savings_balance || 0,
-          loan_balance: m.loan_balance || 0,
-          net_position: (m.savings_balance || 0) - (m.loan_balance || 0),
+          // dataService returns camelCase from listMembers
+          total_contributions: m.totalContributions || m.total_contributions || 0,
+          savings_balance: m.savingsBalance || m.savings_balance || 0,
+          loan_balance: m.loanBalance || m.loan_balance || 0,
+          net_position: (m.savingsBalance || m.savings_balance || 0) - (m.loanBalance || m.loan_balance || 0),
         })));
       }
 
