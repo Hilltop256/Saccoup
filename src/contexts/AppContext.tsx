@@ -73,7 +73,7 @@ export const useAppContext = () => useContext(AppContext);
 
 const SESSION_KEY = 'saccoup_session';
 
-function normPhone(ph: string): string {
+export function normPhone(ph: string): string {
   let c = ph.replace(/[\s\-()]/g, '');
   if (c.startsWith('0')) c = '+256' + c.substring(1);
   else if (c.startsWith('256') && !c.startsWith('+')) c = '+' + c;
@@ -92,7 +92,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [user, setUser] = useState<AuthUser | null>(null);
   const [memberships, setMemberships] = useState<GroupMembership[]>([]);
   const [groups, setGroups] = useState<GroupData[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [selectedGroupId, setSelectedGroupIdState] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -101,27 +101,93 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const selectedGroup = groups.find(g => g.id === selectedGroupId) || groups[0] || null;
 
-  // Load groups for a member via edge function
-  const refreshGroups = useCallback(async () => {
-    if (!user?.member_id) return;
+  const setSelectedGroupId = (id: string) => {
+    setSelectedGroupIdState(id);
+    localStorage.setItem('saccoup_selected_group', id);
+  };
+
+  // Load groups for the authenticated member from Supabase directly
+  const refreshGroups = useCallback(async (memberId?: string) => {
+    const mid = memberId || user?.member_id;
+    if (!mid) return;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      // Fetch groups where this member has an active membership
+      const { data: membershipRows, error: mErr } = await supabase
+        .from('group_memberships')
+        .select(`
+          group_id,
+          role,
+          groups (
+            id,
+            name,
+            group_type,
+            description,
+            contribution_amount,
+            contribution_schedule,
+            invite_code,
+            interest_rate,
+            late_fee,
+            grace_period_days,
+            is_active,
+            created_at
+          )
+        `)
+        .eq('member_id', mid)
+        .eq('is_active', true);
 
-const { data, error } = await supabase
-  .from("groups")
-  .insert([
-    {
-      name: groupName,
-      created_by: user?.id
-    }
-  ]);
+      if (mErr) {
+        console.error('Error fetching memberships:', mErr);
+        return;
+      }
 
-if (error) {
-  console.error("Error creating group:", error);
-} else {
-  console.log("Group created:", data);
-}
-        }
+      const groupList: GroupData[] = [];
+      for (const row of (membershipRows || [])) {
+        const g = row.groups as any;
+        if (!g) continue;
+
+        // Fetch member count
+        const { count: memberCount } = await supabase
+          .from('group_memberships')
+          .select('*', { count: 'exact', head: true })
+          .eq('group_id', g.id)
+          .eq('is_active', true);
+
+        // Fetch total confirmed savings
+        const { data: savingsData } = await supabase
+          .from('contributions')
+          .select('amount')
+          .eq('group_id', g.id)
+          .eq('status', 'confirmed');
+
+        const totalSavings = (savingsData || []).reduce((sum: number, c: any) => sum + Number(c.amount), 0);
+
+        groupList.push({
+          id: g.id,
+          name: g.name,
+          group_type: g.group_type,
+          description: g.description,
+          contribution_amount: g.contribution_amount || 0,
+          contribution_schedule: g.contribution_schedule || 'monthly',
+          invite_code: g.invite_code,
+          interest_rate: g.interest_rate,
+          late_fee: g.late_fee,
+          grace_period_days: g.grace_period_days,
+          members_count: memberCount || 0,
+          total_savings: totalSavings,
+          user_role: row.role,
+          is_active: g.is_active,
+          created_at: g.created_at,
+        });
+      }
+
+      setGroups(groupList);
+
+      // Restore previously selected group if still in list
+      const savedGroupId = localStorage.getItem('saccoup_selected_group');
+      if (savedGroupId && groupList.find(g => g.id === savedGroupId)) {
+        setSelectedGroupIdState(savedGroupId);
+      } else if (groupList.length > 0 && !selectedGroupId) {
+        setSelectedGroupIdState(groupList[0].id);
       }
     } catch (e) {
       console.error('Failed to load groups:', e);
@@ -131,9 +197,9 @@ if (error) {
   // Load groups when user changes
   useEffect(() => {
     if (user?.member_id) {
-      refreshGroups();
+      refreshGroups(user.member_id);
     }
-  }, [user?.member_id, refreshGroups]);
+  }, [user?.member_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load memberships for a member
   const loadMemberships = useCallback(async (memberId: string) => {
@@ -251,8 +317,9 @@ if (error) {
     setUser(null);
     setMemberships([]);
     setGroups([]);
-    setSelectedGroupId(null);
+    setSelectedGroupIdState(null);
     localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem('saccoup_selected_group');
   };
 
   return (
