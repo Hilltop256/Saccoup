@@ -243,10 +243,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAuthError(null);
     const normalizedPhone = normPhone(phone);
     if (pin.length < 4) return { success: false, error: 'PIN must be at least 4 digits' };
-    const { data: existing } = await supabase.from('user_accounts').select('id').eq('phone', normalizedPhone).maybeSingle();
+    const { data: existing, error: existErr } = await supabase.from('user_accounts').select('id').eq('phone', normalizedPhone).maybeSingle();
+    if (existErr && (existErr.code === '42P01' || existErr.message?.includes('relation') || existErr.message?.includes('does not exist'))) {
+      return { success: false, error: 'Database not set up. Run supabase_schema.sql in your Supabase SQL Editor first.' };
+    }
     if (existing) return { success: false, error: 'Phone already registered. Please sign in.' };
     const { data: member, error: memErr } = await supabase.from('members').insert({ full_name: fullName, phone: normalizedPhone, kyc_verified: false, is_active: true }).select('id').single();
-    if (memErr || !member) return { success: false, error: 'Failed to create account. Please try again.' };
+    if (memErr || !member) return { success: false, error: memErr?.message || 'Failed to create account. Please try again.' };
     const pinHash = await hashPin(pin);
     const { error: accErr } = await supabase.from('user_accounts').insert({ member_id: member.id, phone: normalizedPhone, pin_hash: pinHash });
     if (accErr) { await supabase.from('members').delete().eq('id', member.id); return { success: false, error: 'Failed to create account.' }; }
@@ -264,7 +267,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAuthError(null);
     const normalizedPhone = normPhone(phone);
     const pinHash = await hashPin(pin);
-    const { data: acc } = await supabase.from('user_accounts').select('id, member_id, pin_hash, is_active').eq('phone', normalizedPhone).maybeSingle();
+    const { data: acc, error: accErr } = await supabase.from('user_accounts').select('id, member_id, pin_hash, is_active').eq('phone', normalizedPhone).maybeSingle();
+    if (accErr && (accErr.code === '42P01' || accErr.message?.includes('relation') || accErr.message?.includes('does not exist'))) {
+      return { success: false, error: 'Database not set up. Run supabase_schema.sql in your Supabase SQL Editor first.' };
+    }
     if (!acc) return { success: false, error: 'Account not found. Please register first.' };
     if (!acc.is_active) return { success: false, error: 'Account deactivated. Contact support.' };
     if (acc.pin_hash !== pinHash) return { success: false, error: 'Invalid PIN. Please try again.' };

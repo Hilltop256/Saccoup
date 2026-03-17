@@ -1,5 +1,15 @@
 import { supabase } from '@/lib/supabase';
 
+// ===== DB HEALTH CHECK =====
+// Returns a user-friendly error string if the table is missing, otherwise null
+async function checkTable(table: string): Promise<string | null> {
+  const { error } = await supabase.from(table).select('id').limit(1);
+  if (error && (error.code === '42P01' || error.message?.includes('does not exist') || error.message?.includes('relation') || (error as any).status === 404)) {
+    return `Database table "${table}" not found. Please run the SQL schema in your Supabase project (see supabase_schema.sql).`;
+  }
+  return null;
+}
+
 // ===== GROUP OPERATIONS =====
 
 export async function createGroup(params: {
@@ -38,7 +48,13 @@ export async function createGroup(params: {
     .select('*')
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    // Give a clear message if the table doesn't exist yet
+    if (error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('does not exist')) {
+      throw new Error('Database not set up yet. Please run the SQL schema in your Supabase project dashboard (SQL Editor → New query → paste supabase_schema.sql → Run).');
+    }
+    throw new Error(error.message);
+  }
 
   // Auto-add creator as admin
   await supabase.from('group_memberships').insert({
