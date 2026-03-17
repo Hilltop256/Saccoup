@@ -60,7 +60,7 @@ interface AppContextType {
   setSelectedGroupId: (id: string) => void;
   refreshGroups: () => Promise<void>;
   // Auth actions
-  register: (phone: string, pin: string, fullName: string, inviteCode?: string) => Promise<{ success: boolean; phone?: string; demoOtp?: string; error?: string }>;
+  register: (phone: string, pin: string, fullName: string, inviteCode?: string, photoDataUrl?: string) => Promise<{ success: boolean; phone?: string; demoOtp?: string; error?: string }>;
   login: (phone: string, pin: string) => Promise<{ success: boolean; phone?: string; demoOtp?: string; error?: string }>;
   verifyOtp: (phone: string, otpCode: string) => Promise<{ success: boolean; error?: string }>;
   resendOtp: (phone: string) => Promise<{ success: boolean; demoOtp?: string; error?: string }>;
@@ -239,7 +239,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [loadMemberships]);
 
   // Register
-  const register = async (phone: string, pin: string, fullName: string, inviteCode?: string) => {
+  const register = async (phone: string, pin: string, fullName: string, inviteCode?: string, photoDataUrl?: string) => {
     setAuthError(null);
     const normalizedPhone = normPhone(phone);
     if (pin.length < 4) return { success: false, error: 'PIN must be at least 4 digits' };
@@ -248,7 +248,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: 'Database not set up. Run supabase_schema.sql in your Supabase SQL Editor first.' };
     }
     if (existing) return { success: false, error: 'Phone already registered. Please sign in.' };
-    const { data: member, error: memErr } = await supabase.from('members').insert({ full_name: fullName, phone: normalizedPhone, kyc_verified: false, is_active: true }).select('id').single();
+    const { data: member, error: memErr } = await supabase.from('members').insert({
+      full_name: fullName,
+      phone: normalizedPhone,
+      kyc_verified: false,
+      is_active: true,
+      photo_url: photoDataUrl || null,
+    }).select('id').single();
     if (memErr || !member) return { success: false, error: memErr?.message || 'Failed to create account. Please try again.' };
     const pinHash = await hashPin(pin);
     const { error: accErr } = await supabase.from('user_accounts').insert({ member_id: member.id, phone: normalizedPhone, pin_hash: pinHash });
