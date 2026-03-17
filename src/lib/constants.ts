@@ -33,7 +33,7 @@ export const COLORS = {
 };
 
 export type GroupType = 'savings_club' | 'investment_club' | 'sacco' | 'rosca' | 'hybrid';
-export type UserRole = 'member' | 'treasurer' | 'chairperson' | 'admin' | 'super_admin';
+export type UserRole = 'member' | 'treasurer' | 'chairperson' | 'secretary' | 'admin' | 'super_admin';
 export type PaymentMethod = 'mtn_momo' | 'airtel_money' | 'cash' | 'bank_transfer';
 export type ContributionStatus = 'pending' | 'confirmed' | 'failed' | 'reconciled';
 export type LoanStatus = 'pending' | 'treasurer_approved' | 'approved' | 'disbursed' | 'repaying' | 'completed' | 'defaulted' | 'rejected';
@@ -195,7 +195,8 @@ export interface RoscaCycle {
   draws: RoscaDraw[];
 }
 
-// Mock PBS Cycle 3 data (20 draws, D1–D20) — pre-loaded for demonstration
+// Mock PBS Cycle data — pre-loaded for demonstration
+// Cycle 1 (10 members, 10 draws), Cycle 2 (15 members, 15 draws), Cycle 3 (20 members, 20 draws)
 export const MOCK_PBS_CYCLES: RoscaCycle[] = [
   {
     cycle_number: 1,
@@ -205,15 +206,18 @@ export const MOCK_PBS_CYCLES: RoscaCycle[] = [
     end_date: '2024-10-31',
     total_draws: 10,
     pot_amount_per_draw: 500000,
-    draws: Array.from({ length: 10 }, (_, i) => ({
-      draw_number: i + 1,
-      winner_name: MOCK_MEMBERS[i % MOCK_MEMBERS.length]?.full_name || `Member ${i + 1}`,
-      amount_received: 500000,
-      draw_date: `2024-0${(i + 1) < 10 ? i + 1 : 10}-15`,
-      contributions_paid: 10,
-      total_members: 10,
-      status: 'won' as DrawStatus,
-    })),
+    draws: [
+      { draw_number: 1,  winner_name: 'Sarah Nakamya',   amount_received: 500000, draw_date: '2024-01-15', contributions_paid: 10, total_members: 10, status: 'won' as DrawStatus },
+      { draw_number: 2,  winner_name: 'James Ochieng',   amount_received: 500000, draw_date: '2024-02-15', contributions_paid: 10, total_members: 10, status: 'won' as DrawStatus },
+      { draw_number: 3,  winner_name: 'Grace Auma',      amount_received: 500000, draw_date: '2024-03-15', contributions_paid: 10, total_members: 10, status: 'won' as DrawStatus },
+      { draw_number: 4,  winner_name: 'Peter Mugisha',   amount_received: 500000, draw_date: '2024-04-15', contributions_paid: 9,  total_members: 10, status: 'won' as DrawStatus, notes: '1 late payment' },
+      { draw_number: 5,  winner_name: 'Florence Nambi',  amount_received: 500000, draw_date: '2024-05-15', contributions_paid: 10, total_members: 10, status: 'won' as DrawStatus },
+      { draw_number: 6,  winner_name: 'David Ssempijja', amount_received: 500000, draw_date: '2024-06-15', contributions_paid: 10, total_members: 10, status: 'won' as DrawStatus },
+      { draw_number: 7,  winner_name: 'Agnes Nabirye',   amount_received: 500000, draw_date: '2024-07-15', contributions_paid: 10, total_members: 10, status: 'won' as DrawStatus },
+      { draw_number: 8,  winner_name: 'Robert Kizza',    amount_received: 500000, draw_date: '2024-08-15', contributions_paid: 10, total_members: 10, status: 'won' as DrawStatus },
+      { draw_number: 9,  winner_name: 'Sarah Nakamya',   amount_received: 500000, draw_date: '2024-09-15', contributions_paid: 10, total_members: 10, status: 'won' as DrawStatus },
+      { draw_number: 10, winner_name: 'James Ochieng',   amount_received: 500000, draw_date: '2024-10-15', contributions_paid: 10, total_members: 10, status: 'won' as DrawStatus },
+    ],
   },
   {
     cycle_number: 2,
@@ -221,17 +225,25 @@ export const MOCK_PBS_CYCLES: RoscaCycle[] = [
     status: 'completed',
     start_date: '2024-11-01',
     end_date: '2025-08-31',
-    total_draws: 10,
+    total_draws: 15,
     pot_amount_per_draw: 600000,
-    draws: Array.from({ length: 10 }, (_, i) => ({
-      draw_number: i + 1,
-      winner_name: MOCK_MEMBERS[(i + 3) % MOCK_MEMBERS.length]?.full_name || `Member ${i + 1}`,
-      amount_received: 600000,
-      draw_date: `2024-${String(11 + Math.floor(i / 2)).padStart(2, '0')}-15`,
-      contributions_paid: 10,
-      total_members: 10,
-      status: 'won' as DrawStatus,
-    })),
+    draws: [
+      { draw_number: 1,  winner_name: 'Grace Auma',      amount_received: 600000, draw_date: '2024-11-15', contributions_paid: 15, total_members: 15, status: 'won' as DrawStatus },
+      { draw_number: 2,  winner_name: 'Peter Mugisha',   amount_received: 600000, draw_date: '2024-12-01', contributions_paid: 15, total_members: 15, status: 'won' as DrawStatus },
+      { draw_number: 3,  winner_name: 'Florence Nambi',  amount_received: 600000, draw_date: '2024-12-15', contributions_paid: 14, total_members: 15, status: 'won' as DrawStatus, notes: '1 member in arrears' },
+      { draw_number: 4,  winner_name: 'David Ssempijja', amount_received: 600000, draw_date: '2025-01-15', contributions_paid: 15, total_members: 15, status: 'won' as DrawStatus },
+      { draw_number: 5,  winner_name: 'Agnes Nabirye',   amount_received: 600000, draw_date: '2025-02-01', contributions_paid: 15, total_members: 15, status: 'won' as DrawStatus },
+      { draw_number: 6,  winner_name: 'Robert Kizza',    amount_received: 600000, draw_date: '2025-02-15', contributions_paid: 15, total_members: 15, status: 'won' as DrawStatus },
+      { draw_number: 7,  winner_name: 'Sarah Nakamya',   amount_received: 600000, draw_date: '2025-03-01', contributions_paid: 15, total_members: 15, status: 'won' as DrawStatus },
+      { draw_number: 8,  winner_name: 'James Ochieng',   amount_received: 600000, draw_date: '2025-03-15', contributions_paid: 15, total_members: 15, status: 'won' as DrawStatus },
+      { draw_number: 9,  winner_name: 'Grace Auma',      amount_received: 600000, draw_date: '2025-04-01', contributions_paid: 15, total_members: 15, status: 'won' as DrawStatus },
+      { draw_number: 10, winner_name: 'Peter Mugisha',   amount_received: 600000, draw_date: '2025-04-15', contributions_paid: 13, total_members: 15, status: 'won' as DrawStatus, notes: '2 members missed payment' },
+      { draw_number: 11, winner_name: 'Florence Nambi',  amount_received: 600000, draw_date: '2025-05-15', contributions_paid: 15, total_members: 15, status: 'won' as DrawStatus },
+      { draw_number: 12, winner_name: 'David Ssempijja', amount_received: 600000, draw_date: '2025-06-01', contributions_paid: 15, total_members: 15, status: 'won' as DrawStatus },
+      { draw_number: 13, winner_name: 'Agnes Nabirye',   amount_received: 600000, draw_date: '2025-06-15', contributions_paid: 15, total_members: 15, status: 'won' as DrawStatus },
+      { draw_number: 14, winner_name: 'Robert Kizza',    amount_received: 600000, draw_date: '2025-07-15', contributions_paid: 15, total_members: 15, status: 'won' as DrawStatus },
+      { draw_number: 15, winner_name: 'Sarah Nakamya',   amount_received: 600000, draw_date: '2025-08-15', contributions_paid: 15, total_members: 15, status: 'won' as DrawStatus },
+    ],
   },
   {
     cycle_number: 3,
@@ -242,26 +254,26 @@ export const MOCK_PBS_CYCLES: RoscaCycle[] = [
     total_draws: 20,
     pot_amount_per_draw: 750000,
     draws: [
-      { draw_number: 1, winner_name: 'Sarah Nakamya', winner_id: '1', amount_received: 750000, draw_date: '2025-09-15', contributions_paid: 20, total_members: 20, status: 'won', member_balance: 0, cycle4_status: 'active' },
-      { draw_number: 2, winner_name: 'James Ochieng', winner_id: '2', amount_received: 750000, draw_date: '2025-10-01', contributions_paid: 20, total_members: 20, status: 'won', member_balance: 0, cycle4_status: 'active' },
-      { draw_number: 3, winner_name: 'Grace Auma', winner_id: '3', amount_received: 750000, draw_date: '2025-10-15', contributions_paid: 19, total_members: 20, status: 'won', notes: '1 member paid late', member_balance: -30000, cycle4_status: 'arrears' },
-      { draw_number: 4, winner_name: 'Peter Mugisha', winner_id: '4', amount_received: 750000, draw_date: '2025-11-01', contributions_paid: 20, total_members: 20, status: 'won', member_balance: 0, cycle4_status: 'active' },
-      { draw_number: 5, winner_name: 'Florence Nambi', winner_id: '5', amount_received: 750000, draw_date: '2025-11-15', contributions_paid: 20, total_members: 20, status: 'won', member_balance: 0, cycle4_status: 'active' },
-      { draw_number: 6, winner_name: 'David Ssempijja', winner_id: '6', amount_received: 750000, draw_date: '2025-12-01', contributions_paid: 18, total_members: 20, status: 'won', notes: '2 members in arrears', member_balance: -60000, cycle4_status: 'arrears' },
-      { draw_number: 7, winner_name: 'Agnes Nabirye', winner_id: '7', amount_received: 750000, draw_date: '2025-12-15', contributions_paid: 20, total_members: 20, status: 'won', member_balance: 0, cycle4_status: 'active' },
-      { draw_number: 8, winner_name: 'Robert Kizza', winner_id: '8', amount_received: 750000, draw_date: '2026-01-01', contributions_paid: 20, total_members: 20, status: 'won', member_balance: 30000, cycle4_status: 'active' },
-      { draw_number: 9, winner_name: 'Sarah Nakamya', winner_id: '1', amount_received: 750000, draw_date: '2026-01-15', contributions_paid: 20, total_members: 20, status: 'won', member_balance: 0, cycle4_status: 'active' },
-      { draw_number: 10, winner_name: 'James Ochieng', winner_id: '2', amount_received: 750000, draw_date: '2026-02-01', contributions_paid: 20, total_members: 20, status: 'won', member_balance: 0, cycle4_status: 'active' },
-      { draw_number: 11, winner_name: 'Grace Auma', winner_id: '3', amount_received: 750000, draw_date: '2026-02-15', contributions_paid: 19, total_members: 20, status: 'won', notes: 'Late fee charged', member_balance: -15000, cycle4_status: 'arrears' },
-      { draw_number: 12, winner_name: 'Peter Mugisha', winner_id: '4', amount_received: 750000, draw_date: '2026-03-01', contributions_paid: 20, total_members: 20, status: 'won', member_balance: 0, cycle4_status: 'active' },
-      { draw_number: 13, winner_name: 'Florence Nambi', winner_id: '5', amount_received: 750000, draw_date: '2026-03-08', contributions_paid: 20, total_members: 20, status: 'won', member_balance: 0, cycle4_status: 'active' },
-      { draw_number: 14, winner_name: 'David Ssempijja', winner_id: '6', amount_received: 750000, draw_date: '2026-03-15', contributions_paid: 20, total_members: 20, status: 'won', member_balance: 60000, cycle4_status: 'completed' },
-      { draw_number: 15, winner_name: 'Agnes Nabirye', winner_id: '7', amount_received: 750000, draw_date: '2026-03-22', contributions_paid: 20, total_members: 20, status: 'won', member_balance: 0, cycle4_status: 'active' },
-      { draw_number: 16, winner_name: 'Robert Kizza', winner_id: '8', amount_received: 750000, draw_date: '2026-03-29', contributions_paid: 20, total_members: 20, status: 'won', member_balance: 0, cycle4_status: 'active' },
-      { draw_number: 17, winner_name: 'Sarah Nakamya', winner_id: '1', amount_received: 750000, draw_date: '2026-04-05', contributions_paid: 19, total_members: 20, status: 'won', notes: 'One member forfeited slot', member_balance: -30000, cycle4_status: 'arrears' },
-      { draw_number: 18, winner_name: 'James Ochieng', winner_id: '2', amount_received: 750000, draw_date: '2026-04-12', contributions_paid: 20, total_members: 20, status: 'won', member_balance: 0, cycle4_status: 'active' },
-      { draw_number: 19, winner_name: 'Grace Auma', winner_id: '3', amount_received: 750000, draw_date: '2026-04-19', contributions_paid: 20, total_members: 20, status: 'won', member_balance: 0, cycle4_status: 'active' },
-      { draw_number: 20, winner_name: 'Peter Mugisha', winner_id: '4', amount_received: 750000, draw_date: '2026-04-26', contributions_paid: 20, total_members: 20, status: 'won', member_balance: 0, cycle4_status: 'active' },
+      { draw_number: 1,  winner_name: 'Sarah Nakamya',    winner_id: '1',  amount_received: 750000, draw_date: '2025-09-07',  contributions_paid: 20, total_members: 20, status: 'won' as DrawStatus, member_balance: 0,      cycle4_status: 'active' as const },
+      { draw_number: 2,  winner_name: 'James Ochieng',    winner_id: '2',  amount_received: 750000, draw_date: '2025-09-21',  contributions_paid: 20, total_members: 20, status: 'won' as DrawStatus, member_balance: 0,      cycle4_status: 'active' as const },
+      { draw_number: 3,  winner_name: 'Grace Auma',       winner_id: '3',  amount_received: 750000, draw_date: '2025-10-05',  contributions_paid: 19, total_members: 20, status: 'won' as DrawStatus, member_balance: -30000, cycle4_status: 'arrears' as const, notes: '1 member paid late' },
+      { draw_number: 4,  winner_name: 'Peter Mugisha',    winner_id: '4',  amount_received: 750000, draw_date: '2025-10-19',  contributions_paid: 20, total_members: 20, status: 'won' as DrawStatus, member_balance: 0,      cycle4_status: 'active' as const },
+      { draw_number: 5,  winner_name: 'Florence Nambi',   winner_id: '5',  amount_received: 750000, draw_date: '2025-11-02',  contributions_paid: 20, total_members: 20, status: 'won' as DrawStatus, member_balance: 0,      cycle4_status: 'active' as const },
+      { draw_number: 6,  winner_name: 'David Ssempijja',  winner_id: '6',  amount_received: 750000, draw_date: '2025-11-16',  contributions_paid: 18, total_members: 20, status: 'won' as DrawStatus, member_balance: -60000, cycle4_status: 'arrears' as const, notes: '2 members in arrears' },
+      { draw_number: 7,  winner_name: 'Agnes Nabirye',    winner_id: '7',  amount_received: 750000, draw_date: '2025-11-30',  contributions_paid: 20, total_members: 20, status: 'won' as DrawStatus, member_balance: 0,      cycle4_status: 'active' as const },
+      { draw_number: 8,  winner_name: 'Robert Kizza',     winner_id: '8',  amount_received: 750000, draw_date: '2025-12-07',  contributions_paid: 20, total_members: 20, status: 'won' as DrawStatus, member_balance: 30000,  cycle4_status: 'active' as const },
+      { draw_number: 9,  winner_name: 'Lydia Kyomuhendo', winner_id: '9',  amount_received: 750000, draw_date: '2025-12-21',  contributions_paid: 20, total_members: 20, status: 'won' as DrawStatus, member_balance: 0,      cycle4_status: 'active' as const },
+      { draw_number: 10, winner_name: 'Moses Wanyama',    winner_id: '10', amount_received: 750000, draw_date: '2026-01-04',  contributions_paid: 20, total_members: 20, status: 'won' as DrawStatus, member_balance: 0,      cycle4_status: 'active' as const },
+      { draw_number: 11, winner_name: 'Deborah Atim',     winner_id: '11', amount_received: 750000, draw_date: '2026-01-18',  contributions_paid: 19, total_members: 20, status: 'won' as DrawStatus, member_balance: -15000, cycle4_status: 'arrears' as const, notes: 'Late fee charged' },
+      { draw_number: 12, winner_name: 'Emmanuel Okello',  winner_id: '12', amount_received: 750000, draw_date: '2026-02-01',  contributions_paid: 20, total_members: 20, status: 'won' as DrawStatus, member_balance: 0,      cycle4_status: 'active' as const },
+      { draw_number: 13, winner_name: 'Prossy Nansubuga', winner_id: '13', amount_received: 750000, draw_date: '2026-02-15',  contributions_paid: 20, total_members: 20, status: 'won' as DrawStatus, member_balance: 0,      cycle4_status: 'active' as const },
+      { draw_number: 14, winner_name: 'Godfrey Tumwine',  winner_id: '14', amount_received: 750000, draw_date: '2026-03-01',  contributions_paid: 20, total_members: 20, status: 'won' as DrawStatus, member_balance: 60000,  cycle4_status: 'completed' as const },
+      { draw_number: 15, winner_name: 'Harriet Nangobi',  winner_id: '15', amount_received: 750000, draw_date: '2026-03-08',  contributions_paid: 20, total_members: 20, status: 'won' as DrawStatus, member_balance: 0,      cycle4_status: 'active' as const },
+      { draw_number: 16, winner_name: 'Ivan Mugabi',      winner_id: '16', amount_received: 750000, draw_date: '2026-03-15',  contributions_paid: 20, total_members: 20, status: 'won' as DrawStatus, member_balance: 0,      cycle4_status: 'active' as const },
+      { draw_number: 17, winner_name: 'Juliet Tusiime',   winner_id: '17', amount_received: 750000, draw_date: '2026-03-22',  contributions_paid: 19, total_members: 20, status: 'won' as DrawStatus, member_balance: -30000, cycle4_status: 'arrears' as const, notes: 'One member forfeited slot' },
+      { draw_number: 18, winner_name: 'Kenneth Ssali',    winner_id: '18', amount_received: 750000, draw_date: '2026-03-29',  contributions_paid: 20, total_members: 20, status: 'won' as DrawStatus, member_balance: 0,      cycle4_status: 'active' as const },
+      { draw_number: 19, winner_name: 'Lillian Nabwire',  winner_id: '19', amount_received: 750000, draw_date: '2026-04-05',  contributions_paid: 20, total_members: 20, status: 'won' as DrawStatus, member_balance: 0,      cycle4_status: 'active' as const },
+      { draw_number: 20, winner_name: 'Michael Opio',     winner_id: '20', amount_received: 750000, draw_date: '2026-04-12',  contributions_paid: 20, total_members: 20, status: 'won' as DrawStatus, member_balance: 0,      cycle4_status: 'active' as const },
     ],
   },
 ];
@@ -306,6 +318,7 @@ export const getRoleColor = (role: UserRole): string => {
     case 'admin': return 'bg-purple-100 text-purple-700';
     case 'treasurer': return 'bg-blue-100 text-blue-700';
     case 'chairperson': return 'bg-emerald-100 text-emerald-700';
+    case 'secretary': return 'bg-cyan-100 text-cyan-700';
     case 'member': return 'bg-gray-100 text-gray-600';
     case 'super_admin': return 'bg-red-100 text-red-700';
   }
