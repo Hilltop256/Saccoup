@@ -80,10 +80,21 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, onCl
 
           <div className="p-4 border-t border-gray-100">
             <div className="flex items-center gap-3 mb-3">
-              <img src={IMAGES.avatars[0]} alt="User" className="w-9 h-9 rounded-full object-cover" />
+              {user?.photo_url ? (
+                <img
+                  src={user.photo_url}
+                  alt={user.full_name}
+                  className="w-9 h-9 rounded-full object-cover border border-gray-200"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#0066CC] to-[#00CC99] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                  {user?.full_name?.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() || 'U'}
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 truncate">{user?.full_name || 'User'}</p>
-                <p className="text-xs text-gray-500">{selectedGroup?.user_role || 'Member'}</p>
+                <p className="text-xs text-gray-500 capitalize">{selectedGroup?.user_role || 'Member'} · {user?.phone?.slice(-4) ? `···${user.phone.slice(-4)}` : ''}</p>
               </div>
             </div>
             <button onClick={onLogout} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors">
