@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   MOCK_PBS_CYCLES,
-  MOCK_MEMBERS,
   formatUGX,
   type RoscaCycle,
   type RoscaDraw,
   type DrawStatus,
 } from '@/lib/constants';
+import { useAppContext } from '@/contexts/AppContext';
+import * as ds from '@/lib/dataService';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -39,14 +40,14 @@ function cycleStatusBadge(status: string) {
 }
 
 // blank draw template
-function emptyDraw(num: number): RoscaDraw {
+function emptyDraw(num: number, totalMembers: number): RoscaDraw {
   return {
     draw_number: num,
     winner_name: '',
     amount_received: 750000,
     draw_date: new Date().toISOString().slice(0, 10),
-    contributions_paid: 20,
-    total_members: 20,
+    contributions_paid: totalMembers,
+    total_members: totalMembers,
     status: 'won',
     notes: '',
     member_balance: 0,
@@ -102,7 +103,7 @@ const CycleSummaryCard: React.FC<{ cycle: RoscaCycle; onClick: () => void; isSel
 };
 
 /** Row for each draw in the selected cycle */
-const DrawRow: React.FC<{ draw: RoscaDraw; onEdit: (d: RoscaDraw) => void }> = ({ draw, onEdit }) => (
+const DrawRow: React.FC<{ draw: RoscaDraw; onEdit: (d: RoscaDraw) => void; canEdit: boolean }> = ({ draw, onEdit, canEdit }) => (
   <tr className="hover:bg-purple-50/40 transition-colors">
     <td className="px-4 py-3 text-center">
       <span className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-xs font-extrabold mx-auto">
@@ -140,12 +141,16 @@ const DrawRow: React.FC<{ draw: RoscaDraw; onEdit: (d: RoscaDraw) => void }> = (
       )}
     </td>
     <td className="px-4 py-3 text-right">
-      <button
-        onClick={() => onEdit(draw)}
-        className="text-xs font-bold text-purple-600 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg transition-colors"
-      >
-        Edit
-      </button>
+      {canEdit ? (
+        <button
+          onClick={() => onEdit(draw)}
+          className="text-xs font-bold text-purple-600 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg transition-colors"
+        >
+          Edit
+        </button>
+      ) : (
+        <span className="text-xs text-gray-300 font-semibold px-2.5 py-1">—</span>
+      )}
     </td>
   </tr>
 );
@@ -157,13 +162,30 @@ interface EditDrawModalProps {
   members: { full_name: string; id: string }[];
   onSave: (d: RoscaDraw) => void;
   onClose: () => void;
+  cycleNumber: number;
 }
 
-const EditDrawModal: React.FC<EditDrawModalProps> = ({ draw, members, onSave, onClose }) => {
+const EditDrawModal: React.FC<EditDrawModalProps> = ({ draw, members, onSave, onClose, cycleNumber }) => {
   const [form, setForm] = useState<RoscaDraw>({ ...draw });
+  // Track whether the winner was typed manually vs selected from list
+  const [customWinner, setCustomWinner] = useState(
+    draw.winner_name !== '' && !members.find(m => m.full_name === draw.winner_name)
+  );
 
   const set = (key: keyof RoscaDraw, val: string | number) =>
     setForm(prev => ({ ...prev, [key]: val }));
+
+  const handleWinnerSelect = (val: string) => {
+    if (val === '__custom__') {
+      setCustomWinner(true);
+      set('winner_name', '');
+    } else {
+      setCustomWinner(false);
+      set('winner_name', val);
+    }
+  };
+
+  const selectValue = customWinner ? '__custom__' : form.winner_name;
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -172,8 +194,12 @@ const EditDrawModal: React.FC<EditDrawModalProps> = ({ draw, members, onSave, on
         <div className="bg-gradient-to-r from-[#7c3aed] to-[#ec4899] px-6 py-5 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-extrabold">Edit Draw D{draw.draw_number}</h2>
-              <p className="text-sm text-purple-100 font-semibold">Update draw details &amp; Cycle 4 status</p>
+              <h2 className="text-lg font-extrabold">
+                {draw.winner_name ? `Edit Draw D${draw.draw_number}` : `Add New Draw`}
+              </h2>
+              <p className="text-sm text-purple-100 font-semibold">
+                Cycle {cycleNumber} — Update draw details &amp; account status
+              </p>
             </div>
             <button onClick={onClose} className="p-1.5 hover:bg-white/20 rounded-xl transition-colors">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -186,28 +212,31 @@ const EditDrawModal: React.FC<EditDrawModalProps> = ({ draw, members, onSave, on
         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
           {/* Winner */}
           <div>
-            <label className="text-sm font-bold text-gray-700 mb-1 block">🏅 Winner</label>
+            <label className="text-sm font-bold text-gray-700 mb-1 block">🏅 Winner (Member)</label>
             <select
-              value={form.winner_name}
-              onChange={e => set('winner_name', e.target.value)}
+              value={selectValue}
+              onChange={e => handleWinnerSelect(e.target.value)}
               className="w-full px-3 py-2.5 text-sm border-2 border-purple-100 rounded-xl focus:ring-2 focus:ring-purple-400 outline-none bg-white"
             >
-              <option value="">— Select winner —</option>
-              {members.map(m => <option key={m.id} value={m.full_name}>{m.full_name}</option>)}
-              <option value="Other">Other (type below)</option>
+              <option value="">— Select member —</option>
+              {members.map(m => (
+                <option key={m.id} value={m.full_name}>{m.full_name}</option>
+              ))}
+              <option value="__custom__">Other (type name)</option>
             </select>
-            {(form.winner_name === 'Other' || !members.find(m => m.full_name === form.winner_name)) && (
+            {customWinner && (
               <input
                 type="text"
-                value={form.winner_name === 'Other' ? '' : form.winner_name}
+                value={form.winner_name}
                 onChange={e => set('winner_name', e.target.value)}
                 className="mt-2 w-full px-3 py-2.5 text-sm border-2 border-purple-100 rounded-xl focus:ring-2 focus:ring-purple-400 outline-none"
                 placeholder="Enter winner name"
+                autoFocus
               />
             )}
           </div>
 
-          {/* Amount */}
+          {/* Amount & Date */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-bold text-gray-700 mb-1 block">💰 Amount (UGX)</label>
@@ -229,7 +258,7 @@ const EditDrawModal: React.FC<EditDrawModalProps> = ({ draw, members, onSave, on
             </div>
           </div>
 
-          {/* Contributions */}
+          {/* Contributions Paid / Total */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-bold text-gray-700 mb-1 block">✅ Contributions Paid</label>
@@ -269,9 +298,9 @@ const EditDrawModal: React.FC<EditDrawModalProps> = ({ draw, members, onSave, on
             </select>
           </div>
 
-          {/* Cycle 4 section */}
+          {/* Cycle 4 / next cycle section */}
           <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-4 border border-purple-100">
-            <p className="text-sm font-extrabold text-purple-700 mb-3">🔄 Cycle 4 Account Status</p>
+            <p className="text-sm font-extrabold text-purple-700 mb-3">🔄 Next Cycle Account Status</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-bold text-gray-600 mb-1 block">Status</label>
@@ -319,7 +348,8 @@ const EditDrawModal: React.FC<EditDrawModalProps> = ({ draw, members, onSave, on
           </button>
           <button
             onClick={() => onSave(form)}
-            className="flex-1 py-2.5 text-sm font-extrabold text-white bg-gradient-to-r from-[#7c3aed] to-[#ec4899] rounded-xl hover:opacity-90 transition-opacity shadow-md shadow-purple-300/40"
+            disabled={!form.winner_name.trim()}
+            className="flex-1 py-2.5 text-sm font-extrabold text-white bg-gradient-to-r from-[#7c3aed] to-[#ec4899] rounded-xl hover:opacity-90 transition-opacity shadow-md shadow-purple-300/40 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             💾 Save Changes
           </button>
@@ -332,26 +362,51 @@ const EditDrawModal: React.FC<EditDrawModalProps> = ({ draw, members, onSave, on
 // ─── Main RoscaPage ──────────────────────────────────────────────────────────
 
 const RoscaPage: React.FC = () => {
+  const { user, selectedGroupId, selectedGroup } = useAppContext();
+
+  // Real members loaded from the group
+  const [groupMembers, setGroupMembers] = useState<{ full_name: string; id: string }[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+
   const [cycles, setCycles] = useState<RoscaCycle[]>(MOCK_PBS_CYCLES);
   const [selectedCycleNum, setSelectedCycleNum] = useState<number>(3);
   const [editingDraw, setEditingDraw] = useState<RoscaDraw | null>(null);
   const [showAddDraw, setShowAddDraw] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+  // Permission: admin, chairperson, or secretary can edit all cycles
+  // Use the group membership role (selectedGroup.user_role) as source of truth
+  const membershipRole = (selectedGroup?.user_role || '').toLowerCase();
+  const canEdit = ['admin', 'chairperson', 'chairman', 'secretary'].includes(membershipRole);
+
+  // Load real group members
+  useEffect(() => {
+    if (!selectedGroupId) return;
+    setMembersLoading(true);
+    ds.listMembers(selectedGroupId)
+      .then(res => {
+        if (res.success && res.members.length > 0) {
+          setGroupMembers(res.members.map((m: any) => ({ full_name: m.full_name, id: m.id })));
+        }
+      })
+      .catch(() => {/* silently fall back to empty — edit modal still works with "Other" */})
+      .finally(() => setMembersLoading(false));
+  }, [selectedGroupId]);
 
   const selectedCycle = cycles.find(c => c.cycle_number === selectedCycleNum) || cycles[cycles.length - 1];
 
-  // Derive Cycle 4 summary from Cycle 3 draws
-  const cycle3 = cycles.find(c => c.cycle_number === 3);
-  const cycle4Counts = {
-    active: cycle3?.draws.filter(d => d.cycle4_status === 'active').length || 0,
-    arrears: cycle3?.draws.filter(d => d.cycle4_status === 'arrears').length || 0,
-    completed: cycle3?.draws.filter(d => d.cycle4_status === 'completed').length || 0,
-    paused: cycle3?.draws.filter(d => d.cycle4_status === 'paused').length || 0,
+  // Derive next-cycle summary from the latest cycle's draws
+  const latestCycle = cycles[cycles.length - 1];
+  const nextCycleCounts = {
+    active: latestCycle?.draws.filter(d => d.cycle4_status === 'active').length || 0,
+    arrears: latestCycle?.draws.filter(d => d.cycle4_status === 'arrears').length || 0,
+    completed: latestCycle?.draws.filter(d => d.cycle4_status === 'completed').length || 0,
+    paused: latestCycle?.draws.filter(d => d.cycle4_status === 'paused').length || 0,
   };
-  const totalArrears = cycle3?.draws.reduce((s, d) => s + (d.member_balance && d.member_balance < 0 ? Math.abs(d.member_balance) : 0), 0) || 0;
+  const totalArrears = latestCycle?.draws.reduce((s, d) => s + (d.member_balance && d.member_balance < 0 ? Math.abs(d.member_balance) : 0), 0) || 0;
 
-  const showToast = (msg: string) => {
-    setToast(msg);
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
   };
 
@@ -364,7 +419,7 @@ const RoscaPage: React.FC = () => {
       };
     }));
     setEditingDraw(null);
-    showToast(`Draw D${updated.draw_number} updated successfully! 🎉`);
+    showToast(`Draw D${updated.draw_number} updated successfully!`);
   };
 
   const handleAddDraw = (newDraw: RoscaDraw) => {
@@ -375,8 +430,10 @@ const RoscaPage: React.FC = () => {
       return { ...c, draws: [...c.draws, drawToAdd], total_draws: c.total_draws + 1 };
     }));
     setShowAddDraw(false);
-    showToast(`New draw added! 🎲`);
+    showToast('New draw added!');
   };
+
+  const currentTotalMembers = selectedCycle?.draws[0]?.total_members || groupMembers.length || 20;
 
   return (
     <div className="space-y-6">
@@ -386,45 +443,64 @@ const RoscaPage: React.FC = () => {
           <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
             🎡 PBS Merry-Go-Round
           </h1>
-          <p className="text-sm text-purple-500 font-semibold">Cycle history, draw records &amp; Cycle 4 account status</p>
+          <p className="text-sm text-purple-500 font-semibold">Cycle history, draw records &amp; account status</p>
         </div>
-        <button
-          onClick={() => setShowAddDraw(true)}
-          className="flex items-center gap-2 px-4 py-2.5 text-sm font-extrabold text-white bg-gradient-to-r from-[#7c3aed] to-[#ec4899] rounded-xl hover:opacity-90 transition-opacity shadow-md shadow-purple-300/40"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.5v15m7.5-7.5h-15" /></svg>
-          Add Draw
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => setShowAddDraw(true)}
+            className="flex items-center gap-2 px-4 py-2.5 text-sm font-extrabold text-white bg-gradient-to-r from-[#7c3aed] to-[#ec4899] rounded-xl hover:opacity-90 transition-opacity shadow-md shadow-purple-300/40"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Add Draw
+          </button>
+        )}
       </div>
 
-      {/* Toast */}
-      {toast && (
-        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-2xl text-sm font-bold shadow-sm">
-          {toast}
+      {/* Permission notice for non-editors */}
+      {!canEdit && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-2xl text-sm font-semibold">
+          👁 View only. Contact your admin or chairman to make changes.
         </div>
       )}
 
-      {/* Cycle 4 Status Banner (derived from Cycle 3) */}
-      {cycle3 && (
+      {/* Toast */}
+      {toast && (
+        <div className={`px-4 py-3 rounded-2xl text-sm font-bold shadow-sm border ${
+          toast.type === 'error'
+            ? 'bg-red-50 border-red-200 text-red-700'
+            : 'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200 text-emerald-700'
+        }`}>
+          {toast.type === 'success' ? '✅' : '❌'} {toast.msg}
+        </div>
+      )}
+
+      {/* Next Cycle Status Banner (derived from latest cycle) */}
+      {latestCycle && (
         <div className="bg-gradient-to-br from-purple-600 via-purple-700 to-pink-600 rounded-3xl p-5 text-white shadow-xl shadow-purple-300/40">
           <div className="flex items-center gap-2 mb-4">
             <span className="text-2xl">🔄</span>
             <div>
-              <h2 className="font-extrabold text-lg">Cycle 4 — Account Status Overview</h2>
-              <p className="text-sm text-purple-200 font-semibold">Based on Cycle 3 ({cycle3.total_draws} draws) carry-over</p>
+              <h2 className="font-extrabold text-lg">
+                Cycle {latestCycle.cycle_number + 1} — Account Status Overview
+              </h2>
+              <p className="text-sm text-purple-200 font-semibold">
+                Based on {latestCycle.cycle_name} ({latestCycle.total_draws} draws) carry-over
+              </p>
             </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-white/15 rounded-2xl p-3 text-center">
-              <p className="text-2xl font-extrabold">{cycle4Counts.active}</p>
+              <p className="text-2xl font-extrabold">{nextCycleCounts.active}</p>
               <p className="text-xs font-bold text-purple-200 uppercase tracking-wide">✅ Active</p>
             </div>
             <div className="bg-red-500/30 rounded-2xl p-3 text-center">
-              <p className="text-2xl font-extrabold">{cycle4Counts.arrears}</p>
+              <p className="text-2xl font-extrabold">{nextCycleCounts.arrears}</p>
               <p className="text-xs font-bold text-red-200 uppercase tracking-wide">⚠️ Arrears</p>
             </div>
             <div className="bg-white/15 rounded-2xl p-3 text-center">
-              <p className="text-2xl font-extrabold">{cycle4Counts.completed}</p>
+              <p className="text-2xl font-extrabold">{nextCycleCounts.completed}</p>
               <p className="text-xs font-bold text-purple-200 uppercase tracking-wide">🏁 Settled</p>
             </div>
             <div className="bg-amber-500/20 rounded-2xl p-3 text-center">
@@ -460,9 +536,14 @@ const RoscaPage: React.FC = () => {
                 {selectedCycle.draws.length} draws · Pot per draw: {formatUGX(selectedCycle.pot_amount_per_draw)} · {selectedCycle.start_date} → {selectedCycle.end_date || 'ongoing'}
               </p>
             </div>
-            <span className={`px-3 py-1 rounded-full text-xs font-extrabold ${cycleStatusBadge(selectedCycle.status)}`}>
-              {selectedCycle.status}
-            </span>
+            <div className="flex items-center gap-3">
+              {membersLoading && (
+                <span className="text-xs text-purple-400 font-semibold animate-pulse">Loading members…</span>
+              )}
+              <span className={`px-3 py-1 rounded-full text-xs font-extrabold ${cycleStatusBadge(selectedCycle.status)}`}>
+                {selectedCycle.status}
+              </span>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -475,7 +556,7 @@ const RoscaPage: React.FC = () => {
                   <th className="px-4 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider text-left">Date</th>
                   <th className="px-4 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider text-center">Paid/Total</th>
                   <th className="px-4 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider">Cycle 4</th>
+                  <th className="px-4 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider">Next Cycle</th>
                   <th className="px-4 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider text-right">Action</th>
                 </tr>
               </thead>
@@ -483,12 +564,17 @@ const RoscaPage: React.FC = () => {
                 {selectedCycle.draws.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-6 py-12 text-center text-sm text-gray-400 font-semibold">
-                      No draws recorded yet. Click "Add Draw" to get started! 🎲
+                      No draws recorded yet.{canEdit ? ' Click "Add Draw" to get started! 🎲' : ''}
                     </td>
                   </tr>
                 ) : (
                   selectedCycle.draws.map(d => (
-                    <DrawRow key={d.draw_number} draw={d} onEdit={setEditingDraw} />
+                    <DrawRow
+                      key={d.draw_number}
+                      draw={d}
+                      onEdit={setEditingDraw}
+                      canEdit={canEdit}
+                    />
                   ))
                 )}
               </tbody>
@@ -510,36 +596,36 @@ const RoscaPage: React.FC = () => {
                   {selectedCycle.draws.filter(d => d.status === 'won').length}/{selectedCycle.total_draws}
                 </span>
               </div>
-              {selectedCycleNum === 3 && (
-                <div>
-                  <span className="text-xs font-extrabold text-gray-500 uppercase tracking-wide">C4 Arrears: </span>
-                  <span className="text-sm font-extrabold text-red-500">
-                    {selectedCycle.draws.filter(d => d.cycle4_status === 'arrears').length} member(s)
-                  </span>
-                </div>
-              )}
+              <div>
+                <span className="text-xs font-extrabold text-gray-500 uppercase tracking-wide">Arrears: </span>
+                <span className="text-sm font-extrabold text-red-500">
+                  {selectedCycle.draws.filter(d => d.cycle4_status === 'arrears').length} member(s)
+                </span>
+              </div>
             </div>
           )}
         </div>
       )}
 
       {/* Edit Draw Modal */}
-      {editingDraw && (
+      {editingDraw && canEdit && (
         <EditDrawModal
           draw={editingDraw}
-          members={MOCK_MEMBERS.map(m => ({ full_name: m.full_name, id: m.id }))}
+          members={groupMembers}
           onSave={handleSaveDraw}
           onClose={() => setEditingDraw(null)}
+          cycleNumber={selectedCycleNum}
         />
       )}
 
       {/* Add Draw Modal */}
-      {showAddDraw && (
+      {showAddDraw && canEdit && (
         <EditDrawModal
-          draw={emptyDraw((selectedCycle?.draws.length || 0) + 1)}
-          members={MOCK_MEMBERS.map(m => ({ full_name: m.full_name, id: m.id }))}
+          draw={emptyDraw((selectedCycle?.draws.length || 0) + 1, currentTotalMembers)}
+          members={groupMembers}
           onSave={handleAddDraw}
           onClose={() => setShowAddDraw(false)}
+          cycleNumber={selectedCycleNum}
         />
       )}
     </div>
