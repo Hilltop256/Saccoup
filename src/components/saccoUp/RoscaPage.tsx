@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
-  MOCK_PBS_CYCLES,
   formatUGX,
-  type RoscaCycle,
   type RoscaDraw,
   type DrawStatus,
 } from '@/lib/constants';
 import { useAppContext } from '@/contexts/AppContext';
+import { useRoscaData } from '@/contexts/RoscaContext';
 import * as ds from '@/lib/dataService';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -321,12 +320,12 @@ const EditDrawModal: React.FC<EditDrawModalProps> = ({ draw, members, onSave, on
 
 const RoscaPage: React.FC = () => {
   const { user, selectedGroupId, selectedGroup } = useAppContext();
+  const { cycles, updateDraw, setCycles } = useRoscaData();
 
   // Real members loaded from the group
   const [groupMembers, setGroupMembers] = useState<{ full_name: string; id: string }[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
 
-  const [cycles, setCycles] = useState<RoscaCycle[]>(MOCK_PBS_CYCLES);
   const [selectedCycleNum, setSelectedCycleNum] = useState<number>(3);
   const [editingDraw, setEditingDraw] = useState<RoscaDraw | null>(null);
   const [showAddDraw, setShowAddDraw] = useState(false);
@@ -361,17 +360,7 @@ const RoscaPage: React.FC = () => {
   };
 
   const handleSaveDraw = (updated: RoscaDraw) => {
-    setCycles(prev => prev.map(c => {
-      if (c.cycle_number !== selectedCycleNum) return c;
-      return {
-        ...c,
-        draws: c.draws.map(d => 
-          d.draw_number === updated.draw_number && d.winner_slot === updated.winner_slot 
-            ? updated 
-            : d
-        ),
-      };
-    }));
+    updateDraw(selectedCycleNum, updated);
     setEditingDraw(null);
     showToast(`Draw D${updated.draw_number}-W${updated.winner_slot} updated!`);
   };

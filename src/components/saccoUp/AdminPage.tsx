@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
-  MOCK_PBS_CYCLES,
   formatUGX,
-  type RoscaCycle,
   type RoscaDraw,
 } from '@/lib/constants';
 import { useAppContext } from '@/contexts/AppContext';
+import { useRoscaData } from '@/contexts/RoscaContext';
 import * as ds from '@/lib/dataService';
 
 type AdminTab = 'rosca' | 'members' | 'contributions' | 'loans';
@@ -73,7 +72,7 @@ const AdminPage: React.FC = () => {
 // ─── ROSCA Tab ────────────────────────────────────────────────────────────────
 
 const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => {
-  const [cycles, setCycles] = useState<RoscaCycle[]>(MOCK_PBS_CYCLES);
+  const { cycles, updateDraw } = useRoscaData();
   const [selectedCycle, setSelectedCycle] = useState<number>(1);
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<RoscaDraw | null>(null);
@@ -87,17 +86,7 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
 
   const handleSave = () => {
     if (!editForm) return;
-    setCycles(prev => prev.map(c => {
-      if (c.cycle_number !== selectedCycle) return c;
-      return {
-        ...c,
-        draws: c.draws.map(d => 
-          d.draw_number === editForm.draw_number && d.winner_slot === editForm.winner_slot 
-            ? editForm 
-            : d
-        ),
-      };
-    }));
+    updateDraw(selectedCycle, editForm);
     setEditingRow(null);
     setEditForm(null);
     onToast('Draw updated successfully!');
@@ -271,6 +260,7 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
 
 const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => {
   const { selectedGroupId } = useAppContext();
+  const { getMemberStats } = useRoscaData();
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -319,14 +309,19 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
               <tr>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Name</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Phone</th>
-                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Email</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Role</th>
+                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Wins</th>
+                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Amount Won</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Savings</th>
+                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Deductions</th>
+                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Net Received</th>
                 <th className="px-3 py-3 text-right text-xs font-extrabold text-gray-500 uppercase">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {members.map(member => (
+              {members.map(member => {
+                const stats = getMemberStats(member.full_name);
+                return (
                 <tr key={member.id} className="hover:bg-purple-50/50">
                   {editingId === member.id && editForm ? (
                     <>
@@ -379,7 +374,6 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
                     <>
                       <td className="px-3 py-3 text-sm font-medium text-gray-800">{member.full_name}</td>
                       <td className="px-3 py-3 text-sm text-gray-600">{member.phone}</td>
-                      <td className="px-3 py-3 text-sm text-gray-500">{member.email || '—'}</td>
                       <td className="px-3 py-3">
                         <span className={`px-2 py-1 rounded-full text-xs font-bold capitalize ${
                           member.role === 'admin' ? 'bg-purple-100 text-purple-700' :
@@ -391,7 +385,11 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
                           {member.role}
                         </span>
                       </td>
-                      <td className="px-3 py-3 text-sm font-medium text-purple-600">{formatUGX(member.savingsBalance || 0)}</td>
+                      <td className="px-3 py-3 text-sm font-bold text-amber-600">{stats.wins}</td>
+                      <td className="px-3 py-3 text-sm font-bold text-emerald-600">{formatUGX(stats.totalWon)}</td>
+                      <td className="px-3 py-3 text-sm text-purple-600">{formatUGX(stats.totalSavings)}</td>
+                      <td className="px-3 py-3 text-sm text-orange-600">{formatUGX(stats.totalDeductions)}</td>
+                      <td className="px-3 py-3 text-sm font-bold text-blue-600">{formatUGX(stats.totalBalance)}</td>
                       <td className="px-3 py-3 text-right">
                         <button
                           onClick={() => handleEdit(member)}
@@ -403,7 +401,8 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
                     </>
                   )}
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </div>
@@ -608,42 +607,46 @@ const LoansTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {loans.map(loan => (
-                <tr key={loan.id} className="hover:bg-purple-50/50">
-                  {editingId === loan.id && editForm ? (
+              {members.map(member => {
+                const stats = getMemberStats(member.full_name);
+                return (
+                <tr key={member.id} className="hover:bg-purple-50/50">
+                  {editingId === member.id && editForm ? (
                     <>
-                      <td className="px-3 py-2 text-sm">{loan.created_at?.slice(0, 10)}</td>
-                      <td className="px-3 py-2 text-sm">{loan.member_name}</td>
                       <td className="px-3 py-2">
                         <input
-                          type="number"
-                          value={editForm.amount}
-                          onChange={e => updateField('amount', Number(e.target.value))}
-                          className="w-32 px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
+                          type="text"
+                          value={editForm.full_name}
+                          onChange={e => updateField('full_name', e.target.value)}
+                          className="w-full px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
                         />
                       </td>
                       <td className="px-3 py-2">
                         <input
                           type="text"
-                          value={editForm.purpose}
-                          onChange={e => updateField('purpose', e.target.value)}
+                          value={editForm.phone}
+                          onChange={e => updateField('phone', e.target.value)}
                           className="w-full px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
                         />
                       </td>
                       <td className="px-3 py-2">
                         <select
-                          value={editForm.status}
-                          onChange={e => updateField('status', e.target.value)}
-                          className="px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
+                          value={editForm.role}
+                          onChange={e => updateField('role', e.target.value)}
+                          className="w-full px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
                         >
-                          <option value="pending">Pending</option>
-                          <option value="approved">Approved</option>
-                          <option value="disbursed">Disbursed</option>
-                          <option value="repaying">Repaying</option>
-                          <option value="completed">Completed</option>
-                          <option value="rejected">Rejected</option>
+                          <option value="member">Member</option>
+                          <option value="admin">Admin</option>
+                          <option value="chairperson">Chairperson</option>
+                          <option value="secretary">Secretary</option>
+                          <option value="treasurer">Treasurer</option>
                         </select>
                       </td>
+                      <td className="px-3 py-2 text-sm text-gray-400">{stats.wins}</td>
+                      <td className="px-3 py-2 text-sm text-gray-400">{formatUGX(stats.totalWon)}</td>
+                      <td className="px-3 py-2 text-sm text-gray-400">{formatUGX(stats.totalSavings)}</td>
+                      <td className="px-3 py-2 text-sm text-gray-400">{formatUGX(stats.totalDeductions)}</td>
+                      <td className="px-3 py-2 text-sm text-gray-400">{formatUGX(stats.totalBalance)}</td>
                       <td className="px-3 py-2 text-right">
                         <div className="flex gap-1 justify-end">
                           <button onClick={handleSave} className="px-2 py-1 text-xs font-bold text-white bg-emerald-500 rounded hover:bg-emerald-600">Save</button>
@@ -653,24 +656,27 @@ const LoansTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
                     </>
                   ) : (
                     <>
-                      <td className="px-3 py-3 text-sm text-gray-600">{loan.created_at?.slice(0, 10)}</td>
-                      <td className="px-3 py-3 text-sm font-medium text-gray-800">{loan.member_name}</td>
-                      <td className="px-3 py-3 text-sm font-bold text-emerald-600">{formatUGX(loan.amount)}</td>
-                      <td className="px-3 py-3 text-sm text-gray-600 max-w-[200px] truncate">{loan.purpose}</td>
+                      <td className="px-3 py-3 text-sm font-medium text-gray-800">{member.full_name}</td>
+                      <td className="px-3 py-3 text-sm text-gray-600">{member.phone}</td>
                       <td className="px-3 py-3">
                         <span className={`px-2 py-1 rounded-full text-xs font-bold capitalize ${
-                          loan.status === 'disbursed' || loan.status === 'repaying' ? 'bg-blue-100 text-blue-700' :
-                          loan.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
-                          loan.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                          loan.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                          member.role === 'admin' ? 'bg-purple-100 text-purple-700' :
+                          member.role === 'chairperson' ? 'bg-emerald-100 text-emerald-700' :
+                          member.role === 'treasurer' ? 'bg-blue-100 text-blue-700' :
+                          member.role === 'secretary' ? 'bg-cyan-100 text-cyan-700' :
                           'bg-gray-100 text-gray-600'
                         }`}>
-                          {loan.status}
+                          {member.role}
                         </span>
                       </td>
+                      <td className="px-3 py-3 text-sm font-bold text-amber-600">{stats.wins}</td>
+                      <td className="px-3 py-3 text-sm font-bold text-emerald-600">{formatUGX(stats.totalWon)}</td>
+                      <td className="px-3 py-3 text-sm text-purple-600">{formatUGX(stats.totalSavings)}</td>
+                      <td className="px-3 py-3 text-sm text-orange-600">{formatUGX(stats.totalDeductions)}</td>
+                      <td className="px-3 py-3 text-sm font-bold text-blue-600">{formatUGX(stats.totalBalance)}</td>
                       <td className="px-3 py-3 text-right">
                         <button
-                          onClick={() => handleEdit(loan)}
+                          onClick={() => handleEdit(member)}
                           className="px-3 py-1 text-xs font-bold text-purple-600 bg-purple-100 rounded hover:bg-purple-200"
                         >
                           Edit
@@ -679,7 +685,8 @@ const LoansTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
                     </>
                   )}
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </div>
