@@ -266,7 +266,10 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   }
 
   // Compute derived values
-  const totalMembers = stats?.member_count || 0;
+  // Use whichever is larger: the count from getGroupStats (group_memberships count query)
+  // or the actual members array length returned by listMembers — ensures correct display
+  // even when Supabase RLS restricts the head-only count query.
+  const totalMembers = Math.max(stats?.member_count || 0, members.length);
   const confirmedCount = stats?.confirmed_contributions || 0;
   const pendingCount = stats?.pending_contributions || 0;
   const failedCount = stats?.failed_contributions || 0;
