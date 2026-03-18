@@ -30,13 +30,12 @@ function cycleStatusBadge(status: string) {
 }
 
 // blank draw template
-function emptyDraw(num: number): RoscaDraw {
+function emptyDraw(num: number, slot: '1' | '2' = '1'): RoscaDraw {
   return {
     draw_number: num,
+    winner_slot: slot,
     winner_name: '',
-    winner2_name: '',
     amount_received: 5000000,
-    amount_total: 10000000,
     draw_date: new Date().toISOString().slice(0, 10),
     savings: 0,
     paid_out: 0,
@@ -50,8 +49,8 @@ function emptyDraw(num: number): RoscaDraw {
 
 /** Summary bar for a single cycle */
 const CycleSummaryCard: React.FC<{ cycle: RoscaCycle; onClick: () => void; isSelected: boolean }> = ({ cycle, onClick, isSelected }) => {
-  const totalPaid = cycle.draws.reduce((s, d) => s + (d.amount_total || d.amount_received * 2), 0);
-  const totalAmountWon = cycle.draws.reduce((s, d) => s + (d.amount_total || 0), 0);
+  const totalPaid = cycle.draws.reduce((s, d) => s + d.amount_received, 0);
+  const totalWinners = cycle.draws.length;
 
   return (
     <button
@@ -74,13 +73,13 @@ const CycleSummaryCard: React.FC<{ cycle: RoscaCycle; onClick: () => void; isSel
           {cycle.status}
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2">
         <div className="bg-purple-50 rounded-xl p-2 text-center">
-          <p className="text-lg font-extrabold text-purple-700">{cycle.draws.length}</p>
-          <p className="text-[10px] text-purple-400 font-bold uppercase tracking-wide">Draws</p>
+          <p className="text-lg font-extrabold text-purple-700">{totalWinners}</p>
+          <p className="text-[10px] text-purple-400 font-bold uppercase tracking-wide">Winners</p>
         </div>
         <div className="bg-emerald-50 rounded-xl p-2 text-center">
-          <p className="text-xs font-extrabold text-emerald-700">{formatUGX(totalAmountWon)}</p>
+          <p className="text-xs font-extrabold text-emerald-700">{formatUGX(totalPaid)}</p>
           <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wide">Total Paid</p>
         </div>
         <div className="bg-blue-50 rounded-xl p-2 text-center">
@@ -94,20 +93,18 @@ const CycleSummaryCard: React.FC<{ cycle: RoscaCycle; onClick: () => void; isSel
 
 /** Row for each draw in the selected cycle */
 const DrawRow: React.FC<{ draw: RoscaDraw; onEdit: (d: RoscaDraw) => void; canEdit: boolean }> = ({ draw, onEdit, canEdit }) => {
-  const winners = [draw.winner_name, draw.winner2_name].filter(Boolean).join(', ');
-
   return (
     <tr className="hover:bg-purple-50/40 transition-colors">
       <td className="px-4 py-3 text-center">
         <span className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-sm font-extrabold mx-auto">
-          D{draw.draw_number}
+          D{draw.draw_number}-W{draw.winner_slot}
         </span>
       </td>
       <td className="px-4 py-3">
-        <p className="text-sm font-bold text-gray-800">{winners || '—'}</p>
+        <p className="text-sm font-bold text-gray-800">{draw.winner_name || '—'}</p>
       </td>
       <td className="px-4 py-3 text-sm font-bold text-emerald-600">
-        {formatUGX(draw.amount_received)} × 2
+        {formatUGX(draw.amount_received)}
       </td>
       <td className="px-4 py-3 text-sm font-bold text-purple-600">
         {draw.savings ? formatUGX(draw.savings) : '—'}
@@ -153,30 +150,24 @@ interface EditDrawModalProps {
 
 const EditDrawModal: React.FC<EditDrawModalProps> = ({ draw, members, onSave, onClose, cycleNumber }) => {
   const [form, setForm] = useState<RoscaDraw>({ ...draw });
-  const [customWinner1, setCustomWinner1] = useState(
+  const [customWinner, setCustomWinner] = useState(
     draw.winner_name !== '' && !members.find(m => m.full_name === draw.winner_name)
-  );
-  const [customWinner2, setCustomWinner2] = useState(
-    draw.winner2_name !== '' && !members.find(m => m.full_name === draw.winner2_name)
   );
 
   const set = (key: keyof RoscaDraw, val: string | number) =>
     setForm(prev => ({ ...prev, [key]: val }));
 
-  const handleWinnerSelect = (which: 1 | 2, val: string) => {
+  const handleWinnerSelect = (val: string) => {
     if (val === '__custom__') {
-      if (which === 1) { setCustomWinner1(true); set('winner_name', ''); }
-      else { setCustomWinner2(true); set('winner2_name', ''); }
+      setCustomWinner(true);
+      set('winner_name', '');
     } else {
-      if (which === 1) { setCustomWinner1(false); set('winner_name', val); }
-      else { setCustomWinner2(false); set('winner2_name', val); }
+      setCustomWinner(false);
+      set('winner_name', val);
     }
   };
 
-  const winner1Val = customWinner1 ? '__custom__' : form.winner_name;
-  const winner2Val = customWinner2 ? '__custom__' : form.winner2_name;
-
-  const hasAtLeastOneWinner = form.winner_name.trim() || form.winner2_name.trim();
+  const winnerVal = customWinner ? '__custom__' : form.winner_name;
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -186,10 +177,10 @@ const EditDrawModal: React.FC<EditDrawModalProps> = ({ draw, members, onSave, on
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-extrabold">
-                {draw.winner_name || draw.winner2_name ? `Edit Draw D${draw.draw_number}` : `Add New Draw`}
+                {draw.winner_name ? `Edit Draw D${draw.draw_number}-W${draw.winner_slot}` : `Add New Draw`}
               </h2>
               <p className="text-sm text-purple-100 font-semibold">
-                Cycle {cycleNumber} — 2 winners per draw, each gets {formatUGX(form.amount_received)}
+                Cycle {cycleNumber} — Winner gets {formatUGX(form.amount_received)}
               </p>
             </div>
             <button onClick={onClose} className="p-1.5 hover:bg-white/20 rounded-xl transition-colors">
@@ -201,12 +192,12 @@ const EditDrawModal: React.FC<EditDrawModalProps> = ({ draw, members, onSave, on
         </div>
 
         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-          {/* Winner 1 */}
+          {/* Winner */}
           <div>
-            <label className="text-sm font-bold text-gray-700 mb-1 block">🏅 Winner 1</label>
+            <label className="text-sm font-bold text-gray-700 mb-1 block">🏅 Winner</label>
             <select
-              value={winner1Val}
-              onChange={e => handleWinnerSelect(1, e.target.value)}
+              value={winnerVal}
+              onChange={e => handleWinnerSelect(e.target.value)}
               className="w-full px-3 py-2.5 text-sm border-2 border-purple-100 rounded-xl focus:ring-2 focus:ring-purple-400 outline-none bg-white"
             >
               <option value="">— Select member —</option>
@@ -215,7 +206,7 @@ const EditDrawModal: React.FC<EditDrawModalProps> = ({ draw, members, onSave, on
               ))}
               <option value="__custom__">Other (type name)</option>
             </select>
-            {customWinner1 && (
+            {customWinner && (
               <input
                 type="text"
                 value={form.winner_name}
@@ -227,46 +218,16 @@ const EditDrawModal: React.FC<EditDrawModalProps> = ({ draw, members, onSave, on
             )}
           </div>
 
-          {/* Winner 2 */}
-          <div>
-            <label className="text-sm font-bold text-gray-700 mb-1 block">🏅 Winner 2</label>
-            <select
-              value={winner2Val}
-              onChange={e => handleWinnerSelect(2, e.target.value)}
-              className="w-full px-3 py-2.5 text-sm border-2 border-purple-100 rounded-xl focus:ring-2 focus:ring-purple-400 outline-none bg-white"
-            >
-              <option value="">— Select member —</option>
-              {members.map(m => (
-                <option key={m.id} value={m.full_name}>{m.full_name}</option>
-              ))}
-              <option value="__custom__">Other (type name)</option>
-            </select>
-            {customWinner2 && (
-              <input
-                type="text"
-                value={form.winner2_name}
-                onChange={e => set('winner2_name', e.target.value)}
-                className="mt-2 w-full px-3 py-2.5 text-sm border-2 border-purple-100 rounded-xl focus:ring-2 focus:ring-purple-400 outline-none"
-                placeholder="Enter winner name"
-              />
-            )}
-          </div>
-
-          {/* Amount per winner & Date */}
+          {/* Amount & Date */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-bold text-gray-700 mb-1 block">💰 Amount per Winner (UGX)</label>
+              <label className="text-sm font-bold text-gray-700 mb-1 block">💰 Amount (UGX)</label>
               <input
                 type="number"
                 value={form.amount_received}
-                onChange={e => {
-                  const amt = Number(e.target.value);
-                  set('amount_received', amt);
-                  set('amount_total', amt * 2);
-                }}
+                onChange={e => set('amount_received', Number(e.target.value))}
                 className="w-full px-3 py-2.5 text-sm border-2 border-purple-100 rounded-xl focus:ring-2 focus:ring-purple-400 outline-none"
               />
-              <p className="text-[10px] text-gray-400 mt-1 font-semibold">Total: {formatUGX(form.amount_received * 2)}</p>
             </div>
             <div>
               <label className="text-sm font-bold text-gray-700 mb-1 block">📅 Draw Date</label>
@@ -345,7 +306,7 @@ const EditDrawModal: React.FC<EditDrawModalProps> = ({ draw, members, onSave, on
           </button>
           <button
             onClick={() => onSave(form)}
-            disabled={!hasAtLeastOneWinner}
+            disabled={!form.winner_name.trim()}
             className="flex-1 py-2.5 text-sm font-extrabold text-white bg-gradient-to-r from-[#7c3aed] to-[#ec4899] rounded-xl hover:opacity-90 transition-opacity shadow-md shadow-purple-300/40 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             💾 Save Changes
@@ -391,7 +352,7 @@ const RoscaPage: React.FC = () => {
 
   const selectedCycle = cycles.find(c => c.cycle_number === selectedCycleNum) || cycles[cycles.length - 1];
 
-  const totalPaidOut = selectedCycle.draws.reduce((s, d) => s + (d.amount_total || d.amount_received * 2), 0);
+  const totalPaidOut = selectedCycle.draws.reduce((s, d) => s + d.amount_received, 0);
   const totalSavings = selectedCycle.draws.reduce((s, d) => s + (d.savings || 0), 0);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
@@ -404,22 +365,27 @@ const RoscaPage: React.FC = () => {
       if (c.cycle_number !== selectedCycleNum) return c;
       return {
         ...c,
-        draws: c.draws.map(d => d.draw_number === updated.draw_number ? updated : d),
+        draws: c.draws.map(d => 
+          d.draw_number === updated.draw_number && d.winner_slot === updated.winner_slot 
+            ? updated 
+            : d
+        ),
       };
     }));
     setEditingDraw(null);
-    showToast(`Draw D${updated.draw_number} updated!`);
+    showToast(`Draw D${updated.draw_number}-W${updated.winner_slot} updated!`);
   };
 
   const handleAddDraw = (newDraw: RoscaDraw) => {
     setCycles(prev => prev.map(c => {
       if (c.cycle_number !== selectedCycleNum) return c;
       const maxNum = Math.max(0, ...c.draws.map(d => d.draw_number));
-      const drawToAdd = { ...newDraw, draw_number: maxNum + 1 };
-      return { ...c, draws: [...c.draws, drawToAdd], total_draws: c.total_draws + 1 };
+      const draw1 = { ...newDraw, draw_number: maxNum + 1, winner_slot: '1' as const };
+      const draw2 = { ...newDraw, draw_number: maxNum + 1, winner_slot: '2' as const };
+      return { ...c, draws: [...c.draws, draw1, draw2], total_draws: c.total_draws + 2 };
     }));
     setShowAddDraw(false);
-    showToast('New draw added!');
+    showToast('New draw (2 winner slots) added!');
   };
 
   return (
