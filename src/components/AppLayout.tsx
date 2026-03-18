@@ -14,6 +14,7 @@ import ChatPage from './saccoUp/ChatPage';
 import AnnouncementsPage from './saccoUp/AnnouncementsPage';
 import SettingsPage from './saccoUp/SettingsPage';
 import RoscaPage from './saccoUp/RoscaPage';
+import AdminPage from './saccoUp/AdminPage';
 
 type AppView = 'loading' | 'landing' | 'dashboard';
 
@@ -66,6 +67,7 @@ const AppLayout: React.FC = () => {
       case 'chat': return 'Group Chat';
       case 'announcements': return 'Announcements';
       case 'settings': return 'Settings';
+      case 'admin': return '⚙️ Admin';
       default: return 'Dashboard';
     }
   };
@@ -82,6 +84,7 @@ const AppLayout: React.FC = () => {
       case 'chat': return <ChatPage />;
       case 'announcements': return <AnnouncementsPage />;
       case 'settings': return <SettingsPage />;
+      case 'admin': return <AdminPage />;
       default: return <DashboardOverview onNavigate={setCurrentPage} />;
     }
   };

@@ -2,7 +2,7 @@ import React from 'react';
 import { useAppContext } from '@/contexts/AppContext';
 import { formatUGX, IMAGES } from '@/lib/constants';
 
-export type DashboardPage = 'overview' | 'members' | 'contributions' | 'loans' | 'reports' | 'groups' | 'chat' | 'settings' | 'announcements' | 'rosca';
+export type DashboardPage = 'overview' | 'members' | 'contributions' | 'loans' | 'reports' | 'groups' | 'chat' | 'settings' | 'announcements' | 'rosca' | 'admin';
 
 interface SidebarProps {
   currentPage: DashboardPage;
@@ -25,8 +25,14 @@ const navItems: { id: DashboardPage; label: string; icon: string; emoji?: string
   { id: 'settings', label: 'Settings', icon: 'M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
 ];
 
+const adminNavItem = { id: 'admin' as DashboardPage, label: 'Admin', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z', emoji: '⚙️' };
+
 const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, onClose, onLogout }) => {
   const { user, groups, selectedGroup, setSelectedGroupId } = useAppContext();
+
+  // Check if user is admin/chairman/secretary
+  const userRole = (selectedGroup?.user_role || '').toLowerCase();
+  const isAdmin = ['admin', 'chairperson', 'chairman', 'secretary'].includes(userRole);
 
   return (
     <>
@@ -87,6 +93,28 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, onCl
                   {item.label}
                 </button>
               ))}
+
+              {/* Admin section - only for admin/chairman/secretary */}
+              {isAdmin && (
+                <>
+                  <div className="mt-4 mb-2 px-3">
+                    <div className="h-px bg-purple-700/30"></div>
+                  </div>
+                  <div className="px-3">
+                    <button
+                      onClick={() => { onNavigate('admin'); onClose(); }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                        currentPage === 'admin'
+                          ? 'bg-gradient-to-r from-[#a855f7] to-[#ec4899] text-white shadow-md shadow-purple-900/40'
+                          : 'text-purple-200 hover:bg-purple-700/30 hover:text-white'
+                      }`}
+                    >
+                      <span className="w-5 h-5 flex-shrink-0 text-base leading-none flex items-center justify-center">⚙️</span>
+                      Admin
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </nav>
 
