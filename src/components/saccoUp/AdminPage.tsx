@@ -137,9 +137,9 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Draw</th>
+                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Date</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Winners</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Amount</th>
-                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Date</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Savings</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Paid Out</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Deductions</th>
@@ -154,6 +154,14 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
                   {editingRow === draw.draw_number && editForm ? (
                     <>
                       <td className="px-3 py-2 font-bold text-gray-700">C{currentCycle.cycle_number}D{draw.draw_number}</td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="date"
+                          value={editForm.draw_date}
+                          onChange={e => updateField('draw_date', e.target.value)}
+                          className="px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
+                        />
+                      </td>
                       <td className="px-3 py-2">
                         <div className="flex flex-col gap-1">
                           <input
@@ -178,14 +186,6 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
                           value={editForm.amount_received}
                           onChange={e => updateField('amount_received', Number(e.target.value))}
                           className="w-24 px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="date"
-                          value={editForm.draw_date}
-                          onChange={e => updateField('draw_date', e.target.value)}
-                          className="px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
                         />
                       </td>
                       <td className="px-3 py-2">
@@ -238,6 +238,7 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
                   ) : (
                     <>
                       <td className="px-3 py-3 font-bold text-gray-700">C{currentCycle.cycle_number}D{draw.draw_number}</td>
+                      <td className="px-3 py-3 text-sm text-gray-500">{draw.draw_date}</td>
                       <td className="px-3 py-3 text-sm font-medium text-gray-800">
                         <div className="flex flex-col">
                           <span>{draw.winner_name || '—'}</span>
@@ -245,7 +246,6 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
                         </div>
                       </td>
                       <td className="px-3 py-3 text-sm font-bold text-emerald-600">{formatUGX(draw.amount_received)}</td>
-                      <td className="px-3 py-3 text-sm text-gray-500">{draw.draw_date}</td>
                       <td className="px-3 py-3 text-sm text-purple-600 font-medium">{draw.savings ? formatUGX(draw.savings) : '—'}</td>
                       <td className="px-3 py-3 text-sm text-blue-600 font-medium">{draw.paid_out ? formatUGX(draw.paid_out) : '—'}</td>
                       <td className="px-3 py-3 text-sm text-orange-600 font-medium">{draw.deductions ? formatUGX(draw.deductions) : '—'}</td>
