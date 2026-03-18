@@ -137,12 +137,12 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Draw</th>
-                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Winner 1</th>
-                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Winner 2</th>
+                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Winners</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Amount</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Date</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Savings</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Paid Out</th>
+                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Deductions</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Balance</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Notes</th>
                 <th className="px-3 py-3 text-right text-xs font-extrabold text-gray-500 uppercase">Action</th>
@@ -153,22 +153,24 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
                 <tr key={draw.draw_number} className="hover:bg-purple-50/50">
                   {editingRow === draw.draw_number && editForm ? (
                     <>
-                      <td className="px-3 py-2 font-bold text-gray-700">D{draw.draw_number}</td>
+                      <td className="px-3 py-2 font-bold text-gray-700">C{currentCycle.cycle_number}D{draw.draw_number}</td>
                       <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          value={editForm.winner_name}
-                          onChange={e => updateField('winner_name', e.target.value)}
-                          className="w-full px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          value={editForm.winner2_name || ''}
-                          onChange={e => updateField('winner2_name', e.target.value)}
-                          className="w-full px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
-                        />
+                        <div className="flex flex-col gap-1">
+                          <input
+                            type="text"
+                            value={editForm.winner_name}
+                            onChange={e => updateField('winner_name', e.target.value)}
+                            className="w-full px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
+                            placeholder="Winner 1"
+                          />
+                          <input
+                            type="text"
+                            value={editForm.winner2_name || ''}
+                            onChange={e => updateField('winner2_name', e.target.value)}
+                            className="w-full px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
+                            placeholder="Winner 2"
+                          />
+                        </div>
                       </td>
                       <td className="px-3 py-2">
                         <input
@@ -205,6 +207,14 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
                       <td className="px-3 py-2">
                         <input
                           type="number"
+                          value={editForm.deductions || 0}
+                          onChange={e => updateField('deductions', Number(e.target.value))}
+                          className="w-24 px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
                           value={editForm.balance || 0}
                           onChange={e => updateField('balance', Number(e.target.value))}
                           className="w-24 px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
@@ -227,13 +237,18 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
                     </>
                   ) : (
                     <>
-                      <td className="px-3 py-3 font-bold text-gray-700">D{draw.draw_number}</td>
-                      <td className="px-3 py-3 text-sm font-medium text-gray-800">{draw.winner_name || '—'}</td>
-                      <td className="px-3 py-3 text-sm font-medium text-gray-800">{draw.winner2_name || '—'}</td>
+                      <td className="px-3 py-3 font-bold text-gray-700">C{currentCycle.cycle_number}D{draw.draw_number}</td>
+                      <td className="px-3 py-3 text-sm font-medium text-gray-800">
+                        <div className="flex flex-col">
+                          <span>{draw.winner_name || '—'}</span>
+                          {draw.winner2_name && <span className="text-gray-500">{draw.winner2_name}</span>}
+                        </div>
+                      </td>
                       <td className="px-3 py-3 text-sm font-bold text-emerald-600">{formatUGX(draw.amount_received)}</td>
                       <td className="px-3 py-3 text-sm text-gray-500">{draw.draw_date}</td>
                       <td className="px-3 py-3 text-sm text-purple-600 font-medium">{draw.savings ? formatUGX(draw.savings) : '—'}</td>
                       <td className="px-3 py-3 text-sm text-blue-600 font-medium">{draw.paid_out ? formatUGX(draw.paid_out) : '—'}</td>
+                      <td className="px-3 py-3 text-sm text-orange-600 font-medium">{draw.deductions ? formatUGX(draw.deductions) : '—'}</td>
                       <td className="px-3 py-3 text-sm font-bold">
                         {draw.balance !== undefined && draw.balance !== 0 ? (
                           <span className={draw.balance > 0 ? 'text-emerald-600' : 'text-red-500'}>
