@@ -632,3 +632,175 @@ export async function listMessages(group_id: string, limit = 50) {
   if (error) throw new Error(error.message);
   return { success: true, messages: data || [] };
 }
+
+// ===== ROSCA (Merry-Go-Round) OPERATIONS ================================
+
+export interface RoscaCycleRow {
+  id: string;
+  group_id: string;
+  cycle_number: number;
+  cycle_name: string;
+  status: 'upcoming' | 'active' | 'completed';
+  start_date: string;
+  end_date: string | null;
+  total_draws: number;
+  pot_amount_per_draw: number;
+  member_count: number;
+  security_deposit: number;
+  notes: string | null;
+}
+
+export interface RoscaDrawRow {
+  id: string;
+  cycle_id: string;
+  draw_number: number;
+  winner_slot: '1' | '2';
+  winner_name: string | null;
+  winner_id: string | null;
+  amount_received: number;
+  draw_date: string;
+  savings: number | null;
+  paid_out: number | null;
+  deductions: number | null;
+  balance: number | null;
+  status: 'pending' | 'won' | 'skipped' | 'forfeited';
+  notes: string | null;
+}
+
+export async function listRoscaCycles(group_id: string) {
+  const { data, error } = await supabase
+    .from('rosca_cycles')
+    .select('*')
+    .eq('group_id', group_id)
+    .order('cycle_number', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return { success: true, cycles: data || [] };
+}
+
+export async function getRoscaCycle(cycle_id: string) {
+  const { data, error } = await supabase
+    .from('rosca_cycles')
+    .select('*')
+    .eq('id', cycle_id)
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { success: true, cycle: data };
+}
+
+export async function createRoscaCycle(params: {
+  group_id: string;
+  cycle_number: number;
+  cycle_name: string;
+  status?: 'upcoming' | 'active' | 'completed';
+  start_date: string;
+  end_date?: string;
+  total_draws?: number;
+  pot_amount_per_draw?: number;
+  member_count?: number;
+  security_deposit?: number;
+  notes?: string;
+}) {
+  const { data, error } = await supabase
+    .from('rosca_cycles')
+    .insert({
+      group_id: params.group_id,
+      cycle_number: params.cycle_number,
+      cycle_name: params.cycle_name,
+      status: params.status || 'upcoming',
+      start_date: params.start_date,
+      end_date: params.end_date || null,
+      total_draws: params.total_draws || 10,
+      pot_amount_per_draw: params.pot_amount_per_draw || 5000000,
+      member_count: params.member_count || 20,
+      security_deposit: params.security_deposit || 0,
+      notes: params.notes || null,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { success: true, cycle: data };
+}
+
+export async function updateRoscaCycle(cycle_id: string, updates: Partial<RoscaCycleRow>) {
+  const { error } = await supabase
+    .from('rosca_cycles')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', cycle_id);
+
+  if (error) throw new Error(error.message);
+  return { success: true };
+}
+
+export async function listRoscaDraws(cycle_id: string) {
+  const { data, error } = await supabase
+    .from('rosca_draws')
+    .select('*')
+    .eq('cycle_id', cycle_id)
+    .order('draw_number', { ascending: true })
+    .order('winner_slot', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return { success: true, draws: data || [] };
+}
+
+export async function createRoscaDraw(params: {
+  cycle_id: string;
+  draw_number: number;
+  winner_slot: '1' | '2';
+  winner_name?: string;
+  winner_id?: string;
+  amount_received?: number;
+  draw_date?: string;
+  savings?: number;
+  paid_out?: number;
+  deductions?: number;
+  balance?: number;
+  status?: 'pending' | 'won' | 'skipped' | 'forfeited';
+  notes?: string;
+}) {
+  const { data, error } = await supabase
+    .from('rosca_draws')
+    .insert({
+      cycle_id: params.cycle_id,
+      draw_number: params.draw_number,
+      winner_slot: params.winner_slot,
+      winner_name: params.winner_name || null,
+      winner_id: params.winner_id || null,
+      amount_received: params.amount_received || 5000000,
+      draw_date: params.draw_date || new Date().toISOString().split('T')[0],
+      savings: params.savings || null,
+      paid_out: params.paid_out || null,
+      deductions: params.deductions || null,
+      balance: params.balance || null,
+      status: params.status || 'pending',
+      notes: params.notes || null,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { success: true, draw: data };
+}
+
+export async function updateRoscaDraw(draw_id: string, updates: Partial<RoscaDrawRow>) {
+  const { error } = await supabase
+    .from('rosca_draws')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', draw_id);
+
+  if (error) throw new Error(error.message);
+  return { success: true };
+}
+
+export async function deleteRoscaDraw(draw_id: string) {
+  const { error } = await supabase
+    .from('rosca_draws')
+    .delete()
+    .eq('id', draw_id);
+
+  if (error) throw new Error(error.message);
+  return { success: true };
+}

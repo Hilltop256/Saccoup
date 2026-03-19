@@ -195,10 +195,10 @@ export interface RoscaCycle {
   draws: RoscaDraw[];
 }
 
-// Mock PBS Cycle data — simplified: 2 winners per draw, each wins 5M
-// Post Balaam Savings group - 20 members
-// Each draw: D1 = 2 winners, each gets 5,000,000 = 10,000,000 total paid out per draw
-// Now split into individual winner entries - each winner has their own row with individual figures
+// Mock PBS Cycle data — CORRECTED per user input
+// Cycles 1 & 2: 16 members (Peter Lwanjo, Eric Mabirizi, Eric Bamuwangulide, Gerald Nuwahereza joined in Cycle 3)
+// No security deposits in Cycles 1 & 2
+// Cycle 3: 20 members with 500,000 UGX security deposit per winner (members received 4.5M out of 5M)
 export const MOCK_PBS_CYCLES: RoscaCycle[] = [
   {
     cycle_number: 1,
@@ -210,25 +210,25 @@ export const MOCK_PBS_CYCLES: RoscaCycle[] = [
     pot_amount_per_draw: 5000000,
     draws: [
       { draw_number: 1, winner_slot: '1' as const, winner_name: 'Abajai Maurice',    amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-01-15', status: 'won' as DrawStatus },
-      { draw_number: 1, winner_slot: '2' as const, winner_name: 'Allan Nakede',     amount_received: 5000000, savings: 4800000, paid_out: 5000000, deductions: 50000,  balance: -50000,  draw_date: '2024-01-15', status: 'won' as DrawStatus, notes: 'Processing fee' },
-      { draw_number: 2, winner_slot: '1' as const, winner_name: 'Balaam Mwaasa',     amount_received: 5000000, savings: 4800000, paid_out: 5000000, deductions: 100000, balance: -200000, draw_date: '2024-02-15', status: 'won' as DrawStatus, notes: 'Arrears' },
-      { draw_number: 2, winner_slot: '2' as const, winner_name: 'Ben Otede',       amount_received: 5000000, savings: 4900000, paid_out: 5000000, deductions: 0,         balance: -100000, draw_date: '2024-02-15', status: 'won' as DrawStatus },
-      { draw_number: 3, winner_slot: '1' as const, winner_name: 'Daniel Lukyago',     amount_received: 5000000, savings: 5200000, paid_out: 5000000, deductions: 0,         balance: 200000,  draw_date: '2024-03-15', status: 'won' as DrawStatus },
-      { draw_number: 3, winner_slot: '2' as const, winner_name: 'Dennis Otim',      amount_received: 5000000, savings: 5100000, paid_out: 5000000, deductions: 25000,  balance: 150000,  draw_date: '2024-03-15', status: 'won' as DrawStatus },
-      { draw_number: 4, winner_slot: '1' as const, winner_name: 'Eric Bamuwangulide', amount_received: 5000000, savings: 4500000, paid_out: 5000000, deductions: 150000, balance: -500000, draw_date: '2024-04-15', status: 'won' as DrawStatus, notes: 'Late payment' },
-      { draw_number: 4, winner_slot: '2' as const, winner_name: 'Eric Mabirizi',    amount_received: 5000000, savings: 4600000, paid_out: 5000000, deductions: 75000,  balance: -350000, draw_date: '2024-04-15', status: 'won' as DrawStatus },
-      { draw_number: 5, winner_slot: '1' as const, winner_name: 'Gerald Nuwahereza',  amount_received: 5000000, savings: 5500000, paid_out: 5000000, deductions: 0,         balance: 500000,  draw_date: '2024-05-15', status: 'won' as DrawStatus },
-      { draw_number: 5, winner_slot: '2' as const, winner_name: 'Ivan Kutosi',      amount_received: 5000000, savings: 5400000, paid_out: 5000000, deductions: 0,         balance: 400000,  draw_date: '2024-05-15', status: 'won' as DrawStatus },
-      { draw_number: 6, winner_slot: '1' as const, winner_name: 'Jesse Mwalye',      amount_received: 5000000, savings: 5100000, paid_out: 5000000, deductions: 50000,  balance: 100000,  draw_date: '2024-06-15', status: 'won' as DrawStatus },
-      { draw_number: 6, winner_slot: '2' as const, winner_name: 'Jonathan Wakoko',   amount_received: 5000000, savings: 5200000, paid_out: 5000000, deductions: 0,         balance: 200000,  draw_date: '2024-06-15', status: 'won' as DrawStatus },
-      { draw_number: 7, winner_slot: '1' as const, winner_name: 'Peter Bakashaba',   amount_received: 5000000, savings: 4900000, paid_out: 5000000, deductions: 0,         balance: -100000, draw_date: '2024-07-15', status: 'won' as DrawStatus },
-      { draw_number: 7, winner_slot: '2' as const, winner_name: 'Peter Lwanga',     amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 100000, balance: 0,           draw_date: '2024-07-15', status: 'won' as DrawStatus },
-      { draw_number: 8, winner_slot: '1' as const, winner_name: 'Peter Lwanjo',      amount_received: 5000000, savings: 5300000, paid_out: 5000000, deductions: 0,         balance: 300000,  draw_date: '2024-08-15', status: 'won' as DrawStatus },
-      { draw_number: 8, winner_slot: '2' as const, winner_name: 'Peter Masaaba',    amount_received: 5000000, savings: 5200000, paid_out: 5000000, deductions: 50000,  balance: 250000,  draw_date: '2024-08-15', status: 'won' as DrawStatus },
-      { draw_number: 9, winner_slot: '1' as const, winner_name: 'Peter Ogwal',        amount_received: 5000000, savings: 5600000, paid_out: 5000000, deductions: 75000,  balance: 600000,  draw_date: '2024-09-15', status: 'won' as DrawStatus },
-      { draw_number: 9, winner_slot: '2' as const, winner_name: 'Robert Kyobe',     amount_received: 5000000, savings: 5500000, paid_out: 5000000, deductions: 0,         balance: 500000,  draw_date: '2024-09-15', status: 'won' as DrawStatus },
-      { draw_number: 10, winner_slot: '1' as const, winner_name: 'Timothy Halango',   amount_received: 5000000, savings: 5400000, paid_out: 5000000, deductions: 0,         balance: 400000,  draw_date: '2024-10-15', status: 'won' as DrawStatus },
-      { draw_number: 10, winner_slot: '2' as const, winner_name: 'William Nakaima',  amount_received: 5000000, savings: 5300000, paid_out: 5000000, deductions: 25000,  balance: 375000,  draw_date: '2024-10-15', status: 'won' as DrawStatus },
+      { draw_number: 1, winner_slot: '2' as const, winner_name: 'Allan Nakede',     amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-01-15', status: 'won' as DrawStatus },
+      { draw_number: 2, winner_slot: '1' as const, winner_name: 'Balaam Mwaasa',     amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-02-15', status: 'won' as DrawStatus },
+      { draw_number: 2, winner_slot: '2' as const, winner_name: 'Ben Otede',       amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-02-15', status: 'won' as DrawStatus },
+      { draw_number: 3, winner_slot: '1' as const, winner_name: 'Daniel Lukyago',     amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-03-15', status: 'won' as DrawStatus },
+      { draw_number: 3, winner_slot: '2' as const, winner_name: 'Dennis Otim',      amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-03-15', status: 'won' as DrawStatus },
+      { draw_number: 4, winner_slot: '1' as const, winner_name: 'Ivan Kutosi',      amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-04-15', status: 'won' as DrawStatus },
+      { draw_number: 4, winner_slot: '2' as const, winner_name: 'Jesse Mwalye',      amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-04-15', status: 'won' as DrawStatus },
+      { draw_number: 5, winner_slot: '1' as const, winner_name: 'Jonathan Wakoko',   amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-05-15', status: 'won' as DrawStatus },
+      { draw_number: 5, winner_slot: '2' as const, winner_name: 'Peter Bakashaba',   amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-05-15', status: 'won' as DrawStatus },
+      { draw_number: 6, winner_slot: '1' as const, winner_name: 'Peter Lwanga',     amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-06-15', status: 'won' as DrawStatus },
+      { draw_number: 6, winner_slot: '2' as const, winner_name: 'Peter Masaaba',    amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-06-15', status: 'won' as DrawStatus },
+      { draw_number: 7, winner_slot: '1' as const, winner_name: 'Peter Ogwal',        amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-07-15', status: 'won' as DrawStatus },
+      { draw_number: 7, winner_slot: '2' as const, winner_name: 'Robert Kyobe',     amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-07-15', status: 'won' as DrawStatus },
+      { draw_number: 8, winner_slot: '1' as const, winner_name: 'Timothy Halango',   amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-08-15', status: 'won' as DrawStatus },
+      { draw_number: 8, winner_slot: '2' as const, winner_name: 'William Nakaima',  amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-08-15', status: 'won' as DrawStatus },
+      { draw_number: 9, winner_slot: '1' as const, winner_name: 'Allan Nakede',     amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-09-15', status: 'won' as DrawStatus },
+      { draw_number: 9, winner_slot: '2' as const, winner_name: 'Ben Otede',       amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-09-15', status: 'won' as DrawStatus },
+      { draw_number: 10, winner_slot: '1' as const, winner_name: 'Abajai Maurice',   amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-10-15', status: 'won' as DrawStatus },
+      { draw_number: 10, winner_slot: '2' as const, winner_name: 'Balaam Mwaasa',  amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-10-15', status: 'won' as DrawStatus },
     ],
   },
   {
@@ -240,26 +240,26 @@ export const MOCK_PBS_CYCLES: RoscaCycle[] = [
     total_draws: 10,
     pot_amount_per_draw: 5000000,
     draws: [
-      { draw_number: 1,  winner_slot: '1' as const, winner_name: 'Abajai Maurice',    amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2024-11-15', status: 'won' as DrawStatus },
-      { draw_number: 1,  winner_slot: '2' as const, winner_name: 'Allan Nakede',     amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2024-11-15', status: 'won' as DrawStatus },
-      { draw_number: 2,  winner_slot: '1' as const, winner_name: 'Balaam Mwaasa',     amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2024-12-01', status: 'won' as DrawStatus },
-      { draw_number: 2,  winner_slot: '2' as const, winner_name: 'Ben Otede',       amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2024-12-01', status: 'won' as DrawStatus },
-      { draw_number: 3,  winner_slot: '1' as const, winner_name: 'Daniel Lukyago',     amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2024-12-15', status: 'won' as DrawStatus },
-      { draw_number: 3,  winner_slot: '2' as const, winner_name: 'Dennis Otim',      amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2024-12-15', status: 'won' as DrawStatus },
-      { draw_number: 4,  winner_slot: '1' as const, winner_name: 'Eric Bamuwangulide', amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-01-15', status: 'won' as DrawStatus },
-      { draw_number: 4,  winner_slot: '2' as const, winner_name: 'Eric Mabirizi',    amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-01-15', status: 'won' as DrawStatus },
-      { draw_number: 5,  winner_slot: '1' as const, winner_name: 'Gerald Nuwahereza',  amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-02-01', status: 'won' as DrawStatus },
-      { draw_number: 5,  winner_slot: '2' as const, winner_name: 'Ivan Kutosi',      amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-02-01', status: 'won' as DrawStatus },
-      { draw_number: 6,  winner_slot: '1' as const, winner_name: 'Jesse Mwalye',      amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-02-15', status: 'won' as DrawStatus },
-      { draw_number: 6,  winner_slot: '2' as const, winner_name: 'Jonathan Wakoko',   amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-02-15', status: 'won' as DrawStatus },
-      { draw_number: 7,  winner_slot: '1' as const, winner_name: 'Peter Bakashaba',   amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-03-01', status: 'won' as DrawStatus },
-      { draw_number: 7,  winner_slot: '2' as const, winner_name: 'Peter Lwanga',     amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-03-01', status: 'won' as DrawStatus },
-      { draw_number: 8,  winner_slot: '1' as const, winner_name: 'Peter Lwanjo',      amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-03-15', status: 'won' as DrawStatus },
-      { draw_number: 8,  winner_slot: '2' as const, winner_name: 'Peter Masaaba',    amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-03-15', status: 'won' as DrawStatus },
-      { draw_number: 9,  winner_slot: '1' as const, winner_name: 'Peter Ogwal',        amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-04-01', status: 'won' as DrawStatus },
-      { draw_number: 9,  winner_slot: '2' as const, winner_name: 'Robert Kyobe',     amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-04-01', status: 'won' as DrawStatus },
-      { draw_number: 10, winner_slot: '1' as const, winner_name: 'Timothy Halango',   amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-04-15', status: 'won' as DrawStatus },
-      { draw_number: 10, winner_slot: '2' as const, winner_name: 'William Nakaima',  amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-04-15', status: 'won' as DrawStatus },
+      { draw_number: 1,  winner_slot: '1' as const, winner_name: 'Abajai Maurice',    amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-11-15', status: 'won' as DrawStatus },
+      { draw_number: 1,  winner_slot: '2' as const, winner_name: 'Allan Nakede',     amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-11-15', status: 'won' as DrawStatus },
+      { draw_number: 2,  winner_slot: '1' as const, winner_name: 'Balaam Mwaasa',     amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-12-01', status: 'won' as DrawStatus },
+      { draw_number: 2,  winner_slot: '2' as const, winner_name: 'Ben Otede',       amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-12-01', status: 'won' as DrawStatus },
+      { draw_number: 3,  winner_slot: '1' as const, winner_name: 'Daniel Lukyago',     amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-12-15', status: 'won' as DrawStatus },
+      { draw_number: 3,  winner_slot: '2' as const, winner_name: 'Dennis Otim',      amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2024-12-15', status: 'won' as DrawStatus },
+      { draw_number: 4,  winner_slot: '1' as const, winner_name: 'Ivan Kutosi',      amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2025-01-15', status: 'won' as DrawStatus },
+      { draw_number: 4,  winner_slot: '2' as const, winner_name: 'Jesse Mwalye',      amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2025-01-15', status: 'won' as DrawStatus },
+      { draw_number: 5,  winner_slot: '1' as const, winner_name: 'Jonathan Wakoko',   amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2025-02-01', status: 'won' as DrawStatus },
+      { draw_number: 5,  winner_slot: '2' as const, winner_name: 'Peter Bakashaba',   amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2025-02-01', status: 'won' as DrawStatus },
+      { draw_number: 6,  winner_slot: '1' as const, winner_name: 'Peter Lwanga',     amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2025-02-15', status: 'won' as DrawStatus },
+      { draw_number: 6,  winner_slot: '2' as const, winner_name: 'Peter Masaaba',    amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2025-02-15', status: 'won' as DrawStatus },
+      { draw_number: 7,  winner_slot: '1' as const, winner_name: 'Peter Ogwal',        amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2025-03-01', status: 'won' as DrawStatus },
+      { draw_number: 7,  winner_slot: '2' as const, winner_name: 'Robert Kyobe',     amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2025-03-01', status: 'won' as DrawStatus },
+      { draw_number: 8,  winner_slot: '1' as const, winner_name: 'Timothy Halango',   amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2025-03-15', status: 'won' as DrawStatus },
+      { draw_number: 8,  winner_slot: '2' as const, winner_name: 'William Nakaima',  amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2025-03-15', status: 'won' as DrawStatus },
+      { draw_number: 9,  winner_slot: '1' as const, winner_name: 'Daniel Lukyago',     amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2025-04-01', status: 'won' as DrawStatus },
+      { draw_number: 9,  winner_slot: '2' as const, winner_name: 'Dennis Otim',      amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2025-04-01', status: 'won' as DrawStatus },
+      { draw_number: 10, winner_slot: '1' as const, winner_name: 'Balaam Mwaasa',     amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2025-04-15', status: 'won' as DrawStatus },
+      { draw_number: 10, winner_slot: '2' as const, winner_name: 'Ivan Kutosi',      amount_received: 5000000, savings: 5000000, paid_out: 5000000, deductions: 0,         balance: 0,           draw_date: '2025-04-15', status: 'won' as DrawStatus },
     ],
   },
   {
@@ -267,30 +267,40 @@ export const MOCK_PBS_CYCLES: RoscaCycle[] = [
     cycle_name: 'Cycle 3',
     status: 'active',
     start_date: '2025-09-01',
-    end_date: '2026-04-30',
+    end_date: '2026-06-30',
     total_draws: 10,
     pot_amount_per_draw: 5000000,
     draws: [
-      { draw_number: 1,  winner_slot: '1' as const, winner_name: 'Jesse Mwalye',      amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-09-07',  status: 'won' as DrawStatus },
-      { draw_number: 1,  winner_slot: '2' as const, winner_name: 'Jonathan Wakoko',   amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-09-07',  status: 'won' as DrawStatus },
-      { draw_number: 2,  winner_slot: '1' as const, winner_name: 'Peter Bakashaba',   amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-09-21',  status: 'won' as DrawStatus },
-      { draw_number: 2,  winner_slot: '2' as const, winner_name: 'Peter Lwanga',     amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-09-21',  status: 'won' as DrawStatus },
-      { draw_number: 3,  winner_slot: '1' as const, winner_name: 'Peter Lwanjo',      amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-10-05',  status: 'won' as DrawStatus },
-      { draw_number: 3,  winner_slot: '2' as const, winner_name: 'Peter Masaaba',    amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-10-05',  status: 'won' as DrawStatus },
-      { draw_number: 4,  winner_slot: '1' as const, winner_name: 'Peter Ogwal',        amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-10-19',  status: 'won' as DrawStatus },
-      { draw_number: 4,  winner_slot: '2' as const, winner_name: 'Robert Kyobe',     amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-10-19',  status: 'won' as DrawStatus },
-      { draw_number: 5,  winner_slot: '1' as const, winner_name: 'Timothy Halango',   amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-11-02',  status: 'won' as DrawStatus },
-      { draw_number: 5,  winner_slot: '2' as const, winner_name: 'William Nakaima',  amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-11-02',  status: 'won' as DrawStatus },
-      { draw_number: 6,  winner_slot: '1' as const, winner_name: 'Abajai Maurice',    amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-11-16',  status: 'won' as DrawStatus },
-      { draw_number: 6,  winner_slot: '2' as const, winner_name: 'Allan Nakede',     amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-11-16',  status: 'won' as DrawStatus },
-      { draw_number: 7,  winner_slot: '1' as const, winner_name: 'Balaam Mwaasa',     amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-11-30',  status: 'won' as DrawStatus },
-      { draw_number: 7,  winner_slot: '2' as const, winner_name: 'Ben Otede',       amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-11-30',  status: 'won' as DrawStatus },
-      { draw_number: 8,  winner_slot: '1' as const, winner_name: 'Daniel Lukyago',     amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-12-07',  status: 'won' as DrawStatus },
-      { draw_number: 8,  winner_slot: '2' as const, winner_name: 'Dennis Otim',      amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-12-07',  status: 'won' as DrawStatus },
-      { draw_number: 9,  winner_slot: '1' as const, winner_name: 'Eric Bamuwangulide', amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-12-21',  status: 'won' as DrawStatus },
-      { draw_number: 9,  winner_slot: '2' as const, winner_name: 'Eric Mabirizi',    amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2025-12-21',  status: 'won' as DrawStatus },
-      { draw_number: 10, winner_slot: '1' as const, winner_name: 'Gerald Nuwahereza',  amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2026-01-04',  status: 'won' as DrawStatus },
-      { draw_number: 10, winner_slot: '2' as const, winner_name: 'Ivan Kutosi',      amount_received: 5000000, savings: 500000, paid_out: 5000000, deductions: 0,         balance: 4500000, draw_date: '2026-01-04',  status: 'won' as DrawStatus },
+      // D1 - March 7, 2025: William Nakaima & Jonathan Wakoko (first Friday of March)
+      { draw_number: 1,  winner_slot: '1' as const, winner_name: 'William Nakaima',  amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-03-07',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX' },
+      { draw_number: 1,  winner_slot: '2' as const, winner_name: 'Jonathan Wakoko',   amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-03-07',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX' },
+      // D2 - March 21, 2025: Peter Bakashaba & Peter Lwanga
+      { draw_number: 2,  winner_slot: '1' as const, winner_name: 'Peter Bakashaba',   amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-03-21',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX' },
+      { draw_number: 2,  winner_slot: '2' as const, winner_name: 'Peter Lwanga',     amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-03-21',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX' },
+      // D3 - April 4, 2025: Ben Otede & Jesse Mwalye
+      { draw_number: 3,  winner_slot: '1' as const, winner_name: 'Ben Otede',       amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-04-04',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX' },
+      { draw_number: 3,  winner_slot: '2' as const, winner_name: 'Jesse Mwalye',      amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-04-04',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX' },
+      // D4 - April 18, 2025: Timothy Halango & Paul Masaaba
+      { draw_number: 4,  winner_slot: '1' as const, winner_name: 'Timothy Halango',   amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-04-18',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX' },
+      { draw_number: 4,  winner_slot: '2' as const, winner_name: 'Paul Masaaba',    amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-04-18',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX' },
+      // D5 - May 2, 2025: Daniel Lukwago & Gerald Nuwahereza
+      { draw_number: 5,  winner_slot: '1' as const, winner_name: 'Daniel Lukyago',     amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-05-02',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX - new member cycle 3' },
+      { draw_number: 5,  winner_slot: '2' as const, winner_name: 'Gerald Nuwahereza',  amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-05-02',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX - new member cycle 3' },
+      // D6 - May 16, 2025: Eric Mabirizi & Eric Bamuwangulide
+      { draw_number: 6,  winner_slot: '1' as const, winner_name: 'Eric Mabirizi',    amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-05-16',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX - new member cycle 3' },
+      { draw_number: 6,  winner_slot: '2' as const, winner_name: 'Eric Bamuwangulide', amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-05-16',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX - new member cycle 3' },
+      // D7 - June 6, 2025: Allan Nakede & Robert Kyobe Mutebi
+      { draw_number: 7,  winner_slot: '1' as const, winner_name: 'Allan Nakede',     amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-06-06',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX' },
+      { draw_number: 7,  winner_slot: '2' as const, winner_name: 'Robert Kyobe',     amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-06-06',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX' },
+      // D8 - June 20, 2025: Peter Ogwal & Peter Lwanjo
+      { draw_number: 8,  winner_slot: '1' as const, winner_name: 'Peter Ogwal',        amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-06-20',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX - new member cycle 3' },
+      { draw_number: 8,  winner_slot: '2' as const, winner_name: 'Peter Lwanjo',      amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-06-20',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX - new member cycle 3' },
+      // D9 - July 4, 2025: Maurice Abajai & Dennis Otim
+      { draw_number: 9,  winner_slot: '1' as const, winner_name: 'Abajai Maurice',    amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-07-04',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX' },
+      { draw_number: 9,  winner_slot: '2' as const, winner_name: 'Dennis Otim',      amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-07-04',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX' },
+      // D10 - July 18, 2025: Balaam Mwaasa & Ivan Martin Kutosi
+      { draw_number: 10, winner_slot: '1' as const, winner_name: 'Balaam Mwaasa',     amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-07-18',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX - final draw' },
+      { draw_number: 10, winner_slot: '2' as const, winner_name: 'Ivan Kutosi',      amount_received: 5000000, savings: 500000, paid_out: 4500000, deductions: 0,         balance: 0,           draw_date: '2025-07-18',  status: 'won' as DrawStatus, notes: 'Security deposit: 500,000 UGX - final draw' },
     ],
   },
 ];

@@ -234,3 +234,63 @@ CREATE POLICY "anon_all_audit_logs"        ON audit_logs        FOR ALL TO anon 
 -- ============================================================
 -- All done. SaccoUp database is ready.
 -- ============================================================
+
+-- ============================================================
+-- 12. ROSCA (Merry-Go-Round) TABLES
+-- ============================================================
+
+-- ROSCA Cycles table - one row per cycle
+CREATE TABLE IF NOT EXISTS rosca_cycles (
+  id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  group_id              UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  cycle_number          INTEGER NOT NULL,
+  cycle_name            TEXT NOT NULL,
+  status                TEXT NOT NULL DEFAULT 'upcoming',
+  start_date            DATE NOT NULL,
+  end_date             DATE,
+  total_draws          INTEGER NOT NULL DEFAULT 10,
+  pot_amount_per_draw   NUMERIC(15,2) NOT NULL DEFAULT 5000000,
+  member_count          INTEGER NOT NULL DEFAULT 20,
+  security_deposit      NUMERIC(15,2) NOT NULL DEFAULT 0,
+  notes                 TEXT,
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(group_id, cycle_number)
+);
+CREATE INDEX IF NOT EXISTS idx_rosca_cycles_group ON rosca_cycles(group_id);
+
+-- ROSCA Draws table - one row per winner slot (2 winners per draw)
+CREATE TABLE IF NOT EXISTS rosca_draws (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  cycle_id          UUID NOT NULL REFERENCES rosca_cycles(id) ON DELETE CASCADE,
+  draw_number       INTEGER NOT NULL,
+  winner_slot       TEXT NOT NULL CHECK (winner_slot IN ('1', '2')),
+  winner_name       TEXT,
+  winner_id         TEXT,
+  amount_received   NUMERIC(15,2) NOT NULL DEFAULT 5000000,
+  draw_date         DATE NOT NULL,
+  savings           NUMERIC(15,2),
+  paid_out          NUMERIC(15,2),
+  deductions        NUMERIC(15,2),
+  balance           NUMERIC(15,2),
+  status            TEXT NOT NULL DEFAULT 'pending',
+  notes             TEXT,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(cycle_id, draw_number, winner_slot)
+);
+CREATE INDEX IF NOT EXISTS idx_rosca_draws_cycle ON rosca_draws(cycle_id);
+
+-- Enable RLS for ROSCA tables
+ALTER TABLE rosca_cycles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rosca_draws  ENABLE ROW LEVEL SECURITY;
+
+-- Drop old policies if exist
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "anon_all_rosca_cycles" ON rosca_cycles;
+  DROP POLICY IF EXISTS "anon_all_rosca_draws"  ON rosca_draws;
+END $$;
+
+-- Allow full access
+CREATE POLICY "anon_all_rosca_cycles" ON rosca_cycles FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "anon_all_rosca_draws"  ON rosca_draws  FOR ALL TO anon USING (true) WITH CHECK (true);
