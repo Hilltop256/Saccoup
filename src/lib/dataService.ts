@@ -804,3 +804,233 @@ export async function deleteRoscaDraw(draw_id: string) {
   if (error) throw new Error(error.message);
   return { success: true };
 }
+
+// ===== ROSCA DRAW CONTRIBUTIONS (per draw payment tracking) ====================
+
+export interface RoscaDrawContributionRow {
+  id: string;
+  draw_id: string;
+  member_id: string;
+  member_name: string;
+  contribution_type: 'monthly' | 'welfare';
+  amount: number;
+  payment_method: string;
+  status: 'pending' | 'confirmed' | 'failed';
+  transaction_ref: string | null;
+  paid_at: string | null;
+  recorded_by: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export async function listRoscaDrawContributions(draw_id: string) {
+  const { data, error } = await supabase
+    .from('rosca_draw_contributions')
+    .select('*')
+    .eq('draw_id', draw_id)
+    .order('created_at', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return { success: true, contributions: data || [] };
+}
+
+export async function listRoscaDrawContributionsByCycle(cycle_id: string, draw_number: number) {
+  const { data: draws } = await supabase
+    .from('rosca_draws')
+    .select('id')
+    .eq('cycle_id', cycle_id)
+    .eq('draw_number', draw_number);
+
+  if (!draws || draws.length === 0) return { success: true, contributions: [] };
+
+  const drawIds = draws.map(d => d.id);
+  const { data, error } = await supabase
+    .from('rosca_draw_contributions')
+    .select('*')
+    .in('draw_id', drawIds)
+    .order('member_name', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return { success: true, contributions: data || [] };
+}
+
+export async function recordRoscaDrawContribution(params: {
+  draw_id: string;
+  member_id: string;
+  member_name: string;
+  contribution_type?: 'monthly' | 'welfare';
+  amount: number;
+  payment_method?: string;
+  status?: 'pending' | 'confirmed' | 'failed';
+  transaction_ref?: string;
+  recorded_by?: string;
+  notes?: string;
+}) {
+  const { data, error } = await supabase
+    .from('rosca_draw_contributions')
+    .insert({
+      draw_id: params.draw_id,
+      member_id: params.member_id,
+      member_name: params.member_name,
+      contribution_type: params.contribution_type || 'monthly',
+      amount: params.amount,
+      payment_method: params.payment_method || 'cash',
+      status: params.status || 'pending',
+      transaction_ref: params.transaction_ref || null,
+      recorded_by: params.recorded_by || null,
+      notes: params.notes || null,
+      paid_at: params.status === 'confirmed' ? new Date().toISOString() : null,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { success: true, contribution: data };
+}
+
+export async function updateRoscaDrawContributionStatus(contribution_id: string, new_status: 'pending' | 'confirmed' | 'failed') {
+  const { error } = await supabase
+    .from('rosca_draw_contributions')
+    .update({
+      status: new_status,
+      paid_at: new_status === 'confirmed' ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', contribution_id);
+
+  if (error) throw new Error(error.message);
+  return { success: true };
+}
+
+export async function deleteRoscaDrawContribution(contribution_id: string) {
+  const { error } = await supabase
+    .from('rosca_draw_contributions')
+    .delete()
+    .eq('id', contribution_id);
+
+  if (error) throw new Error(error.message);
+  return { success: true };
+}
+
+// ===== ROSCA WELFARE TRACKING (food & drinks per draw) ========================
+
+export interface RoscaWelfareRow {
+  id: string;
+  cycle_id: string;
+  draw_number: number;
+  welfare_amount: number;
+  amount_spent: number;
+  amount_remaining: number;
+  spent_items: { item: string; cost: number; date: string; recorded_by: string }[] | null;
+  reported_by: string | null;
+  report_date: string;
+  notes: string | null;
+  created_at: string;
+}
+
+export async function listRoscaWelfare(cycle_id: string) {
+  const { data, error } = await supabase
+    .from('rosca_welfare')
+    .select('*')
+    .eq('cycle_id', cycle_id)
+    .order('draw_number', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return { success: true, welfare: data || [] };
+}
+
+export async function getRoscaWelfareByDraw(cycle_id: string, draw_number: number) {
+  const { data, error } = await supabase
+    .from('rosca_welfare')
+    .select('*')
+    .eq('cycle_id', cycle_id)
+    .eq('draw_number', draw_number)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return { success: true, welfare: data };
+}
+
+export async function createRoscaWelfare(params: {
+  cycle_id: string;
+  draw_number: number;
+  welfare_amount?: number;
+  reported_by?: string;
+  notes?: string;
+}) {
+  const { data, error } = await supabase
+    .from('rosca_welfare')
+    .insert({
+      cycle_id: params.cycle_id,
+      draw_number: params.draw_number,
+      welfare_amount: params.welfare_amount || 50000,
+      amount_spent: 0,
+      reported_by: params.reported_by || null,
+      notes: params.notes || null,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { success: true, welfare: data };
+}
+
+export async function updateRoscaWelfareSpending(params: {
+  welfare_id: string;
+  spent_items: { item: string; cost: number; date: string; recorded_by: string }[];
+  reported_by?: string;
+  notes?: string;
+}) {
+  const totalSpent = params.spent_items.reduce((sum, item) => sum + item.cost, 0);
+
+  const { error } = await supabase
+    .from('rosca_welfare')
+    .update({
+      spent_items: params.spent_items,
+      amount_spent: totalSpent,
+      reported_by: params.reported_by || null,
+      notes: params.notes || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', params.welfare_id);
+
+  if (error) throw new Error(error.message);
+  return { success: true };
+}
+
+export async function addRoscaWelfareItem(params: {
+  welfare_id: string;
+  item: string;
+  cost: number;
+  recorded_by: string;
+}) {
+  const { data: existing } = await supabase
+    .from('rosca_welfare')
+    .select('spent_items, amount_spent')
+    .eq('id', params.welfare_id)
+    .single();
+
+  if (existing) {
+    const items = (existing.spent_items || []) as { item: string; cost: number; date: string; recorded_by: string }[];
+    items.push({
+      item: params.item,
+      cost: params.cost,
+      date: new Date().toISOString().split('T')[0],
+      recorded_by: params.recorded_by,
+    });
+    const totalSpent = items.reduce((sum, i) => sum + i.cost, 0);
+
+    const { error } = await supabase
+      .from('rosca_welfare')
+      .update({
+        spent_items: items,
+        amount_spent: totalSpent,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', params.welfare_id);
+
+    if (error) throw new Error(error.message);
+    return { success: true };
+  }
+  return { success: false, error: 'Welfare record not found' };
+}

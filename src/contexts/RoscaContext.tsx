@@ -12,6 +12,42 @@ export interface RoscaCycleWithId extends Omit<RoscaCycle, 'draws'> {
   draws: RoscaDrawWithId[];
 }
 
+// Welfare tracking types
+export interface RoscaWelfareItem {
+  item: string;
+  cost: number;
+  date: string;
+  recorded_by: string;
+}
+
+export interface RoscaWelfareWithId {
+  _db_id?: string;
+  cycle_id: string;
+  draw_number: number;
+  welfare_amount: number;
+  amount_spent: number;
+  amount_remaining: number;
+  spent_items: RoscaWelfareItem[];
+  reported_by?: string;
+  report_date: string;
+  notes?: string;
+}
+
+// Draw contribution types
+export interface RoscaDrawContribution {
+  _db_id?: string;
+  draw_id: string;
+  member_id: string;
+  member_name: string;
+  contribution_type: 'monthly' | 'welfare';
+  amount: number;
+  payment_method: string;
+  status: 'pending' | 'confirmed' | 'failed';
+  transaction_ref?: string;
+  paid_at?: string;
+  notes?: string;
+}
+
 interface RoscaContextType {
   cycles: RoscaCycleWithId[];
   setCycles: React.Dispatch<React.SetStateAction<RoscaCycleWithId[]>>;
@@ -19,6 +55,7 @@ interface RoscaContextType {
   updateDraw: (cycleNumber: number, updatedDraw: RoscaDraw) => Promise<void>;
   addDraw: (cycleNumber: number, newDraw: RoscaDraw) => Promise<void>;
   refreshCycles: () => Promise<void>;
+  createCycle: (cycleData: Partial<RoscaCycle>) => Promise<RoscaCycleWithId | null>;
   getMemberStats: (memberName: string) => {
     totalWon: number;
     totalSavings: number;
@@ -33,6 +70,24 @@ interface RoscaContextType {
     totalDeductions: number;
     totalWinners: number;
   };
+  // Welfare functions
+  welfare: RoscaWelfareWithId[];
+  loadWelfare: (cycleId: string) => Promise<void>;
+  createWelfare: (cycleId: string, drawNumber: number, amount?: number) => Promise<void>;
+  addWelfareSpending: (welfareId: string, item: string, cost: number, recordedBy: string) => Promise<void>;
+  // Draw contributions
+  drawContributions: Record<string, RoscaDrawContribution[]>;
+  loadDrawContributions: (cycleId: string, drawNumber: number) => Promise<void>;
+  recordDrawContribution: (params: {
+    drawId: string;
+    memberId: string;
+    memberName: string;
+    amount: number;
+    contributionType?: 'monthly' | 'welfare';
+    paymentMethod?: string;
+    status?: 'pending' | 'confirmed' | 'failed';
+  }) => Promise<void>;
+  updateDrawContributionStatus: (contributionId: string, status: 'pending' | 'confirmed' | 'failed') => Promise<void>;
 }
 
 const RoscaContext = createContext<RoscaContextType | undefined>(undefined);
@@ -82,6 +137,8 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
   const [cycles, setCycles] = useState<RoscaCycleWithId[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
+  const [welfare, setWelfare] = useState<RoscaWelfareWithId[]>([]);
+  const [drawContributions, setDrawContributions] = useState<Record<string, RoscaDrawContribution[]>>({});
 
   // ── Load from Supabase ────────────────────────────────────────────────────
   const loadCycles = useCallback(async () => {
@@ -179,6 +236,178 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
   }, [loading, cycles.length, selectedGroupId, seeding, seedToSupabase]);
 
   const refreshCycles = useCallback(async () => { await loadCycles(); }, [loadCycles]);
+
+  // ── Create new cycle ────────────────────────────────────────────────────────
+  const createCycle = useCallback(async (cycleData: Partial<RoscaCycle>): Promise<RoscaCycleWithId | null> => {
+    if (!selectedGroupId) return null;
+    
+    try {
+      const { cycle } = await ds.createRoscaCycle({
+        group_id: selectedGroupId,
+        cycle_number: cycleData.cycle_number || cycles.length + 1,
+        cycle_name: cycleData.cycle_name || `Cycle ${cycleData.cycle_number || cycles.length + 1}`,
+        status: cycleData.status || 'upcoming',
+        start_date: cycleData.start_date || new Date().toISOString().split('T')[0],
+        end_date: cycleData.end_date,
+        total_draws: cycleData.total_draws || 10,
+        pot_amount_per_draw: cycleData.pot_amount_per_draw || 5000000,
+        member_count: cycleData.draws?.length || 20,
+        security_deposit: cycleData.cycle_number === 4 ? 500000 : 0,
+        notes: cycleData.notes,
+      });
+
+      if (cycle) {
+        await loadCycles();
+        return {
+          _db_id: cycle.id,
+          cycle_number: cycle.cycle_number,
+          cycle_name: cycle.cycle_name,
+          status: cycle.status as 'completed' | 'active' | 'upcoming',
+          start_date: cycle.start_date,
+          end_date: cycle.end_date || undefined,
+          total_draws: cycle.total_draws,
+          pot_amount_per_draw: Number(cycle.pot_amount_per_draw),
+          draws: [],
+        };
+      }
+    } catch (e) {
+      console.error('Failed to create cycle:', e);
+    }
+    return null;
+  }, [selectedGroupId, cycles.length, loadCycles]);
+
+  // ── Welfare tracking functions ──────────────────────────────────────────────
+  const loadWelfare = useCallback(async (cycleId: string) => {
+    try {
+      const { welfare: w } = await ds.listRoscaWelfare(cycleId);
+      if (w) {
+        setWelfare(w.map((item: ds.RoscaWelfareRow) => ({
+          _db_id: item.id,
+          cycle_id: item.cycle_id,
+          draw_number: item.draw_number,
+          welfare_amount: Number(item.welfare_amount),
+          amount_spent: Number(item.amount_spent),
+          amount_remaining: Number(item.welfare_amount) - Number(item.amount_spent),
+          spent_items: (item.spent_items as RoscaWelfareItem[]) || [],
+          reported_by: item.reported_by || undefined,
+          report_date: item.report_date,
+          notes: item.notes || undefined,
+        })));
+      }
+    } catch (e) {
+      console.error('Failed to load welfare:', e);
+    }
+  }, []);
+
+  const createWelfare = useCallback(async (cycleId: string, drawNumber: number, amount = 50000) => {
+    try {
+      await ds.createRoscaWelfare({
+        cycle_id: cycleId,
+        draw_number: drawNumber,
+        welfare_amount: amount,
+      });
+      await loadWelfare(cycleId);
+    } catch (e) {
+      console.error('Failed to create welfare:', e);
+    }
+  }, [loadWelfare]);
+
+  const addWelfareSpending = useCallback(async (welfareId: string, item: string, cost: number, recordedBy: string) => {
+    try {
+      await ds.addRoscaWelfareItem({
+        welfare_id: welfareId,
+        item,
+        cost,
+        recorded_by: recordedBy,
+      });
+      // Reload welfare for the current cycle
+      const currentCycle = cycles.find(c => c.status === 'active' || c.status === 'upcoming');
+      if (currentCycle?._db_id) {
+        await loadWelfare(currentCycle._db_id);
+      }
+    } catch (e) {
+      console.error('Failed to add welfare spending:', e);
+    }
+  }, [cycles, loadWelfare]);
+
+  // ── Draw contribution functions ─────────────────────────────────────────────
+  const loadDrawContributions = useCallback(async (cycleId: string, drawNumber: number) => {
+    try {
+      const key = `${cycleId}-${drawNumber}`;
+      const { contributions } = await ds.listRoscaDrawContributionsByCycle(cycleId, drawNumber);
+      if (contributions) {
+        setDrawContributions(prev => ({
+          ...prev,
+          [key]: contributions.map((c: ds.RoscaDrawContributionRow) => ({
+            _db_id: c.id,
+            draw_id: c.draw_id,
+            member_id: c.member_id,
+            member_name: c.member_name,
+            contribution_type: c.contribution_type as 'monthly' | 'welfare',
+            amount: Number(c.amount),
+            payment_method: c.payment_method,
+            status: c.status as 'pending' | 'confirmed' | 'failed',
+            transaction_ref: c.transaction_ref || undefined,
+            paid_at: c.paid_at || undefined,
+            notes: c.notes || undefined,
+          })),
+        }));
+      }
+    } catch (e) {
+      console.error('Failed to load draw contributions:', e);
+    }
+  }, []);
+
+  const recordDrawContribution = useCallback(async (params: {
+    drawId: string;
+    memberId: string;
+    memberName: string;
+    amount: number;
+    contributionType?: 'monthly' | 'welfare';
+    paymentMethod?: string;
+    status?: 'pending' | 'confirmed' | 'failed';
+  }) => {
+    try {
+      await ds.recordRoscaDrawContribution({
+        draw_id: params.drawId,
+        member_id: params.memberId,
+        member_name: params.memberName,
+        contribution_type: params.contributionType || 'monthly',
+        amount: params.amount,
+        payment_method: params.paymentMethod || 'cash',
+        status: params.status || 'pending',
+      });
+      // Reload contributions for the draw
+      const cycle = cycles.find(c => c.draws.some(d => d._db_id === params.drawId));
+      if (cycle) {
+        const draw = cycle.draws.find(d => d._db_id === params.drawId);
+        if (draw && cycle._db_id) {
+          await loadDrawContributions(cycle._db_id, draw.draw_number);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to record draw contribution:', e);
+    }
+  }, [cycles, loadDrawContributions]);
+
+  const updateDrawContributionStatus = useCallback(async (contributionId: string, status: 'pending' | 'confirmed' | 'failed') => {
+    try {
+      await ds.updateRoscaDrawContributionStatus(contributionId, status);
+      // Reload contributions - need to find the right draw
+      for (const cycle of cycles) {
+        for (const draw of cycle.draws) {
+          const key = `${cycle._db_id}-${draw.draw_number}`;
+          const contrib = drawContributions[key]?.find(c => c._db_id === contributionId);
+          if (contrib && cycle._db_id) {
+            await loadDrawContributions(cycle._db_id, draw.draw_number);
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to update contribution status:', e);
+    }
+  }, [cycles, drawContributions, loadDrawContributions]);
 
   // ── Update draw — persists to Supabase then reloads ────────────────────
   const updateDraw = useCallback(async (cycleNumber: number, updatedDraw: RoscaDraw) => {
@@ -329,8 +558,17 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
       updateDraw,
       addDraw,
       refreshCycles,
+      createCycle,
       getMemberStats,
       getGroupTotals,
+      welfare,
+      loadWelfare,
+      createWelfare,
+      addWelfareSpending,
+      drawContributions,
+      loadDrawContributions,
+      recordDrawContribution,
+      updateDrawContributionStatus,
     }}>
       {children}
     </RoscaContext.Provider>
