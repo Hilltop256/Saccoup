@@ -319,12 +319,13 @@ const EditDrawModal: React.FC<EditDrawModalProps> = ({ draw, members, onSave, on
 // ─── Main RoscaPage ──────────────────────────────────────────────────────────
 
 const RoscaPage: React.FC = () => {
-  const { user, selectedGroupId, selectedGroup } = useAppContext();
-  const { cycles, updateDraw, setCycles } = useRoscaData();
+  const { selectedGroupId, selectedGroup } = useAppContext();
+  const { cycles, loading, updateDraw, addDraw } = useRoscaData();
 
   // Real members loaded from the group
   const [groupMembers, setGroupMembers] = useState<{ full_name: string; id: string }[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const [selectedCycleNum, setSelectedCycleNum] = useState<number>(3);
   const [editingDraw, setEditingDraw] = useState<RoscaDraw | null>(null);
@@ -349,6 +350,21 @@ const RoscaPage: React.FC = () => {
       .finally(() => setMembersLoading(false));
   }, [selectedGroupId]);
 
+  // Show loading state while seeding
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24 gap-3">
+        <svg className="w-6 h-6 animate-spin text-purple-500" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+        <span className="text-sm font-semibold text-gray-500">Loading ROSCA cycle data…</span>
+      </div>
+    );
+  }
+
+  if (!cycles.length) return null;
+
   const selectedCycle = cycles.find(c => c.cycle_number === selectedCycleNum) || cycles[cycles.length - 1];
 
   const totalPaidOut = selectedCycle.draws.reduce((s, d) => s + d.amount_received, 0);
@@ -359,22 +375,30 @@ const RoscaPage: React.FC = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const handleSaveDraw = (updated: RoscaDraw) => {
-    updateDraw(selectedCycleNum, updated);
-    setEditingDraw(null);
-    showToast(`Draw D${updated.draw_number}-W${updated.winner_slot} updated!`);
+  const handleSaveDraw = async (updated: RoscaDraw) => {
+    setSaving(true);
+    try {
+      await updateDraw(selectedCycleNum, updated);
+      setEditingDraw(null);
+      showToast(`Draw D${updated.draw_number}-W${updated.winner_slot} saved!`);
+    } catch {
+      showToast('Failed to save draw.', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleAddDraw = (newDraw: RoscaDraw) => {
-    setCycles(prev => prev.map(c => {
-      if (c.cycle_number !== selectedCycleNum) return c;
-      const maxNum = Math.max(0, ...c.draws.map(d => d.draw_number));
-      const draw1 = { ...newDraw, draw_number: maxNum + 1, winner_slot: '1' as const };
-      const draw2 = { ...newDraw, draw_number: maxNum + 1, winner_slot: '2' as const };
-      return { ...c, draws: [...c.draws, draw1, draw2], total_draws: c.total_draws + 2 };
-    }));
-    setShowAddDraw(false);
-    showToast('New draw (2 winner slots) added!');
+  const handleAddDraw = async (newDraw: RoscaDraw) => {
+    setSaving(true);
+    try {
+      await addDraw(selectedCycleNum, newDraw);
+      setShowAddDraw(false);
+      showToast('New draw added and saved!');
+    } catch {
+      showToast('Failed to add draw.', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

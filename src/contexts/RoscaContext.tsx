@@ -3,11 +3,19 @@ import { MOCK_PBS_CYCLES, type RoscaCycle, type RoscaDraw } from '@/lib/constant
 import * as ds from '@/lib/dataService';
 import { useAppContext } from './AppContext';
 
+// Extended types that carry Supabase UUIDs internally
+export interface RoscaDrawWithId extends RoscaDraw {
+  _db_id?: string;   // rosca_draws.id from Supabase
+}
+export interface RoscaCycleWithId extends Omit<RoscaCycle, 'draws'> {
+  _db_id?: string;   // rosca_cycles.id from Supabase
+  draws: RoscaDrawWithId[];
+}
+
 interface RoscaContextType {
-  cycles: RoscaCycle[];
-  setCycles: React.Dispatch<React.SetStateAction<RoscaCycle[]>>;
+  cycles: RoscaCycleWithId[];
+  setCycles: React.Dispatch<React.SetStateAction<RoscaCycleWithId[]>>;
   loading: boolean;
-  seeded: boolean;
   updateDraw: (cycleNumber: number, updatedDraw: RoscaDraw) => Promise<void>;
   addDraw: (cycleNumber: number, newDraw: RoscaDraw) => Promise<void>;
   refreshCycles: () => Promise<void>;
@@ -31,22 +39,19 @@ const RoscaContext = createContext<RoscaContextType | undefined>(undefined);
 
 export const useRoscaData = () => {
   const context = useContext(RoscaContext);
-  if (!context) {
-    throw new Error('useRoscaData must be used within RoscaProvider');
-  }
+  if (!context) throw new Error('useRoscaData must be used within RoscaProvider');
   return context;
 };
 
-interface RoscaProviderProps {
-  children: ReactNode;
-}
+interface RoscaProviderProps { children: ReactNode; }
 
-// Helper to map Supabase cycle + draws to app format
+// Map Supabase rows → internal format (preserving UUIDs)
 function mapSupabaseToCycles(
   dbCycles: ds.RoscaCycleRow[],
   dbDraws: Record<string, ds.RoscaDrawRow[]>
-): RoscaCycle[] {
+): RoscaCycleWithId[] {
   return dbCycles.map(c => ({
+    _db_id: c.id,
     cycle_number: c.cycle_number,
     cycle_name: c.cycle_name,
     status: c.status as 'completed' | 'active' | 'upcoming',
@@ -55,16 +60,17 @@ function mapSupabaseToCycles(
     total_draws: c.total_draws,
     pot_amount_per_draw: Number(c.pot_amount_per_draw),
     draws: (dbDraws[c.id] || []).map(d => ({
+      _db_id: d.id,
       draw_number: d.draw_number,
       winner_slot: d.winner_slot as '1' | '2',
       winner_name: d.winner_name || '',
       winner_id: d.winner_id || undefined,
       amount_received: Number(d.amount_received),
       draw_date: d.draw_date,
-      savings: d.savings ? Number(d.savings) : undefined,
-      paid_out: d.paid_out ? Number(d.paid_out) : undefined,
-      deductions: d.deductions ? Number(d.deductions) : undefined,
-      balance: d.balance ? Number(d.balance) : undefined,
+      savings: d.savings != null ? Number(d.savings) : undefined,
+      paid_out: d.paid_out != null ? Number(d.paid_out) : undefined,
+      deductions: d.deductions != null ? Number(d.deductions) : undefined,
+      balance: d.balance != null ? Number(d.balance) : undefined,
       status: d.status as 'won' | 'pending' | 'skipped' | 'forfeited',
       notes: d.notes || undefined,
     })),
@@ -73,57 +79,56 @@ function mapSupabaseToCycles(
 
 export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
   const { selectedGroupId } = useAppContext();
-  const [cycles, setCycles] = useState<RoscaCycle[]>([]);
+  const [cycles, setCycles] = useState<RoscaCycleWithId[]>([]);
   const [loading, setLoading] = useState(true);
-  const [seeded, setSeeded] = useState(false);
+  const [seeding, setSeeding] = useState(false);
 
-  // Load cycles from Supabase
+  // ── Load from Supabase ────────────────────────────────────────────────────
   const loadCycles = useCallback(async () => {
     if (!selectedGroupId) {
-      setCycles(MOCK_PBS_CYCLES);
+      // No group yet — show mock data so UI is never empty
+      setCycles(MOCK_PBS_CYCLES.map(c => ({ ...c, _db_id: undefined, draws: c.draws.map(d => ({ ...d, _db_id: undefined })) })));
       setLoading(false);
       return;
     }
 
     setLoading(true);
     try {
-      const { success, cycles: dbCycles } = await ds.listRoscaCycles(selectedGroupId);
-      
-      if (success && dbCycles && dbCycles.length > 0) {
-        // Load draws for each cycle
+      const { cycles: dbCycles } = await ds.listRoscaCycles(selectedGroupId);
+
+      if (dbCycles && dbCycles.length > 0) {
         const drawsMap: Record<string, ds.RoscaDrawRow[]> = {};
         for (const c of dbCycles) {
-          const { success: drawSuccess, draws } = await ds.listRoscaDraws(c.id);
-          if (drawSuccess && draws) {
-            drawsMap[c.id] = draws;
-          }
+          const { draws } = await ds.listRoscaDraws(c.id);
+          if (draws) drawsMap[c.id] = draws;
         }
-        const mapped = mapSupabaseToCycles(dbCycles, drawsMap);
-        setCycles(mapped);
+        setCycles(mapSupabaseToCycles(dbCycles, drawsMap));
       } else {
-        // No data in Supabase yet - seed with mock data
-        setCycles(MOCK_PBS_CYCLES);
+        // No data yet — will trigger seed
+        setCycles([]);
       }
     } catch (e) {
       console.error('Failed to load ROSCA cycles:', e);
-      setCycles(MOCK_PBS_CYCLES);
+      setCycles(MOCK_PBS_CYCLES.map(c => ({ ...c, _db_id: undefined, draws: c.draws.map(d => ({ ...d, _db_id: undefined })) })));
     }
     setLoading(false);
   }, [selectedGroupId]);
 
-  // Seed initial data to Supabase (one-time when no data exists)
+  // ── Seed canonical data to Supabase (one-time per group) ─────────────────
   const seedToSupabase = useCallback(async () => {
-    if (!selectedGroupId || seeded) return;
-    setSeeded(true);
-
+    if (!selectedGroupId || seeding) return;
+    setSeeding(true);
     try {
-      // Check again if data exists
-      const { success, cycles: existing } = await ds.listRoscaCycles(selectedGroupId);
-      if (success && existing && existing.length > 0) return;
+      // Double-check still empty
+      const { cycles: existing } = await ds.listRoscaCycles(selectedGroupId);
+      if (existing && existing.length > 0) {
+        await loadCycles();
+        setSeeding(false);
+        return;
+      }
 
-      // Seed each cycle from mock data
       for (const cycle of MOCK_PBS_CYCLES) {
-        const { success: cycSuccess, cycle: newCycle } = await ds.createRoscaCycle({
+        const { cycle: newCycle } = await ds.createRoscaCycle({
           group_id: selectedGroupId,
           cycle_number: cycle.cycle_number,
           cycle_name: cycle.cycle_name,
@@ -132,12 +137,11 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
           end_date: cycle.end_date,
           total_draws: cycle.total_draws,
           pot_amount_per_draw: cycle.pot_amount_per_draw,
-          member_count: cycle.draws.length / 2, // 2 winners per draw
-          security_deposit: cycle.cycle_number === 3 ? 500000 : 0, // Cycle 3 has 500k security deposit
+          member_count: cycle.draws.length / 2,
+          security_deposit: cycle.cycle_number === 3 ? 500000 : 0,
         });
 
-        if (cycSuccess && newCycle) {
-          // Create draws
+        if (newCycle) {
           for (const draw of cycle.draws) {
             await ds.createRoscaDraw({
               cycle_id: newCycle.id,
@@ -156,128 +160,177 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
           }
         }
       }
-      // Reload after seeding
       await loadCycles();
     } catch (e) {
       console.error('Failed to seed ROSCA data:', e);
+      // Fall back to mock data with no UUIDs
+      setCycles(MOCK_PBS_CYCLES.map(c => ({ ...c, _db_id: undefined, draws: c.draws.map(d => ({ ...d, _db_id: undefined })) })));
     }
-  }, [selectedGroupId, seeded, loadCycles]);
+    setSeeding(false);
+  }, [selectedGroupId, seeding, loadCycles]);
 
-  useEffect(() => {
-    loadCycles();
-  }, [loadCycles]);
+  useEffect(() => { loadCycles(); }, [loadCycles]);
 
-  // Seed after load if empty
+  // Trigger seed when load completes with empty result
   useEffect(() => {
-    if (!loading && cycles.length === 0 && selectedGroupId) {
+    if (!loading && cycles.length === 0 && selectedGroupId && !seeding) {
       seedToSupabase();
     }
-  }, [loading, cycles.length, selectedGroupId, seedToSupabase]);
+  }, [loading, cycles.length, selectedGroupId, seeding, seedToSupabase]);
 
-  // Refresh cycles from Supabase
-  const refreshCycles = useCallback(async () => {
-    await loadCycles();
-  }, [loadCycles]);
+  const refreshCycles = useCallback(async () => { await loadCycles(); }, [loadCycles]);
 
-  // Update draw in Supabase
-  const updateDraw = async (cycleNumber: number, updatedDraw: RoscaDraw) => {
-    // Find the cycle to get its UUID
-    const cycle = cycles.find(c => c.cycle_number === cycleNumber);
-    if (!cycle || !selectedGroupId) return;
-
-    // Find the draw in our local state
-    const existingDraw = cycle.draws.find(
-      d => d.draw_number === updatedDraw.draw_number && d.winner_slot === updatedDraw.winner_slot
-    );
-
-    if (existingDraw) {
-      // Need to find the UUID - we need to reload to get it
-      // For now, we'll update locally and trigger refresh
-    }
-
-    // Update local state immediately for UI responsiveness
+  // ── Update draw — persists to Supabase then reloads ────────────────────
+  const updateDraw = useCallback(async (cycleNumber: number, updatedDraw: RoscaDraw) => {
+    // Optimistic local update first (instant UI feedback)
     setCycles(prev => prev.map(c => {
       if (c.cycle_number !== cycleNumber) return c;
       return {
         ...c,
         draws: c.draws.map(d =>
           d.draw_number === updatedDraw.draw_number && d.winner_slot === updatedDraw.winner_slot
-            ? updatedDraw
+            ? { ...updatedDraw, _db_id: d._db_id }
             : d
         ),
       };
     }));
 
-    // TODO: Persist to Supabase - need to track UUIDs properly
-    // For now, the data stays in memory but will persist on next page refresh if we seed it
-  };
+    // Persist to Supabase
+    if (!selectedGroupId) return;
+    try {
+      const cycle = cycles.find(c => c.cycle_number === cycleNumber);
+      const draw = cycle?.draws.find(
+        d => d.draw_number === updatedDraw.draw_number && d.winner_slot === updatedDraw.winner_slot
+      );
 
-  // Add new draw
-  const addDraw = async (cycleNumber: number, newDraw: RoscaDraw) => {
-    setCycles(prev => prev.map(cycle => {
-      if (cycle.cycle_number !== cycleNumber) return cycle;
-      const maxNum = Math.max(0, ...cycle.draws.map(d => d.draw_number));
-      const draw1 = { ...newDraw, draw_number: maxNum + 1, winner_slot: '1' as const };
-      const draw2 = { ...newDraw, draw_number: maxNum + 1, winner_slot: '2' as const };
-      return { ...cycle, draws: [...cycle.draws, draw1, draw2], total_draws: cycle.total_draws + 2 };
+      if (draw?._db_id) {
+        // Row exists — update it
+        await ds.updateRoscaDraw(draw._db_id, {
+          winner_name: updatedDraw.winner_name,
+          winner_id: updatedDraw.winner_id,
+          amount_received: updatedDraw.amount_received,
+          draw_date: updatedDraw.draw_date,
+          savings: updatedDraw.savings ?? null,
+          paid_out: updatedDraw.paid_out ?? null,
+          deductions: updatedDraw.deductions ?? null,
+          balance: updatedDraw.balance ?? null,
+          status: updatedDraw.status,
+          notes: updatedDraw.notes ?? null,
+        });
+      } else if (cycle?._db_id) {
+        // Row doesn't exist yet (new draw added to existing cycle) — insert it
+        await ds.createRoscaDraw({
+          cycle_id: cycle._db_id,
+          draw_number: updatedDraw.draw_number,
+          winner_slot: updatedDraw.winner_slot,
+          winner_name: updatedDraw.winner_name || undefined,
+          amount_received: updatedDraw.amount_received,
+          draw_date: updatedDraw.draw_date,
+          savings: updatedDraw.savings,
+          paid_out: updatedDraw.paid_out,
+          deductions: updatedDraw.deductions,
+          balance: updatedDraw.balance,
+          status: updatedDraw.status,
+          notes: updatedDraw.notes,
+        });
+        // Reload to get the new UUID
+        await loadCycles();
+      }
+    } catch (e) {
+      console.error('Failed to persist draw update:', e);
+    }
+  }, [cycles, selectedGroupId, loadCycles]);
+
+  // ── Add new draw — persists both slots to Supabase ───────────────────────
+  const addDraw = useCallback(async (cycleNumber: number, newDraw: RoscaDraw) => {
+    const cycle = cycles.find(c => c.cycle_number === cycleNumber);
+    if (!cycle) return;
+
+    const maxNum = Math.max(0, ...cycle.draws.map(d => d.draw_number));
+    const nextNum = maxNum + 1;
+    const draw1: RoscaDrawWithId = { ...newDraw, draw_number: nextNum, winner_slot: '1', _db_id: undefined };
+    const draw2: RoscaDrawWithId = { ...newDraw, draw_number: nextNum, winner_slot: '2', _db_id: undefined };
+
+    // Optimistic update
+    setCycles(prev => prev.map(c => {
+      if (c.cycle_number !== cycleNumber) return c;
+      return { ...c, draws: [...c.draws, draw1, draw2], total_draws: c.total_draws + 2 };
     }));
-  };
 
-  const getMemberStats = (memberName: string) => {
-    let totalWon = 0;
-    let totalSavings = 0;
-    let totalDeductions = 0;
-    let totalPaidOut = 0;
-    let totalBalance = 0;
-    let wins = 0;
+    // Persist to Supabase
+    if (cycle._db_id) {
+      try {
+        for (const slot of ['1', '2'] as const) {
+          const d = slot === '1' ? draw1 : draw2;
+          await ds.createRoscaDraw({
+            cycle_id: cycle._db_id,
+            draw_number: nextNum,
+            winner_slot: slot,
+            winner_name: d.winner_name || undefined,
+            amount_received: d.amount_received,
+            draw_date: d.draw_date,
+            savings: d.savings,
+            paid_out: d.paid_out,
+            deductions: d.deductions,
+            balance: d.balance,
+            status: d.status,
+            notes: d.notes,
+          });
+        }
+        // Reload to populate _db_ids for the new draws
+        await loadCycles();
+      } catch (e) {
+        console.error('Failed to persist new draw:', e);
+      }
+    }
+  }, [cycles, loadCycles]);
+
+  // ── Aggregate helpers ─────────────────────────────────────────────────────
+  const getMemberStats = useCallback((memberName: string) => {
+    let totalWon = 0, totalSavings = 0, totalDeductions = 0,
+        totalPaidOut = 0, totalBalance = 0, wins = 0;
 
     cycles.forEach(cycle => {
       cycle.draws.forEach(draw => {
         if (draw.winner_name === memberName) {
           wins++;
-          totalWon += draw.amount_received;
-          totalSavings += draw.savings || 0;
+          totalWon       += draw.amount_received;
+          totalSavings   += draw.savings    || 0;
           totalDeductions += draw.deductions || 0;
-          totalPaidOut += draw.paid_out || 0;
-          totalBalance += draw.balance || 0;
+          totalPaidOut   += draw.paid_out   || 0;
+          totalBalance   += draw.balance    || 0;
         }
       });
     });
-
     return { totalWon, totalSavings, totalDeductions, totalPaidOut, totalBalance, wins };
-  };
+  }, [cycles]);
 
-  const getGroupTotals = () => {
-    let totalPaidOut = 0;
-    let totalSavings = 0;
-    let totalDeductions = 0;
-    let totalWinners = 0;
+  const getGroupTotals = useCallback(() => {
+    let totalPaidOut = 0, totalSavings = 0, totalDeductions = 0, totalWinners = 0;
 
     cycles.forEach(cycle => {
       cycle.draws.forEach(draw => {
         if (draw.winner_name) {
           totalWinners++;
-          totalPaidOut += draw.amount_received;
-          totalSavings += draw.savings || 0;
+          totalPaidOut    += draw.amount_received;
+          totalSavings    += draw.savings    || 0;
           totalDeductions += draw.deductions || 0;
         }
       });
     });
-
     return { totalPaidOut, totalSavings, totalDeductions, totalWinners };
-  };
+  }, [cycles]);
 
   return (
-    <RoscaContext.Provider value={{ 
-      cycles, 
-      setCycles, 
+    <RoscaContext.Provider value={{
+      cycles,
+      setCycles,
       loading,
-      seeded,
-      updateDraw, 
-      addDraw, 
+      updateDraw,
+      addDraw,
       refreshCycles,
-      getMemberStats, 
-      getGroupTotals 
+      getMemberStats,
+      getGroupTotals,
     }}>
       {children}
     </RoscaContext.Provider>

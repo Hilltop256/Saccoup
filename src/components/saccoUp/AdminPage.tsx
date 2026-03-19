@@ -72,10 +72,11 @@ const AdminPage: React.FC = () => {
 // ─── ROSCA Tab ────────────────────────────────────────────────────────────────
 
 const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => {
-  const { cycles, updateDraw } = useRoscaData();
+  const { cycles, loading, updateDraw } = useRoscaData();
   const [selectedCycle, setSelectedCycle] = useState<number>(1);
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<RoscaDraw | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const currentCycle = cycles.find(c => c.cycle_number === selectedCycle) || cycles[0];
 
@@ -84,12 +85,19 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
     setEditForm({ ...draw });
   };
 
-  const handleSave = () => {
-    if (!editForm) return;
-    updateDraw(selectedCycle, editForm);
-    setEditingRow(null);
-    setEditForm(null);
-    onToast('Draw updated successfully!');
+  const handleSave = async () => {
+    if (!editForm || saving) return;
+    setSaving(true);
+    try {
+      await updateDraw(selectedCycle, editForm);
+      setEditingRow(null);
+      setEditForm(null);
+      onToast('Draw updated and saved!');
+    } catch {
+      onToast('Failed to save draw.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCancel = () => {
@@ -101,6 +109,18 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
     if (!editForm) return;
     setEditForm(prev => prev ? { ...prev, [field]: value } : null);
   };
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-12 gap-3">
+      <svg className="w-5 h-5 animate-spin text-purple-500" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      </svg>
+      <span className="text-sm text-gray-500 font-semibold">Loading ROSCA data…</span>
+    </div>
+  );
+
+  if (!cycles.length) return null;
 
   return (
     <div className="space-y-4">
@@ -214,8 +234,8 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
                       </td>
                       <td className="px-3 py-2 text-right">
                         <div className="flex gap-1 justify-end">
-                          <button onClick={handleSave} className="px-2 py-1 text-xs font-bold text-white bg-emerald-500 rounded hover:bg-emerald-600">Save</button>
-                          <button onClick={handleCancel} className="px-2 py-1 text-xs font-bold text-gray-600 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
+                          <button onClick={handleSave} disabled={saving} className="px-2 py-1 text-xs font-bold text-white bg-emerald-500 rounded hover:bg-emerald-600 disabled:opacity-60">{saving ? '…' : 'Save'}</button>
+                          <button onClick={handleCancel} disabled={saving} className="px-2 py-1 text-xs font-bold text-gray-600 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
                         </div>
                       </td>
                     </>
