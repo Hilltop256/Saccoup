@@ -192,6 +192,8 @@ export interface RoscaCycle {
   end_date?: string;
   total_draws: number;           // e.g. 20 for PBS
   pot_amount_per_draw: number;   // pot value each draw
+  member_count?: number;         // number of members in cycle
+  security_deposit?: number;     // security deposit per winner
   draws: RoscaDraw[];
 }
 

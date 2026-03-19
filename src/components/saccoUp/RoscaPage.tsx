@@ -323,7 +323,7 @@ const EditDrawModal: React.FC<EditDrawModalProps> = ({ draw, members, onSave, on
 
 const RoscaPage: React.FC = () => {
   const { selectedGroupId, selectedGroup } = useAppContext();
-  const { cycles, loading, updateDraw, addDraw } = useRoscaData();
+  const { cycles, loading, updateDraw, addDraw, refreshCycles } = useRoscaData();
 
   // Real members loaded from the group
   const [groupMembers, setGroupMembers] = useState<{ full_name: string; id: string }[]>([]);
@@ -335,6 +335,18 @@ const RoscaPage: React.FC = () => {
   const [editingDraw, setEditingDraw] = useState<RoscaDraw | null>(null);
   const [showAddDraw, setShowAddDraw] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const [showCreateCycle, setShowCreateCycle] = useState(false);
+  const [creatingCycle, setCreatingCycle] = useState(false);
+  const [newCycleForm, setNewCycleForm] = useState({
+    cycle_name: '',
+    start_date: new Date().toISOString().slice(0, 10),
+    end_date: '',
+    total_draws: '10',
+    pot_amount_per_draw: '5000000',
+    member_count: '20',
+    security_deposit: '0',
+    notes: '',
+  });
 
   // Payment tracking state
   const [contributionStatuses, setContributionStatuses] = useState<any[]>([]);
@@ -363,45 +375,43 @@ const RoscaPage: React.FC = () => {
     receipt_ref: '',
   });
 
-  // Load contribution statuses for selected draw
-  const loadPaymentData = useCallback(async () => {
-    if (!selectedCycle?._db_id || !selectedGroupId) return;
-    setPaymentLoading(true);
-    try {
-      const result = await ds.listContributionStatus(selectedCycle._db_id, selectedDrawNum);
-      if (result.success) {
-        setContributionStatuses(result.statuses || []);
-      } else {
-        setContributionStatuses([]);
-      }
-    } catch { setContributionStatuses([]); }
-    setPaymentLoading(false);
-  }, [selectedCycle?._db_id, selectedDrawNum, selectedGroupId]);
-
-  // Load welfare expenses
-  const loadWelfareData = useCallback(async () => {
-    if (!selectedCycle?._db_id) return;
-    setWelfareLoading(true);
-    try {
-      const result = await ds.listWelfareExpenses(selectedCycle._db_id);
-      if (result.success) {
-        setWelfareExpenses(result.expenses || []);
-      }
-    } catch { setWelfareExpenses([]); }
-    setWelfareLoading(false);
-  }, [selectedCycle?._db_id]);
-
-  useEffect(() => {
-    if (activeTab === 'payments') loadPaymentData();
-  }, [activeTab, loadPaymentData]);
-
-  useEffect(() => {
-    if (activeTab === 'welfare') loadWelfareData();
-  }, [activeTab, loadWelfareData]);
-
   // Permission: admin, chairperson, or secretary can edit all cycles
   const membershipRole = (selectedGroup?.user_role || '').toLowerCase();
   const canEdit = ['admin', 'chairperson', 'chairman', 'secretary'].includes(membershipRole);
+
+  // Derive selectedCycle early as state-derived value (safe to use in callbacks via ref)
+  const selectedCycle = cycles.find(c => c.cycle_number === selectedCycleNum) || cycles[cycles.length - 1];
+  const selectedCycleDbId = selectedCycle?._db_id;
+
+  // Load contribution statuses for selected draw
+  const loadPaymentData = useCallback(async (cycleDbId: string | undefined, drawNum: number) => {
+    if (!cycleDbId || !selectedGroupId) return;
+    setPaymentLoading(true);
+    try {
+      const result = await ds.listContributionStatus(cycleDbId, drawNum);
+      setContributionStatuses(result.statuses || []);
+    } catch { setContributionStatuses([]); }
+    setPaymentLoading(false);
+  }, [selectedGroupId]);
+
+  // Load welfare expenses
+  const loadWelfareData = useCallback(async (cycleDbId: string | undefined) => {
+    if (!cycleDbId) return;
+    setWelfareLoading(true);
+    try {
+      const result = await ds.listWelfareExpenses(cycleDbId);
+      setWelfareExpenses(result.expenses || []);
+    } catch { setWelfareExpenses([]); }
+    setWelfareLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'payments') loadPaymentData(selectedCycleDbId, selectedDrawNum);
+  }, [activeTab, selectedCycleDbId, selectedDrawNum, loadPaymentData]);
+
+  useEffect(() => {
+    if (activeTab === 'welfare') loadWelfareData(selectedCycleDbId);
+  }, [activeTab, selectedCycleDbId, loadWelfareData]);
 
   // Load real group members
   useEffect(() => {
@@ -413,7 +423,7 @@ const RoscaPage: React.FC = () => {
           setGroupMembers(res.members.map((m: any) => ({ full_name: m.full_name, id: m.id })));
         }
       })
-      .catch(() => {/* fall back gracefully */})
+      .catch(() => {})
       .finally(() => setMembersLoading(false));
   }, [selectedGroupId]);
 
@@ -432,10 +442,8 @@ const RoscaPage: React.FC = () => {
 
   if (!cycles.length) return null;
 
-  const selectedCycle = cycles.find(c => c.cycle_number === selectedCycleNum) || cycles[cycles.length - 1];
-
-  const totalPaidOut = selectedCycle.draws.reduce((s, d) => s + d.amount_received, 0);
-  const totalSavings = selectedCycle.draws.reduce((s, d) => s + (d.savings || 0), 0);
+  const totalPaidOut = selectedCycle?.draws.reduce((s, d) => s + d.amount_received, 0) || 0;
+  const totalSavings = selectedCycle?.draws.reduce((s, d) => s + (d.savings || 0), 0) || 0;
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -468,67 +476,97 @@ const RoscaPage: React.FC = () => {
     }
   };
 
+  // Create a new ROSCA cycle
+  const handleCreateCycle = async () => {
+    if (!selectedGroupId || !newCycleForm.cycle_name.trim()) return;
+    setCreatingCycle(true);
+    try {
+      const nextNum = (cycles.length > 0 ? Math.max(...cycles.map(c => c.cycle_number)) : 0) + 1;
+      await ds.createRoscaCycle({
+        group_id: selectedGroupId,
+        cycle_number: nextNum,
+        cycle_name: newCycleForm.cycle_name.trim(),
+        status: 'upcoming',
+        start_date: newCycleForm.start_date,
+        end_date: newCycleForm.end_date || undefined,
+        total_draws: parseInt(newCycleForm.total_draws) || 10,
+        pot_amount_per_draw: parseInt(newCycleForm.pot_amount_per_draw) || 5000000,
+        member_count: parseInt(newCycleForm.member_count) || 20,
+        security_deposit: parseInt(newCycleForm.security_deposit) || 0,
+        notes: newCycleForm.notes || undefined,
+      });
+      showToast(`Cycle ${nextNum} created!`);
+      setShowCreateCycle(false);
+      setNewCycleForm({ cycle_name: '', start_date: new Date().toISOString().slice(0, 10), end_date: '', total_draws: '10', pot_amount_per_draw: '5000000', member_count: '20', security_deposit: '0', notes: '' });
+      await refreshCycles();
+      setSelectedCycleNum(nextNum);
+    } catch (e: any) {
+      showToast(e.message || 'Failed to create cycle', 'error');
+    }
+    setCreatingCycle(false);
+  };
+
   // Initialize contribution status for a draw
   const handleInitDrawPayments = async () => {
-    if (!selectedCycle?._db_id || !selectedGroupId) return;
+    if (!selectedCycleDbId || !selectedGroupId) return;
     setPaymentLoading(true);
     try {
-      const result = await ds.initContributionStatusForDraw({
-        cycle_id: selectedCycle._db_id,
+      await ds.initContributionStatusForDraw({
+        cycle_id: selectedCycleDbId,
         draw_number: selectedDrawNum,
-        draw_date: selectedCycle.start_date,
+        draw_date: selectedCycle?.start_date || new Date().toISOString().slice(0, 10),
         members: groupMembers,
-        expected_amount: 500000,
+        expected_amount: selectedCycle?.pot_amount_per_draw
+          ? selectedCycle.pot_amount_per_draw / Math.max(1, (selectedCycle.member_count || 20))
+          : 500000,
       });
-      if (result.success) {
-        showToast('Payment tracking initialized for Draw ' + selectedDrawNum);
-        loadPaymentData();
-      }
+      showToast('Payment tracking initialized for Draw ' + selectedDrawNum);
+      loadPaymentData(selectedCycleDbId, selectedDrawNum);
     } catch { showToast('Failed to initialize payments', 'error'); }
     setPaymentLoading(false);
   };
 
   // Record a payment for a member
   const handleRecordPayment = async () => {
-    if (!paymentForm.member_id || !paymentForm.paid_amount || !selectedCycle?._db_id) return;
+    if (!paymentForm.member_id || !paymentForm.paid_amount || !selectedCycleDbId) return;
     setRecordingPayment(true);
     try {
       const member = groupMembers.find(m => m.id === paymentForm.member_id);
-      const status = contributionStatuses.find(s => s.member_id === paymentForm.member_id);
-      if (!status) {
-        // Create new status record
+      const existing = contributionStatuses.find(s => s.member_id === paymentForm.member_id);
+      let statusId = existing?.id;
+      if (!statusId) {
         await ds.initContributionStatusForDraw({
-          cycle_id: selectedCycle._db_id,
+          cycle_id: selectedCycleDbId,
           draw_number: selectedDrawNum,
-          draw_date: selectedCycle.start_date,
+          draw_date: selectedCycle?.start_date || new Date().toISOString().slice(0, 10),
           members: [{ id: paymentForm.member_id, full_name: member?.full_name || '' }],
         });
+        const updated = await ds.listContributionStatus(selectedCycleDbId, selectedDrawNum);
+        statusId = updated.statuses?.find((s: any) => s.member_id === paymentForm.member_id)?.id;
       }
-      const updated = await ds.listContributionStatus(selectedCycle._db_id, selectedDrawNum);
-      const newStatus = updated.statuses?.find((s: any) => s.member_id === paymentForm.member_id);
-      if (newStatus) {
+      if (statusId) {
         await ds.markContributionAsPaid({
-          status_id: newStatus.id,
+          status_id: statusId,
           paid_amount: parseInt(paymentForm.paid_amount),
           payment_method: paymentForm.payment_method,
           transaction_ref: paymentForm.transaction_ref,
         });
       }
-      showToast('Payment recorded for ' + member?.full_name);
+      showToast('Payment recorded for ' + (member?.full_name || 'member'));
       setShowPaymentModal(false);
       setPaymentForm({ member_id: '', paid_amount: '', payment_method: 'cash', transaction_ref: '' });
-      loadPaymentData();
+      loadPaymentData(selectedCycleDbId, selectedDrawNum);
     } catch { showToast('Failed to record payment', 'error'); }
     setRecordingPayment(false);
   };
 
   // Record welfare expense
   const handleRecordWelfare = async () => {
-    if (!selectedCycle?._db_id) return;
+    if (!selectedCycleDbId) return;
     setRecordingWelfare(true);
     try {
       await ds.createWelfareExpense({
-        cycle_id: selectedCycle._db_id,
+        cycle_id: selectedCycleDbId,
         draw_number: welfareForm.draw_number,
         draw_date: welfareForm.draw_date,
         amount: parseInt(welfareForm.amount),
@@ -538,7 +576,7 @@ const RoscaPage: React.FC = () => {
       });
       showToast('Welfare expense recorded!');
       setShowWelfareModal(false);
-      loadWelfareData();
+      loadWelfareData(selectedCycleDbId);
     } catch { showToast('Failed to record expense', 'error'); }
     setRecordingWelfare(false);
   };
@@ -555,18 +593,31 @@ const RoscaPage: React.FC = () => {
           <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
             🎡 PBS Merry-Go-Round
           </h1>
-          <p className="text-sm text-purple-500 font-semibold">Cycle history • Draw winners • 2 members win {formatUGX(5000000)} each per draw</p>
+          <p className="text-sm text-purple-500 font-semibold">Cycle history • Draw winners • Welfare tracking</p>
         </div>
-        {canEdit && activeTab === 'draws' && (
-          <button
-            onClick={() => setShowAddDraw(true)}
-            className="flex items-center gap-2 px-4 py-2.5 text-sm font-extrabold text-white bg-gradient-to-r from-[#7c3aed] to-[#ec4899] rounded-xl hover:opacity-90 transition-opacity shadow-md shadow-purple-300/40"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Add Draw
-          </button>
+        {canEdit && (
+          <div className="flex items-center gap-2">
+            {activeTab === 'draws' && (
+              <button
+                onClick={() => setShowAddDraw(true)}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-extrabold text-white bg-gradient-to-r from-[#7c3aed] to-[#ec4899] rounded-xl hover:opacity-90 transition-opacity shadow-md shadow-purple-300/40"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                Add Draw
+              </button>
+            )}
+            <button
+              onClick={() => setShowCreateCycle(true)}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-extrabold text-purple-700 bg-purple-100 border border-purple-200 rounded-xl hover:bg-purple-200 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              New Cycle
+            </button>
+          </div>
         )}
       </div>
 
@@ -1067,6 +1118,87 @@ const RoscaPage: React.FC = () => {
           onClose={() => setShowAddDraw(false)}
           cycleNumber={selectedCycleNum}
         />
+      )}
+
+      {/* Create New Cycle Modal */}
+      {showCreateCycle && canEdit && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowCreateCycle(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold text-gray-900">Create New Cycle</h2>
+              <button onClick={() => setShowCreateCycle(false)} className="p-1 text-gray-400 hover:text-gray-600">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Cycle Name *</label>
+                <input type="text" value={newCycleForm.cycle_name}
+                  onChange={e => setNewCycleForm(p => ({ ...p, cycle_name: e.target.value }))}
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-400 outline-none"
+                  placeholder={`Cycle ${(cycles.length > 0 ? Math.max(...cycles.map(c => c.cycle_number)) : 0) + 1}`} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Start Date *</label>
+                  <input type="date" value={newCycleForm.start_date}
+                    onChange={e => setNewCycleForm(p => ({ ...p, start_date: e.target.value }))}
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-400 outline-none" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">End Date (optional)</label>
+                  <input type="date" value={newCycleForm.end_date}
+                    onChange={e => setNewCycleForm(p => ({ ...p, end_date: e.target.value }))}
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-400 outline-none" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Total Draws</label>
+                  <input type="number" value={newCycleForm.total_draws}
+                    onChange={e => setNewCycleForm(p => ({ ...p, total_draws: e.target.value }))}
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-400 outline-none" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Members</label>
+                  <input type="number" value={newCycleForm.member_count}
+                    onChange={e => setNewCycleForm(p => ({ ...p, member_count: e.target.value }))}
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-400 outline-none" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Pot per Draw (UGX)</label>
+                  <input type="number" value={newCycleForm.pot_amount_per_draw}
+                    onChange={e => setNewCycleForm(p => ({ ...p, pot_amount_per_draw: e.target.value }))}
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-400 outline-none" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Security Deposit (UGX)</label>
+                  <input type="number" value={newCycleForm.security_deposit}
+                    onChange={e => setNewCycleForm(p => ({ ...p, security_deposit: e.target.value }))}
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-400 outline-none" />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Notes (optional)</label>
+                <textarea value={newCycleForm.notes}
+                  onChange={e => setNewCycleForm(p => ({ ...p, notes: e.target.value }))}
+                  rows={2} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-400 outline-none resize-none"
+                  placeholder="Any notes about this cycle..." />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setShowCreateCycle(false)} className="flex-1 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+              <button onClick={handleCreateCycle} disabled={creatingCycle || !newCycleForm.cycle_name.trim()}
+                className="flex-1 py-2.5 text-sm font-extrabold text-white bg-gradient-to-r from-purple-600 to-pink-500 rounded-lg hover:opacity-90 disabled:opacity-50">
+                {creatingCycle ? 'Creating...' : 'Create Cycle'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

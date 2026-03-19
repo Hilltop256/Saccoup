@@ -59,6 +59,8 @@ function mapSupabaseToCycles(
     end_date: c.end_date || undefined,
     total_draws: c.total_draws,
     pot_amount_per_draw: Number(c.pot_amount_per_draw),
+    member_count: c.member_count,
+    security_deposit: c.security_deposit != null ? Number(c.security_deposit) : undefined,
     draws: (dbDraws[c.id] || []).map(d => ({
       _db_id: d.id,
       draw_number: d.draw_number,

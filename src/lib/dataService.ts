@@ -395,6 +395,26 @@ export async function listContributions(group_id: string, filters?: { member_id?
   return { success: true, contributions: data || [] };
 }
 
+export async function updateContribution(contribution_id: string, updates: { amount?: number; payment_method?: string; status?: string; period_label?: string; notes?: string }, updated_by?: string) {
+  const { error } = await supabase
+    .from('contributions')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', contribution_id);
+
+  if (error) throw new Error(error.message);
+
+  if (updated_by) {
+    await supabase.from('audit_logs').insert({
+      actor_id: updated_by,
+      action: 'update_contribution',
+      entity_type: 'contribution',
+      entity_id: contribution_id,
+      details: updates,
+    });
+  }
+  return { success: true };
+}
+
 export async function updateContributionStatus(contribution_id: string, new_status: string, updated_by?: string) {
   const { error } = await supabase
     .from('contributions')

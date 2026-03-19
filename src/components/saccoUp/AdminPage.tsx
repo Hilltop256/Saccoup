@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   formatUGX,
   type RoscaDraw,
@@ -72,11 +72,24 @@ const AdminPage: React.FC = () => {
 // ─── ROSCA Tab ────────────────────────────────────────────────────────────────
 
 const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => {
-  const { cycles, loading, updateDraw } = useRoscaData();
+  const { selectedGroupId } = useAppContext();
+  const { cycles, loading, updateDraw, addDraw, refreshCycles } = useRoscaData();
   const [selectedCycle, setSelectedCycle] = useState<number>(1);
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<RoscaDraw | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showAddDraw, setShowAddDraw] = useState(false);
+  const [addDrawForm, setAddDrawForm] = useState({
+    winner_name: '', draw_date: new Date().toISOString().slice(0, 10),
+    amount_received: '5000000', savings: '0', paid_out: '0', balance: '0', notes: '',
+  });
+  const [showCreateCycle, setShowCreateCycle] = useState(false);
+  const [creatingCycle, setCreatingCycle] = useState(false);
+  const [newCycleForm, setNewCycleForm] = useState({
+    cycle_name: '', start_date: new Date().toISOString().slice(0, 10),
+    end_date: '', total_draws: '10', pot_amount_per_draw: '5000000',
+    member_count: '20', security_deposit: '0',
+  });
 
   const currentCycle = cycles.find(c => c.cycle_number === selectedCycle) || cycles[0];
 
@@ -110,6 +123,56 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
     setEditForm(prev => prev ? { ...prev, [field]: value } : null);
   };
 
+  const handleAddDraw = async () => {
+    if (!addDrawForm.winner_name.trim() || !currentCycle) return;
+    setSaving(true);
+    try {
+      const newDraw: RoscaDraw = {
+        draw_number: Math.max(0, ...currentCycle.draws.map(d => d.draw_number)) + 1,
+        winner_slot: '1',
+        winner_name: addDrawForm.winner_name,
+        amount_received: parseInt(addDrawForm.amount_received) || 5000000,
+        draw_date: addDrawForm.draw_date,
+        savings: parseInt(addDrawForm.savings) || 0,
+        paid_out: parseInt(addDrawForm.paid_out) || 0,
+        balance: parseInt(addDrawForm.balance) || 0,
+        status: 'won',
+        notes: addDrawForm.notes,
+      };
+      await addDraw(selectedCycle, newDraw);
+      setShowAddDraw(false);
+      setAddDrawForm({ winner_name: '', draw_date: new Date().toISOString().slice(0, 10), amount_received: '5000000', savings: '0', paid_out: '0', balance: '0', notes: '' });
+      onToast('Draw added!');
+    } catch { onToast('Failed to add draw.'); }
+    setSaving(false);
+  };
+
+  const handleCreateCycle = async () => {
+    if (!selectedGroupId || !newCycleForm.cycle_name.trim()) return;
+    setCreatingCycle(true);
+    try {
+      const nextNum = (cycles.length > 0 ? Math.max(...cycles.map(c => c.cycle_number)) : 0) + 1;
+      await ds.createRoscaCycle({
+        group_id: selectedGroupId,
+        cycle_number: nextNum,
+        cycle_name: newCycleForm.cycle_name.trim(),
+        status: 'upcoming',
+        start_date: newCycleForm.start_date,
+        end_date: newCycleForm.end_date || undefined,
+        total_draws: parseInt(newCycleForm.total_draws) || 10,
+        pot_amount_per_draw: parseInt(newCycleForm.pot_amount_per_draw) || 5000000,
+        member_count: parseInt(newCycleForm.member_count) || 20,
+        security_deposit: parseInt(newCycleForm.security_deposit) || 0,
+      });
+      await refreshCycles();
+      setSelectedCycle(nextNum);
+      setShowCreateCycle(false);
+      setNewCycleForm({ cycle_name: '', start_date: new Date().toISOString().slice(0, 10), end_date: '', total_draws: '10', pot_amount_per_draw: '5000000', member_count: '20', security_deposit: '0' });
+      onToast(`Cycle ${nextNum} created!`);
+    } catch (e: any) { onToast(e.message || 'Failed to create cycle'); }
+    setCreatingCycle(false);
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center py-12 gap-3">
       <svg className="w-5 h-5 animate-spin text-purple-500" fill="none" viewBox="0 0 24 24">
@@ -124,8 +187,8 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
 
   return (
     <div className="space-y-4">
-      {/* Cycle Selector */}
-      <div className="flex items-center gap-4">
+      {/* Cycle Selector + Actions */}
+      <div className="flex flex-wrap items-center gap-3">
         <label className="text-sm font-bold text-gray-700">Select Cycle:</label>
         <select
           value={selectedCycle}
@@ -138,10 +201,117 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
             </option>
           ))}
         </select>
-        <span className="text-sm text-gray-500">
-          {currentCycle.start_date} → {currentCycle.end_date || 'ongoing'}
-        </span>
+        {currentCycle && (
+          <span className="text-sm text-gray-500">
+            {currentCycle.start_date} → {currentCycle.end_date || 'ongoing'}
+          </span>
+        )}
+        <div className="flex gap-2 ml-auto">
+          <button onClick={() => setShowAddDraw(true)}
+            className="px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-100 rounded-lg hover:bg-emerald-200">
+            + Add Draw
+          </button>
+          <button onClick={() => setShowCreateCycle(true)}
+            className="px-3 py-1.5 text-xs font-bold text-purple-700 bg-purple-100 rounded-lg hover:bg-purple-200">
+            + New Cycle
+          </button>
+        </div>
       </div>
+
+      {/* Add Draw inline form */}
+      {showAddDraw && (
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 space-y-3">
+          <p className="text-sm font-bold text-purple-700">Add Draw to {currentCycle?.cycle_name}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">Winner Name *</label>
+              <input type="text" value={addDrawForm.winner_name}
+                onChange={e => setAddDrawForm(p => ({ ...p, winner_name: e.target.value }))}
+                className="w-full px-2 py-1.5 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none" placeholder="Full name" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">Date</label>
+              <input type="date" value={addDrawForm.draw_date}
+                onChange={e => setAddDrawForm(p => ({ ...p, draw_date: e.target.value }))}
+                className="w-full px-2 py-1.5 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">Amount (UGX)</label>
+              <input type="number" value={addDrawForm.amount_received}
+                onChange={e => setAddDrawForm(p => ({ ...p, amount_received: e.target.value }))}
+                className="w-full px-2 py-1.5 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">Savings (UGX)</label>
+              <input type="number" value={addDrawForm.savings}
+                onChange={e => setAddDrawForm(p => ({ ...p, savings: e.target.value }))}
+                className="w-full px-2 py-1.5 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleAddDraw} disabled={saving || !addDrawForm.winner_name.trim()}
+              className="px-4 py-2 text-sm font-bold text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 disabled:opacity-60">
+              {saving ? 'Saving...' : 'Add Draw'}
+            </button>
+            <button onClick={() => setShowAddDraw(false)}
+              className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Create Cycle inline form */}
+      {showCreateCycle && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+          <p className="text-sm font-bold text-blue-700">Create New Cycle</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="sm:col-span-1">
+              <label className="text-xs text-gray-600 mb-1 block">Cycle Name *</label>
+              <input type="text" value={newCycleForm.cycle_name}
+                onChange={e => setNewCycleForm(p => ({ ...p, cycle_name: e.target.value }))}
+                className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded focus:ring-2 focus:ring-blue-400 outline-none"
+                placeholder={`Cycle ${(cycles.length > 0 ? Math.max(...cycles.map(c => c.cycle_number)) : 0) + 1}`} />
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">Start Date</label>
+              <input type="date" value={newCycleForm.start_date}
+                onChange={e => setNewCycleForm(p => ({ ...p, start_date: e.target.value }))}
+                className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded focus:ring-2 focus:ring-blue-400 outline-none" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">Total Draws</label>
+              <input type="number" value={newCycleForm.total_draws}
+                onChange={e => setNewCycleForm(p => ({ ...p, total_draws: e.target.value }))}
+                className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded focus:ring-2 focus:ring-blue-400 outline-none" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">Members</label>
+              <input type="number" value={newCycleForm.member_count}
+                onChange={e => setNewCycleForm(p => ({ ...p, member_count: e.target.value }))}
+                className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded focus:ring-2 focus:ring-blue-400 outline-none" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">Pot per Draw (UGX)</label>
+              <input type="number" value={newCycleForm.pot_amount_per_draw}
+                onChange={e => setNewCycleForm(p => ({ ...p, pot_amount_per_draw: e.target.value }))}
+                className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded focus:ring-2 focus:ring-blue-400 outline-none" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">Security Deposit (UGX)</label>
+              <input type="number" value={newCycleForm.security_deposit}
+                onChange={e => setNewCycleForm(p => ({ ...p, security_deposit: e.target.value }))}
+                className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded focus:ring-2 focus:ring-blue-400 outline-none" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleCreateCycle} disabled={creatingCycle || !newCycleForm.cycle_name.trim()}
+              className="px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60">
+              {creatingCycle ? 'Creating...' : 'Create Cycle'}
+            </button>
+            <button onClick={() => setShowCreateCycle(false)}
+              className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300">Cancel</button>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
@@ -279,24 +449,44 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
 // ─── Members Tab ────────────────────────────────────────────────────────────────
 
 const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => {
-  const { selectedGroupId, user } = useAppContext();
-  const { getMemberStats } = useRoscaData();
+  const { selectedGroupId } = useAppContext();
+  const { getMemberStats, refreshCycles } = useRoscaData();
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>(null);
+  const [lastRefresh, setLastRefresh] = useState(Date.now());
 
-  const loadMembers = () => {
+  const loadMembers = useCallback(async () => {
     if (!selectedGroupId) return;
     setLoading(true);
-    ds.listMembers(selectedGroupId)
-      .then(res => {
-        if (res.success) setMembers(res.members);
-      })
-      .finally(() => setLoading(false));
-  };
+    try {
+      const res = await ds.listMembers(selectedGroupId);
+      if (res.success) setMembers(res.members);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedGroupId]);
 
-  useEffect(() => { loadMembers(); }, [selectedGroupId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Initial load + re-load when group changes
+  useEffect(() => { loadMembers(); }, [loadMembers]);
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!editingId) loadMembers();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [loadMembers, editingId]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([loadMembers(), refreshCycles()]);
+    setLastRefresh(Date.now());
+    setRefreshing(false);
+    onToast('Data refreshed!');
+  };
 
   const handleEdit = (member: any) => {
     setEditingId(member.id);
@@ -327,7 +517,7 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
 
   if (loading) return <div className="text-center py-8 text-gray-500">Loading members...</div>;
 
-  // Compute totals for footer
+  // Compute totals for footer — uses live DB data from listMembers + ROSCA from context
   const totals = members.reduce((acc, member) => {
     const rs = getMemberStats(member.full_name);
     return {
@@ -341,6 +531,23 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
 
   return (
     <div className="space-y-4">
+      {/* Refresh bar */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-gray-400">
+          Last updated: {new Date(lastRefresh).toLocaleTimeString()} • Auto-refreshes every 30s
+        </p>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-purple-700 bg-purple-100 rounded-lg hover:bg-purple-200 transition-colors disabled:opacity-50"
+        >
+          <svg className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {refreshing ? 'Refreshing...' : 'Refresh Data'}
+        </button>
+      </div>
+
       {/* Summary row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
@@ -476,31 +683,46 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
 // ─── Contributions Tab ──────────────────────────────────────────────────────
 
 const ContributionsTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => {
-  const { selectedGroupId } = useAppContext();
+  const { selectedGroupId, user } = useAppContext();
   const [contributions, setContributions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>(null);
 
-  useEffect(() => {
+  const loadContributions = useCallback(async () => {
     if (!selectedGroupId) return;
     setLoading(true);
-    ds.listContributions(selectedGroupId, { limit: 100 })
-      .then(res => {
-        if (res.success) setContributions(res.contributions);
-      })
-      .finally(() => setLoading(false));
+    try {
+      const res = await ds.listContributions(selectedGroupId, { limit: 200 });
+      if (res.success) setContributions(res.contributions);
+    } finally { setLoading(false); }
   }, [selectedGroupId]);
+
+  useEffect(() => { loadContributions(); }, [loadContributions]);
 
   const handleEdit = (contrib: any) => {
     setEditingId(contrib.id);
     setEditForm({ ...contrib });
   };
 
-  const handleSave = () => {
-    setEditingId(null);
-    setEditForm(null);
-    onToast('Contribution updated!');
+  const handleSave = async () => {
+    if (!editForm) return;
+    setSaving(true);
+    try {
+      await ds.updateContribution(
+        editForm.id,
+        { amount: Number(editForm.amount), payment_method: editForm.payment_method, status: editForm.status, period_label: editForm.period_label },
+        user?.member_id
+      );
+      setEditingId(null);
+      setEditForm(null);
+      await loadContributions();
+      onToast('Contribution updated!');
+    } catch {
+      onToast('Failed to update contribution.');
+    }
+    setSaving(false);
   };
 
   const handleCancel = () => {
@@ -509,7 +731,7 @@ const ContributionsTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToas
   };
 
   const updateField = (field: string, value: any) => {
-    setEditForm(prev => prev ? { ...prev, [field]: value } : null);
+    setEditForm((prev: any) => prev ? { ...prev, [field]: value } : null);
   };
 
   if (loading) return <div className="text-center py-8 text-gray-500">Loading contributions...</div>;
@@ -571,8 +793,8 @@ const ContributionsTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToas
                       <td className="px-3 py-2 text-sm">{c.period_label}</td>
                       <td className="px-3 py-2 text-right">
                         <div className="flex gap-1 justify-end">
-                          <button onClick={handleSave} className="px-2 py-1 text-xs font-bold text-white bg-emerald-500 rounded hover:bg-emerald-600">Save</button>
-                          <button onClick={handleCancel} className="px-2 py-1 text-xs font-bold text-gray-600 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
+                          <button onClick={handleSave} disabled={saving} className="px-2 py-1 text-xs font-bold text-white bg-emerald-500 rounded hover:bg-emerald-600 disabled:opacity-60">{saving ? '…' : 'Save'}</button>
+                          <button onClick={handleCancel} disabled={saving} className="px-2 py-1 text-xs font-bold text-gray-600 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
                         </div>
                       </td>
                     </>
