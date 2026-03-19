@@ -281,11 +281,14 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   const pendingLoansCount = loans.filter(l => l.status === 'pending' || l.status === 'treasurer_approved').length;
   const activeLoansList = loans.filter(l => l.status === 'pending' || l.status === 'approved' || l.status === 'treasurer_approved');
 
+  // Combined total: SACCO savings + ROSCA savings
+  const combinedTotal = (stats?.total_savings || 0) + roscaTotals.totalSavings;
+
   const statCards = [
     {
-      label: 'Total Savings',
-      value: formatUGX(stats?.total_savings || 0),
-      change: totalMembers > 0 ? `${totalMembers} members contributing` : 'No members yet',
+      label: 'Total Combined Savings',
+      value: formatUGX(combinedTotal),
+      change: `SACCO: ${formatUGX(stats?.total_savings || 0)} + ROSCA: ${formatUGX(roscaTotals.totalSavings)}`,
       color: 'from-[#0066CC] to-[#0088FF]',
       icon: 'M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z',
     },
@@ -295,13 +298,6 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
       change: `${roscaTotals.totalWinners} winners across all cycles`,
       color: 'from-emerald-500 to-emerald-400',
       icon: 'M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-    },
-    {
-      label: 'ROSCA Savings',
-      value: formatUGX(roscaTotals.totalSavings),
-      change: `Total deductions: ${formatUGX(roscaTotals.totalDeductions)}`,
-      color: 'from-purple-500 to-purple-400',
-      icon: 'M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z',
     },
     {
       label: 'Active Members',
@@ -316,13 +312,6 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
       change: pendingLoansCount > 0 ? `${pendingLoansCount} pending` : 'No pending loans',
       color: 'from-amber-500 to-amber-400',
       icon: 'M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-    },
-    {
-      label: 'This Month',
-      value: formatUGX(stats?.total_contributions || 0),
-      change: collectionRate > 0 ? `${Math.round(collectionRate)}% collected` : 'No contributions yet',
-      color: 'from-purple-500 to-purple-400',
-      icon: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5',
     },
   ];
 
@@ -399,32 +388,47 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
             </div>
-          ) : stats && (stats.total_savings > 0 || stats.total_contributions > 0 || stats.total_loans_outstanding > 0) ? (
+          ) : (stats && (stats.total_savings > 0 || stats.total_contributions > 0 || stats.total_loans_outstanding > 0)) || roscaTotals.totalPaidOut > 0 ? (
             <>
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="text-center p-4 rounded-xl bg-[#0066CC]/5">
-                  <p className="text-xs text-gray-500 mb-1">Total Savings</p>
-                  <p className="text-lg font-bold text-[#0066CC]">{formatUGX(stats.total_savings)}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                <div className="text-center p-3 rounded-xl bg-[#0066CC]/5">
+                  <p className="text-xs text-gray-500 mb-1">SACCO Savings</p>
+                  <p className="text-base font-bold text-[#0066CC]">{formatUGX(stats?.total_savings || 0)}</p>
                 </div>
-                <div className="text-center p-4 rounded-xl bg-[#00CC99]/5">
-                  <p className="text-xs text-gray-500 mb-1">Contributions</p>
-                  <p className="text-lg font-bold text-[#00CC99]">{formatUGX(stats.total_contributions)}</p>
+                <div className="text-center p-3 rounded-xl bg-purple-50">
+                  <p className="text-xs text-gray-500 mb-1">ROSCA Savings</p>
+                  <p className="text-base font-bold text-purple-600">{formatUGX(roscaTotals.totalSavings)}</p>
                 </div>
-                <div className="text-center p-4 rounded-xl bg-amber-50">
+                <div className="text-center p-3 rounded-xl bg-emerald-50">
+                  <p className="text-xs text-gray-500 mb-1">ROSCA Paid Out</p>
+                  <p className="text-base font-bold text-emerald-600">{formatUGX(roscaTotals.totalPaidOut)}</p>
+                </div>
+                <div className="text-center p-3 rounded-xl bg-amber-50">
                   <p className="text-xs text-gray-500 mb-1">Outstanding Loans</p>
-                  <p className="text-lg font-bold text-amber-600">{formatUGX(stats.total_loans_outstanding)}</p>
+                  <p className="text-base font-bold text-amber-600">{formatUGX(stats?.total_loans_outstanding || 0)}</p>
                 </div>
               </div>
               {/* Visual bar representation */}
               <div className="space-y-3">
                 <div>
                   <div className="flex justify-between text-xs text-gray-500 mb-1">
-                    <span>Savings vs Loans Ratio</span>
-                    <span>{stats.total_savings > 0 ? Math.round(((stats.total_savings - stats.total_loans_outstanding) / stats.total_savings) * 100) : 0}% net positive</span>
+                    <span>SACCO Savings vs Loans Ratio</span>
+                    <span>{(stats?.total_savings || 0) > 0 ? Math.round((((stats?.total_savings || 0) - (stats?.total_loans_outstanding || 0)) / (stats?.total_savings || 1)) * 100) : 0}% net positive</span>
                   </div>
-                  <div className="w-full bg-gray-100 rounded-full h-4 overflow-hidden">
-                    <div className="h-4 rounded-full bg-gradient-to-r from-[#0066CC] to-[#0088FF] transition-all duration-700"
-                      style={{ width: `${stats.total_savings > 0 ? Math.min(100, ((stats.total_savings) / (stats.total_savings + stats.total_loans_outstanding)) * 100) : 0}%` }}
+                  <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                    <div className="h-3 rounded-full bg-gradient-to-r from-[#0066CC] to-[#0088FF] transition-all duration-700"
+                      style={{ width: `${(stats?.total_savings || 0) > 0 ? Math.min(100, ((stats?.total_savings || 0) / ((stats?.total_savings || 0) + (stats?.total_loans_outstanding || 0))) * 100) : 0}%` }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between text-xs text-gray-500 mb-1">
+                    <span>ROSCA Cycle Progress ({roscaTotals.totalWinners} winners)</span>
+                    <span>{formatUGX(roscaTotals.totalPaidOut)} paid out</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                    <div className="h-3 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-700"
+                      style={{ width: `${roscaTotals.totalWinners > 0 ? Math.min(100, (roscaTotals.totalWinners / 60) * 100) : 0}%` }}
                     />
                   </div>
                 </div>
@@ -433,17 +437,21 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
                     <span>Collection Rate</span>
                     <span>{Math.round(collectionRate)}%</span>
                   </div>
-                  <div className="w-full bg-gray-100 rounded-full h-4 overflow-hidden">
-                    <div className="h-4 rounded-full bg-gradient-to-r from-[#00CC99] to-[#00E6AD] transition-all duration-700"
+                  <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                    <div className="h-3 rounded-full bg-gradient-to-r from-[#00CC99] to-[#00E6AD] transition-all duration-700"
                       style={{ width: `${collectionRate}%` }}
                     />
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-6 mt-4 pt-4 border-t border-gray-100">
+              <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-gray-100">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-sm bg-[#0066CC]" />
-                  <span className="text-xs text-gray-500">Savings</span>
+                  <span className="text-xs text-gray-500">SACCO Savings</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-sm bg-purple-500" />
+                  <span className="text-xs text-gray-500">ROSCA Progress</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-sm bg-[#00CC99]" />

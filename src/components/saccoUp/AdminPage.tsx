@@ -259,14 +259,14 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
 // ─── Members Tab ────────────────────────────────────────────────────────────────
 
 const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => {
-  const { selectedGroupId } = useAppContext();
+  const { selectedGroupId, user } = useAppContext();
   const { getMemberStats } = useRoscaData();
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>(null);
 
-  useEffect(() => {
+  const loadMembers = () => {
     if (!selectedGroupId) return;
     setLoading(true);
     ds.listMembers(selectedGroupId)
@@ -274,7 +274,9 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
         if (res.success) setMembers(res.members);
       })
       .finally(() => setLoading(false));
-  }, [selectedGroupId]);
+  };
+
+  useEffect(() => { loadMembers(); }, [selectedGroupId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEdit = (member: any) => {
     setEditingId(member.id);
@@ -283,10 +285,15 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
 
   const handleSave = async () => {
     if (!editForm || !selectedGroupId) return;
-    // For now just show success - full update would require an updateMember function
-    setEditingId(null);
-    setEditForm(null);
-    onToast('Member updated! (Note: Full update requires backend)');
+    try {
+      await ds.updateMemberRole(selectedGroupId, editForm.id, editForm.role);
+      setEditingId(null);
+      setEditForm(null);
+      loadMembers();
+      onToast('Member role updated!');
+    } catch {
+      onToast('Failed to update member.');
+    }
   };
 
   const handleCancel = () => {
@@ -295,13 +302,45 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
   };
 
   const updateField = (field: string, value: any) => {
-    setEditForm(prev => prev ? { ...prev, [field]: value } : null);
+    setEditForm((prev: any) => prev ? { ...prev, [field]: value } : null);
   };
 
   if (loading) return <div className="text-center py-8 text-gray-500">Loading members...</div>;
 
+  // Compute totals for footer
+  const totals = members.reduce((acc, member) => {
+    const rs = getMemberStats(member.full_name);
+    return {
+      sacco: acc.sacco + (member.savingsBalance || member.totalContributions || 0),
+      loans: acc.loans + (member.loanBalance || 0),
+      roscaWon: acc.roscaWon + rs.totalWon,
+      roscaSavings: acc.roscaSavings + rs.totalSavings,
+      roscaDeductions: acc.roscaDeductions + rs.totalDeductions,
+    };
+  }, { sacco: 0, loans: 0, roscaWon: 0, roscaSavings: 0, roscaDeductions: 0 });
+
   return (
     <div className="space-y-4">
+      {/* Summary row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
+          <p className="text-sm font-extrabold text-blue-700">{formatUGX(totals.sacco)}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Total SACCO Savings</p>
+        </div>
+        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
+          <p className="text-sm font-extrabold text-emerald-700">{formatUGX(totals.roscaWon)}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Total ROSCA Won</p>
+        </div>
+        <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 text-center">
+          <p className="text-sm font-extrabold text-orange-700">{formatUGX(totals.loans)}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Total Loan Balance</p>
+        </div>
+        <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 text-center">
+          <p className="text-sm font-extrabold text-purple-700">{formatUGX(totals.sacco + totals.roscaSavings - totals.loans)}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Net Combined Position</p>
+        </div>
+      </div>
+
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -310,45 +349,28 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Name</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Phone</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Role</th>
-                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Wins</th>
-                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Amount Won</th>
-                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Savings</th>
+                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">SACCO Savings</th>
+                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Loan Balance</th>
+                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">ROSCA Wins</th>
+                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">ROSCA Won (UGX)</th>
+                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">ROSCA Savings</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Deductions</th>
-                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Net Received</th>
                 <th className="px-3 py-3 text-right text-xs font-extrabold text-gray-500 uppercase">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {members.map(member => {
-                const stats = getMemberStats(member.full_name);
+              {members.length === 0 ? (
+                <tr><td colSpan={10} className="px-6 py-10 text-center text-sm text-gray-400">No members found.</td></tr>
+              ) : members.map(member => {
+                const rs = getMemberStats(member.full_name);
+                const saccoBal = member.savingsBalance || member.totalContributions || 0;
+                const loanBal = member.loanBalance || 0;
                 return (
                 <tr key={member.id} className="hover:bg-purple-50/50">
                   {editingId === member.id && editForm ? (
                     <>
-                      <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          value={editForm.full_name}
-                          onChange={e => updateField('full_name', e.target.value)}
-                          className="w-full px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          value={editForm.phone}
-                          onChange={e => updateField('phone', e.target.value)}
-                          className="w-full px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          value={editForm.email || ''}
-                          onChange={e => updateField('email', e.target.value)}
-                          className="w-full px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
-                        />
-                      </td>
+                      <td className="px-3 py-2 text-sm font-medium text-gray-800">{member.full_name}</td>
+                      <td className="px-3 py-2 text-sm text-gray-600">{member.phone}</td>
                       <td className="px-3 py-2">
                         <select
                           value={editForm.role}
@@ -362,7 +384,12 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
                           <option value="treasurer">Treasurer</option>
                         </select>
                       </td>
-                      <td className="px-3 py-2 text-sm font-medium text-purple-600">{formatUGX(editForm.savingsBalance || 0)}</td>
+                      <td className="px-3 py-2 text-sm text-blue-600">{formatUGX(saccoBal)}</td>
+                      <td className="px-3 py-2 text-sm text-orange-600">{formatUGX(loanBal)}</td>
+                      <td className="px-3 py-2 text-sm text-amber-600">{rs.wins}</td>
+                      <td className="px-3 py-2 text-sm text-emerald-600">{formatUGX(rs.totalWon)}</td>
+                      <td className="px-3 py-2 text-sm text-purple-600">{formatUGX(rs.totalSavings)}</td>
+                      <td className="px-3 py-2 text-sm text-red-500">{formatUGX(rs.totalDeductions)}</td>
                       <td className="px-3 py-2 text-right">
                         <div className="flex gap-1 justify-end">
                           <button onClick={handleSave} className="px-2 py-1 text-xs font-bold text-white bg-emerald-500 rounded hover:bg-emerald-600">Save</button>
@@ -385,17 +412,18 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
                           {member.role}
                         </span>
                       </td>
-                      <td className="px-3 py-3 text-sm font-bold text-amber-600">{stats.wins}</td>
-                      <td className="px-3 py-3 text-sm font-bold text-emerald-600">{formatUGX(stats.totalWon)}</td>
-                      <td className="px-3 py-3 text-sm text-purple-600">{formatUGX(stats.totalSavings)}</td>
-                      <td className="px-3 py-3 text-sm text-orange-600">{formatUGX(stats.totalDeductions)}</td>
-                      <td className="px-3 py-3 text-sm font-bold text-blue-600">{formatUGX(stats.totalBalance)}</td>
+                      <td className="px-3 py-3 text-sm font-medium text-blue-600">{formatUGX(saccoBal)}</td>
+                      <td className="px-3 py-3 text-sm text-orange-600">{loanBal > 0 ? formatUGX(loanBal) : '—'}</td>
+                      <td className="px-3 py-3 text-sm font-bold text-amber-600">{rs.wins > 0 ? rs.wins : '—'}</td>
+                      <td className="px-3 py-3 text-sm font-bold text-emerald-600">{rs.totalWon > 0 ? formatUGX(rs.totalWon) : '—'}</td>
+                      <td className="px-3 py-3 text-sm text-purple-600">{rs.totalSavings > 0 ? formatUGX(rs.totalSavings) : '—'}</td>
+                      <td className="px-3 py-3 text-sm text-red-500">{rs.totalDeductions > 0 ? formatUGX(rs.totalDeductions) : '—'}</td>
                       <td className="px-3 py-3 text-right">
                         <button
                           onClick={() => handleEdit(member)}
                           className="px-3 py-1 text-xs font-bold text-purple-600 bg-purple-100 rounded hover:bg-purple-200"
                         >
-                          Edit
+                          Edit Role
                         </button>
                       </td>
                     </>
@@ -404,6 +432,20 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
               );
               })}
             </tbody>
+            {members.length > 0 && (
+              <tfoot>
+                <tr className="bg-gray-50 font-bold border-t-2 border-gray-200">
+                  <td className="px-3 py-3 text-xs text-gray-700" colSpan={3}>TOTALS ({members.length} members)</td>
+                  <td className="px-3 py-3 text-xs text-blue-700">{formatUGX(totals.sacco)}</td>
+                  <td className="px-3 py-3 text-xs text-orange-700">{formatUGX(totals.loans)}</td>
+                  <td className="px-3 py-3 text-xs text-amber-700">—</td>
+                  <td className="px-3 py-3 text-xs text-emerald-700">{formatUGX(totals.roscaWon)}</td>
+                  <td className="px-3 py-3 text-xs text-purple-700">{formatUGX(totals.roscaSavings)}</td>
+                  <td className="px-3 py-3 text-xs text-red-600">{formatUGX(totals.roscaDeductions)}</td>
+                  <td className="px-3 py-3"></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>
@@ -553,13 +595,13 @@ const ContributionsTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToas
 // ─── Loans Tab ────────────────────────────────────────────────────────────────
 
 const LoansTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => {
-  const { selectedGroupId } = useAppContext();
+  const { selectedGroupId, user } = useAppContext();
   const [loans, setLoans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>(null);
 
-  useEffect(() => {
+  const loadLoans = () => {
     if (!selectedGroupId) return;
     setLoading(true);
     ds.listLoans(selectedGroupId)
@@ -567,17 +609,26 @@ const LoansTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
         if (res.success) setLoans(res.loans);
       })
       .finally(() => setLoading(false));
-  }, [selectedGroupId]);
+  };
+
+  useEffect(() => { loadLoans(); }, [selectedGroupId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEdit = (loan: any) => {
     setEditingId(loan.id);
     setEditForm({ ...loan });
   };
 
-  const handleSave = () => {
-    setEditingId(null);
-    setEditForm(null);
-    onToast('Loan updated!');
+  const handleSave = async () => {
+    if (!editForm) return;
+    try {
+      await ds.updateLoanStatus(editForm.id, editForm.status, user?.member_id);
+      setEditingId(null);
+      setEditForm(null);
+      loadLoans();
+      onToast('Loan status updated!');
+    } catch {
+      onToast('Failed to update loan.');
+    }
   };
 
   const handleCancel = () => {
@@ -586,13 +637,46 @@ const LoansTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
   };
 
   const updateField = (field: string, value: any) => {
-    setEditForm(prev => prev ? { ...prev, [field]: value } : null);
+    setEditForm((prev: any) => prev ? { ...prev, [field]: value } : null);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'disbursed': case 'completed': return 'bg-emerald-100 text-emerald-700';
+      case 'pending': case 'treasurer_approved': case 'approved': return 'bg-amber-100 text-amber-700';
+      case 'repaying': return 'bg-blue-100 text-blue-700';
+      case 'defaulted': case 'rejected': return 'bg-red-100 text-red-700';
+      default: return 'bg-gray-100 text-gray-600';
+    }
   };
 
   if (loading) return <div className="text-center py-8 text-gray-500">Loading loans...</div>;
 
+  const totalDisbursed = loans.filter(l => ['disbursed', 'repaying'].includes(l.status)).reduce((s: number, l: any) => s + Number(l.amount), 0);
+  const pendingCount = loans.filter(l => ['pending', 'treasurer_approved', 'approved'].includes(l.status)).length;
+
   return (
     <div className="space-y-4">
+      {/* Summary */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white border border-gray-200 rounded-xl p-3 text-center">
+          <p className="text-xl font-extrabold text-gray-900">{loans.length}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Total Loans</p>
+        </div>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
+          <p className="text-xl font-extrabold text-amber-600">{pendingCount}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Pending Approval</p>
+        </div>
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center">
+          <p className="text-xl font-extrabold text-blue-600">{loans.filter(l => l.status === 'repaying').length}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Being Repaid</p>
+        </div>
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center">
+          <p className="text-sm font-extrabold text-purple-700">{formatUGX(totalDisbursed)}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Outstanding</p>
+        </div>
+      </div>
+
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -602,51 +686,43 @@ const LoansTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Member</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Amount</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Purpose</th>
+                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Rate</th>
+                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Term</th>
                 <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Status</th>
                 <th className="px-3 py-3 text-right text-xs font-extrabold text-gray-500 uppercase">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {members.map(member => {
-                const stats = getMemberStats(member.full_name);
-                return (
-                <tr key={member.id} className="hover:bg-purple-50/50">
-                  {editingId === member.id && editForm ? (
+              {loans.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-10 text-center text-sm text-gray-400">No loans recorded yet.</td>
+                </tr>
+              ) : loans.map(loan => (
+                <tr key={loan.id} className="hover:bg-purple-50/50">
+                  {editingId === loan.id && editForm ? (
                     <>
-                      <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          value={editForm.full_name}
-                          onChange={e => updateField('full_name', e.target.value)}
-                          className="w-full px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          value={editForm.phone}
-                          onChange={e => updateField('phone', e.target.value)}
-                          className="w-full px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
-                        />
-                      </td>
+                      <td className="px-3 py-2 text-sm text-gray-500">{loan.created_at?.slice(0, 10)}</td>
+                      <td className="px-3 py-2 text-sm font-medium text-gray-800">{loan.member_name}</td>
+                      <td className="px-3 py-2 text-sm font-bold text-emerald-600">{formatUGX(loan.amount)}</td>
+                      <td className="px-3 py-2 text-sm text-gray-600 max-w-[150px] truncate">{loan.purpose}</td>
+                      <td className="px-3 py-2 text-sm text-gray-600">{loan.interest_rate}%</td>
+                      <td className="px-3 py-2 text-sm text-gray-600">{loan.repayment_period_months}mo</td>
                       <td className="px-3 py-2">
                         <select
-                          value={editForm.role}
-                          onChange={e => updateField('role', e.target.value)}
-                          className="w-full px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
+                          value={editForm.status}
+                          onChange={e => updateField('status', e.target.value)}
+                          className="px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
                         >
-                          <option value="member">Member</option>
-                          <option value="admin">Admin</option>
-                          <option value="chairperson">Chairperson</option>
-                          <option value="secretary">Secretary</option>
-                          <option value="treasurer">Treasurer</option>
+                          <option value="pending">Pending</option>
+                          <option value="treasurer_approved">Treasurer Approved</option>
+                          <option value="approved">Approved</option>
+                          <option value="disbursed">Disbursed</option>
+                          <option value="repaying">Repaying</option>
+                          <option value="completed">Completed</option>
+                          <option value="defaulted">Defaulted</option>
+                          <option value="rejected">Rejected</option>
                         </select>
                       </td>
-                      <td className="px-3 py-2 text-sm text-gray-400">{stats.wins}</td>
-                      <td className="px-3 py-2 text-sm text-gray-400">{formatUGX(stats.totalWon)}</td>
-                      <td className="px-3 py-2 text-sm text-gray-400">{formatUGX(stats.totalSavings)}</td>
-                      <td className="px-3 py-2 text-sm text-gray-400">{formatUGX(stats.totalDeductions)}</td>
-                      <td className="px-3 py-2 text-sm text-gray-400">{formatUGX(stats.totalBalance)}</td>
                       <td className="px-3 py-2 text-right">
                         <div className="flex gap-1 justify-end">
                           <button onClick={handleSave} className="px-2 py-1 text-xs font-bold text-white bg-emerald-500 rounded hover:bg-emerald-600">Save</button>
@@ -656,37 +732,29 @@ const LoansTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
                     </>
                   ) : (
                     <>
-                      <td className="px-3 py-3 text-sm font-medium text-gray-800">{member.full_name}</td>
-                      <td className="px-3 py-3 text-sm text-gray-600">{member.phone}</td>
+                      <td className="px-3 py-3 text-sm text-gray-500">{loan.created_at?.slice(0, 10)}</td>
+                      <td className="px-3 py-3 text-sm font-medium text-gray-800">{loan.member_name}</td>
+                      <td className="px-3 py-3 text-sm font-bold text-emerald-600">{formatUGX(loan.amount)}</td>
+                      <td className="px-3 py-3 text-sm text-gray-600 max-w-[150px] truncate">{loan.purpose || '—'}</td>
+                      <td className="px-3 py-3 text-sm text-gray-600">{loan.interest_rate ?? '—'}%</td>
+                      <td className="px-3 py-3 text-sm text-gray-600">{loan.repayment_period_months ?? '—'}mo</td>
                       <td className="px-3 py-3">
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold capitalize ${
-                          member.role === 'admin' ? 'bg-purple-100 text-purple-700' :
-                          member.role === 'chairperson' ? 'bg-emerald-100 text-emerald-700' :
-                          member.role === 'treasurer' ? 'bg-blue-100 text-blue-700' :
-                          member.role === 'secretary' ? 'bg-cyan-100 text-cyan-700' :
-                          'bg-gray-100 text-gray-600'
-                        }`}>
-                          {member.role}
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold capitalize ${getStatusColor(loan.status)}`}>
+                          {loan.status?.replace(/_/g, ' ')}
                         </span>
                       </td>
-                      <td className="px-3 py-3 text-sm font-bold text-amber-600">{stats.wins}</td>
-                      <td className="px-3 py-3 text-sm font-bold text-emerald-600">{formatUGX(stats.totalWon)}</td>
-                      <td className="px-3 py-3 text-sm text-purple-600">{formatUGX(stats.totalSavings)}</td>
-                      <td className="px-3 py-3 text-sm text-orange-600">{formatUGX(stats.totalDeductions)}</td>
-                      <td className="px-3 py-3 text-sm font-bold text-blue-600">{formatUGX(stats.totalBalance)}</td>
                       <td className="px-3 py-3 text-right">
                         <button
-                          onClick={() => handleEdit(member)}
+                          onClick={() => handleEdit(loan)}
                           className="px-3 py-1 text-xs font-bold text-purple-600 bg-purple-100 rounded hover:bg-purple-200"
                         >
-                          Edit
+                          Edit Status
                         </button>
                       </td>
                     </>
                   )}
                 </tr>
-              );
-              })}
+              ))}
             </tbody>
           </table>
         </div>
