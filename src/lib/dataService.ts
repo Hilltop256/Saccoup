@@ -804,3 +804,187 @@ export async function deleteRoscaDraw(draw_id: string) {
   if (error) throw new Error(error.message);
   return { success: true };
 }
+
+// ===== WELFARE EXPENSES (per draw day) =====
+
+export interface RoscaWelfareExpense {
+  id?: string;
+  cycle_id: string;
+  draw_id?: string;
+  draw_number: number;
+  draw_date: string;
+  amount: number;
+  description: string;
+  vendor?: string;
+  receipt_ref?: string;
+  approved_by?: string;
+  recorded_by?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function listWelfareExpenses(cycle_id: string) {
+  const { data, error } = await supabase
+    .from('rosca_welfare_expenses')
+    .select('*')
+    .eq('cycle_id', cycle_id)
+    .order('draw_number', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return { success: true, expenses: data || [] };
+}
+
+export async function createWelfareExpense(params: {
+  cycle_id: string;
+  draw_id?: string;
+  draw_number: number;
+  draw_date: string;
+  amount?: number;
+  description?: string;
+  vendor?: string;
+  receipt_ref?: string;
+  approved_by?: string;
+  recorded_by?: string;
+}) {
+  const { data, error } = await supabase
+    .from('rosca_welfare_expenses')
+    .insert({
+      cycle_id: params.cycle_id,
+      draw_id: params.draw_id || null,
+      draw_number: params.draw_number,
+      draw_date: params.draw_date,
+      amount: params.amount || 50000,
+      description: params.description || 'Food and drinks for draw day',
+      vendor: params.vendor || null,
+      receipt_ref: params.receipt_ref || null,
+      approved_by: params.approved_by || null,
+      recorded_by: params.recorded_by || null,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { success: true, expense: data };
+}
+
+export async function updateWelfareExpense(expense_id: string, updates: Partial<RoscaWelfareExpense>) {
+  const { error } = await supabase
+    .from('rosca_welfare_expenses')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', expense_id);
+
+  if (error) throw new Error(error.message);
+  return { success: true };
+}
+
+export async function deleteWelfareExpense(expense_id: string) {
+  const { error } = await supabase
+    .from('rosca_welfare_expenses')
+    .delete()
+    .eq('id', expense_id);
+
+  if (error) throw new Error(error.message);
+  return { success: true };
+}
+
+// ===== CONTRIBUTION STATUS PER DRAW =====
+
+export interface RoscaContributionStatus {
+  id?: string;
+  cycle_id: string;
+  draw_id?: string;
+  draw_number: number;
+  member_id: string;
+  member_name: string;
+  expected_amount: number;
+  paid_amount: number;
+  status: 'pending' | 'paid' | 'partial' | 'waived';
+  contribution_id?: string;
+  payment_method?: string;
+  transaction_ref?: string;
+  paid_at?: string;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function listContributionStatus(cycle_id: string, draw_number?: number) {
+  let query = supabase
+    .from('rosca_contribution_status')
+    .select('*')
+    .eq('cycle_id', cycle_id);
+
+  if (draw_number !== undefined) {
+    query = query.eq('draw_number', draw_number);
+  }
+
+  const { data, error } = await query.order('member_name', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return { success: true, statuses: data || [] };
+}
+
+export async function initContributionStatusForDraw(params: {
+  cycle_id: string;
+  draw_id?: string;
+  draw_number: number;
+  draw_date: string;
+  members: { id: string; full_name: string }[];
+  expected_amount?: number;
+}) {
+  const expected = params.expected_amount || 500000;
+  const records = params.members.map(m => ({
+    cycle_id: params.cycle_id,
+    draw_id: params.draw_id || null,
+    draw_number: params.draw_number,
+    member_id: m.id,
+    member_name: m.full_name,
+    expected_amount: expected,
+    paid_amount: 0,
+    status: 'pending' as const,
+  }));
+
+  const { data, error } = await supabase
+    .from('rosca_contribution_status')
+    .upsert(records, { onConflict: 'cycle_id,draw_number,member_id' })
+    .select();
+
+  if (error) throw new Error(error.message);
+  return { success: true, statuses: data || [] };
+}
+
+export async function updateContributionStatusRecord(status_id: string, updates: Partial<RoscaContributionStatus>) {
+  const { error } = await supabase
+    .from('rosca_contribution_status')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', status_id);
+
+  if (error) throw new Error(error.message);
+  return { success: true };
+}
+
+export async function markContributionAsPaid(params: {
+  status_id: string;
+  paid_amount: number;
+  payment_method: string;
+  transaction_ref?: string;
+  contribution_id?: string;
+}) {
+  const updates = {
+    paid_amount: params.paid_amount,
+    payment_method: params.payment_method,
+    transaction_ref: params.transaction_ref || null,
+    contribution_id: params.contribution_id || null,
+    status: 'paid' as const,
+    paid_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase
+    .from('rosca_contribution_status')
+    .update(updates)
+    .eq('id', params.status_id);
+
+  if (error) throw new Error(error.message);
+  return { success: true };
+}

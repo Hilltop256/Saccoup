@@ -294,3 +294,69 @@ END $$;
 -- Allow full access
 CREATE POLICY "anon_all_rosca_cycles" ON rosca_cycles FOR ALL TO anon USING (true) WITH CHECK (true);
 CREATE POLICY "anon_all_rosca_draws"  ON rosca_draws  FOR ALL TO anon USING (true) WITH CHECK (true);
+
+-- ============================================================
+-- 13. WELFARE EXPENSES TABLE (per draw day expenses)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS rosca_welfare_expenses (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  cycle_id        UUID NOT NULL REFERENCES rosca_cycles(id) ON DELETE CASCADE,
+  draw_id         UUID REFERENCES rosca_draws(id) ON DELETE SET NULL,
+  draw_number     INTEGER NOT NULL,
+  draw_date       DATE NOT NULL,
+  amount          NUMERIC(15,2) NOT NULL DEFAULT 50000,
+  description     TEXT NOT NULL DEFAULT 'Food and drinks for draw day',
+  vendor          TEXT,
+  receipt_ref     TEXT,
+  approved_by     TEXT,
+  recorded_by     UUID REFERENCES members(id),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_welfare_expenses_cycle ON rosca_welfare_expenses(cycle_id);
+CREATE INDEX IF NOT EXISTS idx_welfare_expenses_draw ON rosca_welfare_expenses(draw_id);
+
+-- Enable RLS for welfare expenses table
+ALTER TABLE rosca_welfare_expenses ENABLE ROW LEVEL SECURITY;
+
+-- Drop old policies if exist
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "anon_all_rosca_welfare_expenses" ON rosca_welfare_expenses;
+END $$;
+
+-- Allow full access
+CREATE POLICY "anon_all_rosca_welfare_expenses" ON rosca_welfare_expenses FOR ALL TO anon USING (true) WITH CHECK (true);
+
+-- ============================================================
+-- 14. CONTRIBUTION STATUS PER DRAW (track who paid for each draw)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS rosca_contribution_status (
+  id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  cycle_id            UUID NOT NULL REFERENCES rosca_cycles(id) ON DELETE CASCADE,
+  draw_id             UUID REFERENCES rosca_draws(id) ON DELETE SET NULL,
+  draw_number         INTEGER NOT NULL,
+  member_id           UUID NOT NULL REFERENCES members(id),
+  member_name         TEXT NOT NULL,
+  expected_amount     NUMERIC(15,2) NOT NULL DEFAULT 500000,
+  paid_amount         NUMERIC(15,2) NOT NULL DEFAULT 0,
+  status              TEXT NOT NULL DEFAULT 'pending',
+  contribution_id     UUID REFERENCES contributions(id),
+  payment_method      TEXT,
+  transaction_ref    TEXT,
+  paid_at            TIMESTAMPTZ,
+  notes              TEXT,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(cycle_id, draw_number, member_id)
+);
+CREATE INDEX IF NOT EXISTS idx_contribution_status_cycle ON rosca_contribution_status(cycle_id);
+CREATE INDEX IF NOT EXISTS idx_contribution_status_draw ON rosca_contribution_status(draw_number);
+
+-- Enable RLS
+ALTER TABLE rosca_contribution_status ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "anon_all_rosca_contribution_status" ON rosca_contribution_status;
+END $$;
+
+CREATE POLICY "anon_all_rosca_contribution_status" ON rosca_contribution_status FOR ALL TO anon USING (true) WITH CHECK (true);
