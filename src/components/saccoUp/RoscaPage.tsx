@@ -5,6 +5,7 @@ import {
   type DrawStatus,
   type RoscaCycle,
   IMAGES,
+  MOCK_PBS_CYCLES,
 } from '@/lib/constants';
 import { useAppContext } from '@/contexts/AppContext';
 import { useRoscaData, type RoscaDrawContribution, type RoscaWelfareWithId } from '@/contexts/RoscaContext';
@@ -389,7 +390,6 @@ const RoscaPage: React.FC = () => {
   // Load draw contributions when cycle/draw changes
   useEffect(() => {
     if (!selectedCycle?._db_id) return;
-    const key = `${selectedCycle._db_id}-${selectedDrawNum}`;
     ds.listRoscaDrawContributionsByCycle(selectedCycle._db_id, selectedDrawNum)
       .then(res => {
         if (res.success && res.contributions) {
@@ -436,6 +436,13 @@ const RoscaPage: React.FC = () => {
       .catch(() => setWelfareData(null));
   }, [selectedCycle?._db_id, selectedDrawNum]);
 
+  // Ensure selectedCycleNum is valid
+  useEffect(() => {
+    if (cycles.length > 0 && !cycles.find(c => c.cycle_number === selectedCycleNum)) {
+      setSelectedCycleNum(cycles[0].cycle_number);
+    }
+  }, [cycles, selectedCycleNum]);
+
   // Show loading state while seeding
   if (loading) {
     return (
@@ -449,9 +456,9 @@ const RoscaPage: React.FC = () => {
     );
   }
 
-  if (!cycles.length) return null;
-
-  const selectedCycle = cycles.find(c => c.cycle_number === selectedCycleNum) || cycles[cycles.length - 1];
+  // Fallback to mock data if no cycles
+  const displayCycles = cycles.length > 0 ? cycles : MOCK_PBS_CYCLES;
+  const selectedCycle = displayCycles.find(c => c.cycle_number === selectedCycleNum) || displayCycles[displayCycles.length - 1];
 
   const totalPaidOut = selectedCycle.draws.reduce((s, d) => s + d.amount_received, 0);
   const totalSavings = selectedCycle.draws.reduce((s, d) => s + (d.savings || 0), 0);
