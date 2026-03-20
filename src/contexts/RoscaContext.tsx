@@ -18,6 +18,17 @@ interface RoscaContextType {
   loading: boolean;
   updateDraw: (cycleNumber: number, updatedDraw: RoscaDraw) => Promise<void>;
   addDraw: (cycleNumber: number, newDraw: RoscaDraw) => Promise<void>;
+  createCycle: (params: {
+    cycle_name: string;
+    status: 'upcoming' | 'active' | 'completed';
+    start_date: string;
+    end_date?: string;
+    total_draws?: number;
+    pot_amount_per_draw?: number;
+    member_count?: number;
+    security_deposit?: number;
+    notes?: string;
+  }) => Promise<void>;
   refreshCycles: () => Promise<void>;
   getMemberStats: (memberName: string) => {
     totalWon: number;
@@ -180,6 +191,36 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
 
   const refreshCycles = useCallback(async () => { await loadCycles(); }, [loadCycles]);
 
+  // ── Create a brand-new cycle ──────────────────────────────────────────────
+  const createCycle = useCallback(async (params: {
+    cycle_name: string;
+    status: 'upcoming' | 'active' | 'completed';
+    start_date: string;
+    end_date?: string;
+    total_draws?: number;
+    pot_amount_per_draw?: number;
+    member_count?: number;
+    security_deposit?: number;
+    notes?: string;
+  }) => {
+    if (!selectedGroupId) throw new Error('No group selected');
+    const maxNum = Math.max(0, ...cycles.map(c => c.cycle_number));
+    await ds.createRoscaCycle({
+      group_id:            selectedGroupId,
+      cycle_number:        maxNum + 1,
+      cycle_name:          params.cycle_name,
+      status:              params.status,
+      start_date:          params.start_date,
+      end_date:            params.end_date,
+      total_draws:         params.total_draws ?? 10,
+      pot_amount_per_draw: params.pot_amount_per_draw ?? 5000000,
+      member_count:        params.member_count ?? 20,
+      security_deposit:    params.security_deposit ?? 0,
+      notes:               params.notes,
+    });
+    await loadCycles();
+  }, [cycles, selectedGroupId, loadCycles]);
+
   // ── Update draw — persists to Supabase then reloads ────────────────────
   const updateDraw = useCallback(async (cycleNumber: number, updatedDraw: RoscaDraw) => {
     // Optimistic local update first (instant UI feedback)
@@ -218,7 +259,7 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
           notes: updatedDraw.notes ?? null,
         });
       } else if (cycle?._db_id) {
-        // Row doesn't exist yet (new draw added to existing cycle) — insert it
+        // Row doesn't exist yet — insert it
         await ds.createRoscaDraw({
           cycle_id: cycle._db_id,
           draw_number: updatedDraw.draw_number,
@@ -241,43 +282,41 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
     }
   }, [cycles, selectedGroupId, loadCycles]);
 
-  // ── Add new draw — persists both slots to Supabase ───────────────────────
+  // ── Add new draw — persists a single winner slot to Supabase ─────────────
   const addDraw = useCallback(async (cycleNumber: number, newDraw: RoscaDraw) => {
     const cycle = cycles.find(c => c.cycle_number === cycleNumber);
     if (!cycle) return;
 
-    const maxNum = Math.max(0, ...cycle.draws.map(d => d.draw_number));
-    const nextNum = maxNum + 1;
-    const draw1: RoscaDrawWithId = { ...newDraw, draw_number: nextNum, winner_slot: '1', _db_id: undefined };
-    const draw2: RoscaDrawWithId = { ...newDraw, draw_number: nextNum, winner_slot: '2', _db_id: undefined };
+    // draw_number is derived from how many unique draw numbers already exist
+    const existingNums = new Set(cycle.draws.map(d => d.draw_number));
+    const nextNum = existingNums.size + 1;
 
-    // Optimistic update
+    const drawEntry: RoscaDrawWithId = { ...newDraw, draw_number: nextNum, _db_id: undefined };
+
+    // Optimistic update (single slot)
     setCycles(prev => prev.map(c => {
       if (c.cycle_number !== cycleNumber) return c;
-      return { ...c, draws: [...c.draws, draw1, draw2], total_draws: c.total_draws + 2 };
+      return { ...c, draws: [...c.draws, drawEntry] };
     }));
 
     // Persist to Supabase
     if (cycle._db_id) {
       try {
-        for (const slot of ['1', '2'] as const) {
-          const d = slot === '1' ? draw1 : draw2;
-          await ds.createRoscaDraw({
-            cycle_id: cycle._db_id,
-            draw_number: nextNum,
-            winner_slot: slot,
-            winner_name: d.winner_name || undefined,
-            amount_received: d.amount_received,
-            draw_date: d.draw_date,
-            savings: d.savings,
-            paid_out: d.paid_out,
-            deductions: d.deductions,
-            balance: d.balance,
-            status: d.status,
-            notes: d.notes,
-          });
-        }
-        // Reload to populate _db_ids for the new draws
+        await ds.createRoscaDraw({
+          cycle_id:        cycle._db_id,
+          draw_number:     nextNum,
+          winner_slot:     newDraw.winner_slot,
+          winner_name:     newDraw.winner_name || undefined,
+          amount_received: newDraw.amount_received,
+          draw_date:       newDraw.draw_date,
+          savings:         newDraw.savings,
+          paid_out:        newDraw.paid_out,
+          deductions:      newDraw.deductions,
+          balance:         newDraw.balance,
+          status:          newDraw.status,
+          notes:           newDraw.notes,
+        });
+        // Reload to populate _db_ids for the new draw
         await loadCycles();
       } catch (e) {
         console.error('Failed to persist new draw:', e);
@@ -328,6 +367,7 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
       loading,
       updateDraw,
       addDraw,
+      createCycle,
       refreshCycles,
       getMemberStats,
       getGroupTotals,

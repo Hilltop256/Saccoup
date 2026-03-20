@@ -334,3 +334,97 @@ END $$;
 -- Allow full access
 CREATE POLICY "anon_all_rosca_cycles" ON rosca_cycles FOR ALL TO anon USING (true) WITH CHECK (true);
 CREATE POLICY "anon_all_rosca_draws"  ON rosca_draws  FOR ALL TO anon USING (true) WITH CHECK (true);
+
+-- ============================================================
+-- 13. ROSCA MONTHLY CONTRIBUTIONS TABLE
+--     Tracks each member's monthly contribution payment against
+--     a specific draw date within a cycle.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS rosca_monthly_contributions (
+  id           UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  cycle_id     UUID          NOT NULL REFERENCES rosca_cycles(id) ON DELETE CASCADE,
+  group_id     UUID          NOT NULL REFERENCES groups(id)       ON DELETE CASCADE,
+  draw_number  INTEGER       NOT NULL,
+  draw_date    DATE          NOT NULL,
+  member_id    UUID          NOT NULL REFERENCES members(id),
+  member_name  TEXT          NOT NULL DEFAULT '',
+  amount       NUMERIC(15,2) NOT NULL DEFAULT 250000,
+  status       TEXT          NOT NULL DEFAULT 'pending',
+  payment_method TEXT        NOT NULL DEFAULT 'cash',
+  transaction_ref TEXT,
+  notes        TEXT,
+  recorded_by  UUID          REFERENCES members(id),
+  created_at   TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  UNIQUE(cycle_id, draw_number, member_id)
+);
+
+-- Patch rosca_monthly_contributions (safe to re-run)
+ALTER TABLE rosca_monthly_contributions ADD COLUMN IF NOT EXISTS draw_date       DATE          NOT NULL DEFAULT CURRENT_DATE;
+ALTER TABLE rosca_monthly_contributions ADD COLUMN IF NOT EXISTS member_name     TEXT          NOT NULL DEFAULT '';
+ALTER TABLE rosca_monthly_contributions ADD COLUMN IF NOT EXISTS amount          NUMERIC(15,2) NOT NULL DEFAULT 250000;
+ALTER TABLE rosca_monthly_contributions ADD COLUMN IF NOT EXISTS status          TEXT          NOT NULL DEFAULT 'pending';
+ALTER TABLE rosca_monthly_contributions ADD COLUMN IF NOT EXISTS payment_method  TEXT          NOT NULL DEFAULT 'cash';
+ALTER TABLE rosca_monthly_contributions ADD COLUMN IF NOT EXISTS transaction_ref TEXT;
+ALTER TABLE rosca_monthly_contributions ADD COLUMN IF NOT EXISTS notes           TEXT;
+ALTER TABLE rosca_monthly_contributions ADD COLUMN IF NOT EXISTS recorded_by     UUID          REFERENCES members(id);
+ALTER TABLE rosca_monthly_contributions ADD COLUMN IF NOT EXISTS updated_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW();
+
+CREATE INDEX IF NOT EXISTS idx_rosca_monthly_cycle  ON rosca_monthly_contributions(cycle_id);
+CREATE INDEX IF NOT EXISTS idx_rosca_monthly_group  ON rosca_monthly_contributions(group_id);
+CREATE INDEX IF NOT EXISTS idx_rosca_monthly_member ON rosca_monthly_contributions(member_id);
+CREATE INDEX IF NOT EXISTS idx_rosca_monthly_draw   ON rosca_monthly_contributions(cycle_id, draw_number);
+
+ALTER TABLE rosca_monthly_contributions ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "anon_all_rosca_monthly" ON rosca_monthly_contributions;
+END $$;
+CREATE POLICY "anon_all_rosca_monthly" ON rosca_monthly_contributions FOR ALL TO anon USING (true) WITH CHECK (true);
+
+-- ============================================================
+-- 14. WELFARE CONTRIBUTIONS TABLE
+--     Each member contributes UGX 50,000 per draw date for
+--     drinks & food managed by the chairman.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS welfare_contributions (
+  id              UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  cycle_id        UUID          NOT NULL REFERENCES rosca_cycles(id) ON DELETE CASCADE,
+  group_id        UUID          NOT NULL REFERENCES groups(id)       ON DELETE CASCADE,
+  draw_number     INTEGER       NOT NULL,
+  draw_date       DATE          NOT NULL,
+  member_id       UUID          NOT NULL REFERENCES members(id),
+  member_name     TEXT          NOT NULL DEFAULT '',
+  amount          NUMERIC(15,2) NOT NULL DEFAULT 50000,
+  status          TEXT          NOT NULL DEFAULT 'pending',
+  payment_method  TEXT          NOT NULL DEFAULT 'cash',
+  transaction_ref TEXT,
+  notes           TEXT,
+  recorded_by     UUID          REFERENCES members(id),
+  created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  UNIQUE(cycle_id, draw_number, member_id)
+);
+
+-- Patch welfare_contributions (safe to re-run)
+ALTER TABLE welfare_contributions ADD COLUMN IF NOT EXISTS draw_date       DATE          NOT NULL DEFAULT CURRENT_DATE;
+ALTER TABLE welfare_contributions ADD COLUMN IF NOT EXISTS member_name     TEXT          NOT NULL DEFAULT '';
+ALTER TABLE welfare_contributions ADD COLUMN IF NOT EXISTS amount          NUMERIC(15,2) NOT NULL DEFAULT 50000;
+ALTER TABLE welfare_contributions ADD COLUMN IF NOT EXISTS status          TEXT          NOT NULL DEFAULT 'pending';
+ALTER TABLE welfare_contributions ADD COLUMN IF NOT EXISTS payment_method  TEXT          NOT NULL DEFAULT 'cash';
+ALTER TABLE welfare_contributions ADD COLUMN IF NOT EXISTS transaction_ref TEXT;
+ALTER TABLE welfare_contributions ADD COLUMN IF NOT EXISTS notes           TEXT;
+ALTER TABLE welfare_contributions ADD COLUMN IF NOT EXISTS recorded_by     UUID          REFERENCES members(id);
+ALTER TABLE welfare_contributions ADD COLUMN IF NOT EXISTS updated_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW();
+
+CREATE INDEX IF NOT EXISTS idx_welfare_cycle  ON welfare_contributions(cycle_id);
+CREATE INDEX IF NOT EXISTS idx_welfare_group  ON welfare_contributions(group_id);
+CREATE INDEX IF NOT EXISTS idx_welfare_member ON welfare_contributions(member_id);
+CREATE INDEX IF NOT EXISTS idx_welfare_draw   ON welfare_contributions(cycle_id, draw_number);
+
+ALTER TABLE welfare_contributions ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "anon_all_welfare_contributions" ON welfare_contributions;
+END $$;
+CREATE POLICY "anon_all_welfare_contributions" ON welfare_contributions FOR ALL TO anon USING (true) WITH CHECK (true);
