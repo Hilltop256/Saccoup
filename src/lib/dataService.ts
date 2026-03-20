@@ -805,221 +805,381 @@ export async function deleteRoscaDraw(draw_id: string) {
   return { success: true };
 }
 
-// ===== ROSCA MONTHLY CONTRIBUTIONS ===========================================
+// ===== UNIFIED ROSCA MEMBER ACCOUNTS ======================================
 
-export interface RoscaMonthlyContribRow {
+export interface RoscaMemberAccount {
   id: string;
   cycle_id: string;
-  group_id: string;
-  draw_number: number;
-  draw_date: string;
   member_id: string;
   member_name: string;
-  amount: number;
-  status: 'pending' | 'confirmed' | 'failed';
-  payment_method: string;
-  transaction_ref: string | null;
-  notes: string | null;
-  recorded_by: string | null;
+  monthly_contributions: Record<string, { amount: number; status: string; paid_at: string | null }>;
+  welfare_contributions: Record<string, { amount: number; status: string; paid_at: string | null }>;
+  draws_won: number;
+  draw_wins: { draw_number: number; slot: string; amount: number; date: string; confirmed: boolean }[];
+  security_deposit: number;
+  total_contributions: number;
+  total_welfare: number;
+  total_received: number;
+  balance: number;
   created_at: string;
   updated_at: string;
 }
 
-/** List all monthly contributions for a given cycle (optionally filtered by draw_number) */
-export async function listRoscaMonthlyContributions(
-  cycle_id: string,
-  draw_number?: number
-) {
-  let query = supabase
-    .from('rosca_monthly_contributions')
+/** List all member accounts for a cycle */
+export async function listRoscaMemberAccounts(cycle_id: string) {
+  const { data, error } = await supabase
+    .from('rosca_member_accounts')
     .select('*')
     .eq('cycle_id', cycle_id)
-    .order('draw_number', { ascending: true })
-    .order('member_name',  { ascending: true });
+    .order('member_name', { ascending: true });
 
-  if (draw_number !== undefined) query = query.eq('draw_number', draw_number);
-
-  const { data, error } = await query;
   if (error) throw new Error(error.message);
-  return { success: true, contributions: (data || []) as RoscaMonthlyContribRow[] };
+  return { success: true, accounts: (data || []) as RoscaMemberAccount[] };
 }
 
-/** Upsert (insert or update) a single member's monthly contribution for a draw */
-export async function upsertRoscaMonthlyContribution(params: {
+/** Get a single member's account for a cycle */
+export async function getRoscaMemberAccount(cycle_id: string, member_id: string) {
+  const { data, error } = await supabase
+    .from('rosca_member_accounts')
+    .select('*')
+    .eq('cycle_id', cycle_id)
+    .eq('member_id', member_id)
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { success: true, account: data as RoscaMemberAccount };
+}
+
+/** Create a new member account for a cycle (called when adding a member to a cycle) */
+export async function createRoscaMemberAccount(params: {
   cycle_id: string;
-  group_id: string;
-  draw_number: number;
-  draw_date: string;
   member_id: string;
   member_name: string;
-  amount?: number;
-  status?: 'pending' | 'confirmed' | 'failed';
-  payment_method?: string;
-  transaction_ref?: string;
-  notes?: string;
-  recorded_by?: string;
+  security_deposit?: number;
 }) {
   const { data, error } = await supabase
-    .from('rosca_monthly_contributions')
-    .upsert(
-      {
-        cycle_id:        params.cycle_id,
-        group_id:        params.group_id,
-        draw_number:     params.draw_number,
-        draw_date:       params.draw_date,
-        member_id:       params.member_id,
-        member_name:     params.member_name,
-        amount:          params.amount ?? 250000,
-        status:          params.status ?? 'pending',
-        payment_method:  params.payment_method ?? 'cash',
-        transaction_ref: params.transaction_ref ?? null,
-        notes:           params.notes ?? null,
-        recorded_by:     params.recorded_by ?? null,
-        updated_at:      new Date().toISOString(),
-      },
-      { onConflict: 'cycle_id,draw_number,member_id' }
-    )
+    .from('rosca_member_accounts')
+    .insert({
+      cycle_id: params.cycle_id,
+      member_id: params.member_id,
+      member_name: params.member_name,
+      security_deposit: params.security_deposit ?? 0,
+      monthly_contributions: '{}',
+      welfare_contributions: '{}',
+      draws_won: 0,
+      draw_wins: [],
+      total_contributions: 0,
+      total_welfare: 0,
+      total_received: 0,
+      balance: 0,
+    })
     .select()
     .single();
 
   if (error) throw new Error(error.message);
-  return { success: true, contribution: data };
+  return { success: true, account: data as RoscaMemberAccount };
 }
 
-/** Bulk-seed empty "pending" rows for every member in a draw (idempotent) */
-export async function seedRoscaMonthlyContributions(params: {
+/** Seed all members into a cycle's accounts (idempotent) */
+export async function seedRoscaMemberAccounts(params: {
   cycle_id: string;
-  group_id: string;
-  draw_number: number;
-  draw_date: string;
   members: { id: string; full_name: string }[];
-  amount?: number;
+  security_deposit?: number;
 }) {
   const rows = params.members.map(m => ({
-    cycle_id:    params.cycle_id,
-    group_id:    params.group_id,
-    draw_number: params.draw_number,
-    draw_date:   params.draw_date,
-    member_id:   m.id,
+    cycle_id: params.cycle_id,
+    member_id: m.id,
     member_name: m.full_name,
-    amount:      params.amount ?? 250000,
-    status:      'pending' as const,
-    payment_method: 'cash',
+    security_deposit: params.security_deposit ?? 0,
+    monthly_contributions: '{}',
+    welfare_contributions: '{}',
+    draws_won: 0,
+    draw_wins: [],
+    total_contributions: 0,
+    total_welfare: 0,
+    total_received: 0,
+    balance: 0,
   }));
 
   const { error } = await supabase
-    .from('rosca_monthly_contributions')
-    .upsert(rows, { onConflict: 'cycle_id,draw_number,member_id', ignoreDuplicates: true });
+    .from('rosca_member_accounts')
+    .upsert(rows, { onConflict: 'cycle_id,member_id', ignoreDuplicates: true });
 
   if (error) throw new Error(error.message);
   return { success: true };
 }
 
-// ===== WELFARE CONTRIBUTIONS =================================================
-
-export interface WelfareContribRow {
-  id: string;
+/** Record a member's monthly contribution for a specific draw */
+export async function recordMonthlyContribution(params: {
   cycle_id: string;
-  group_id: string;
-  draw_number: number;
-  draw_date: string;
   member_id: string;
-  member_name: string;
+  draw_number: number;
   amount: number;
-  status: 'pending' | 'confirmed' | 'failed';
-  payment_method: string;
-  transaction_ref: string | null;
-  notes: string | null;
-  recorded_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-/** List all welfare contributions for a cycle (optionally filtered by draw_number) */
-export async function listWelfareContributions(
-  cycle_id: string,
-  draw_number?: number
-) {
-  let query = supabase
-    .from('welfare_contributions')
-    .select('*')
-    .eq('cycle_id', cycle_id)
-    .order('draw_number', { ascending: true })
-    .order('member_name',  { ascending: true });
-
-  if (draw_number !== undefined) query = query.eq('draw_number', draw_number);
-
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-  return { success: true, contributions: (data || []) as WelfareContribRow[] };
-}
-
-/** Upsert a single member's welfare contribution for a draw */
-export async function upsertWelfareContribution(params: {
-  cycle_id: string;
-  group_id: string;
-  draw_number: number;
-  draw_date: string;
-  member_id: string;
-  member_name: string;
-  amount?: number;
-  status?: 'pending' | 'confirmed' | 'failed';
-  payment_method?: string;
-  transaction_ref?: string;
-  notes?: string;
+  status: 'pending' | 'confirmed';
+  paid_at?: string;
   recorded_by?: string;
 }) {
-  const { data, error } = await supabase
-    .from('welfare_contributions')
-    .upsert(
-      {
-        cycle_id:        params.cycle_id,
-        group_id:        params.group_id,
-        draw_number:     params.draw_number,
-        draw_date:       params.draw_date,
-        member_id:       params.member_id,
-        member_name:     params.member_name,
-        amount:          params.amount ?? 50000,
-        status:          params.status ?? 'pending',
-        payment_method:  params.payment_method ?? 'cash',
-        transaction_ref: params.transaction_ref ?? null,
-        notes:           params.notes ?? null,
-        recorded_by:     params.recorded_by ?? null,
-        updated_at:      new Date().toISOString(),
-      },
-      { onConflict: 'cycle_id,draw_number,member_id' }
-    )
-    .select()
+  // First get current account
+  const { data: account, error: fetchError } = await supabase
+    .from('rosca_member_accounts')
+    .select('*')
+    .eq('cycle_id', params.cycle_id)
+    .eq('member_id', params.member_id)
     .single();
 
-  if (error) throw new Error(error.message);
-  return { success: true, contribution: data };
-}
+  if (fetchError) throw new Error(fetchError.message);
 
-/** Bulk-seed empty "pending" welfare rows for every member in a draw (idempotent) */
-export async function seedWelfareContributions(params: {
-  cycle_id: string;
-  group_id: string;
-  draw_number: number;
-  draw_date: string;
-  members: { id: string; full_name: string }[];
-}) {
-  const rows = params.members.map(m => ({
-    cycle_id:    params.cycle_id,
-    group_id:    params.group_id,
-    draw_number: params.draw_number,
-    draw_date:   params.draw_date,
-    member_id:   m.id,
-    member_name: m.full_name,
-    amount:      50000,
-    status:      'pending' as const,
-    payment_method: 'cash',
-  }));
+  // Update monthly_contributions JSON
+  const currentMonthly = account.monthly_contributions || {};
+  currentMonthly[params.draw_number.toString()] = {
+    amount: params.amount,
+    status: params.status,
+    paid_at: params.paid_at || (params.status === 'confirmed' ? new Date().toISOString().split('T')[0] : null),
+  };
+
+  // Recalculate totals
+  let totalContrib = 0;
+  Object.values(currentMonthly).forEach((c: any) => {
+    if (c.status === 'confirmed') totalContrib += c.amount;
+  });
 
   const { error } = await supabase
-    .from('welfare_contributions')
-    .upsert(rows, { onConflict: 'cycle_id,draw_number,member_id', ignoreDuplicates: true });
+    .from('rosca_member_accounts')
+    .update({
+      monthly_contributions: currentMonthly,
+      total_contributions: totalContrib,
+      balance: account.total_received + account.security_deposit - totalContrib - account.total_welfare,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('cycle_id', params.cycle_id)
+    .eq('member_id', params.member_id);
 
   if (error) throw new Error(error.message);
   return { success: true };
 }
+
+/** Record a member's welfare contribution for a specific draw */
+export async function recordWelfareContribution(params: {
+  cycle_id: string;
+  member_id: string;
+  draw_number: number;
+  amount: number;
+  status: 'pending' | 'confirmed';
+  paid_at?: string;
+  recorded_by?: string;
+}) {
+  const { data: account, error: fetchError } = await supabase
+    .from('rosca_member_accounts')
+    .select('*')
+    .eq('cycle_id', params.cycle_id)
+    .eq('member_id', params.member_id)
+    .single();
+
+  if (fetchError) throw new Error(fetchError.message);
+
+  const currentWelfare = account.welfare_contributions || {};
+  currentWelfare[params.draw_number.toString()] = {
+    amount: params.amount,
+    status: params.status,
+    paid_at: params.paid_at || (params.status === 'confirmed' ? new Date().toISOString().split('T')[0] : null),
+  };
+
+  let totalWelfare = 0;
+  Object.values(currentWelfare).forEach((w: any) => {
+    if (w.status === 'confirmed') totalWelfare += w.amount;
+  });
+
+  const { error } = await supabase
+    .from('rosca_member_accounts')
+    .update({
+      welfare_contributions: currentWelfare,
+      total_welfare: totalWelfare,
+      balance: account.total_received + account.security_deposit - account.total_contributions - totalWelfare,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('cycle_id', params.cycle_id)
+    .eq('member_id', params.member_id);
+
+  if (error) throw new Error(error.message);
+  return { success: true };
+}
+
+/** Record a member's draw win */
+export async function recordDrawWin(params: {
+  cycle_id: string;
+  member_id: string;
+  draw_number: number;
+  slot: '1' | '2';
+  amount: number;
+  draw_date: string;
+  confirmed?: boolean;
+}) {
+  const { data: account, error: fetchError } = await supabase
+    .from('rosca_member_accounts')
+    .select('*')
+    .eq('cycle_id', params.cycle_id)
+    .eq('member_id', params.member_id)
+    .single();
+
+  if (fetchError) throw new Error(fetchError.message);
+
+  const currentWins = account.draw_wins || [];
+  currentWins.push({
+    draw_number: params.draw_number,
+    slot: params.slot,
+    amount: params.amount,
+    date: params.draw_date,
+    confirmed: params.confirmed ?? false,
+  });
+
+  const { error } = await supabase
+    .from('rosca_member_accounts')
+    .update({
+      draws_won: account.draws_won + 1,
+      draw_wins: currentWins,
+      total_received: account.total_received + params.amount,
+      balance: account.total_received + params.amount + account.security_deposit - account.total_contributions - account.total_welfare,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('cycle_id', params.cycle_id)
+    .eq('member_id', params.member_id);
+
+  if (error) throw new Error(error.message);
+  return { success: true };
+}
+
+/** Update security deposit (carried over from previous cycle) */
+export async function updateSecurityDeposit(params: {
+  cycle_id: string;
+  member_id: string;
+  security_deposit: number;
+}) {
+  const { data: account, error: fetchError } = await supabase
+    .from('rosca_member_accounts')
+    .select('*')
+    .eq('cycle_id', params.cycle_id)
+    .eq('member_id', params.member_id)
+    .single();
+
+  if (fetchError) throw new Error(fetchError.message);
+
+  const { error } = await supabase
+    .from('rosca_member_accounts')
+    .update({
+      security_deposit: params.security_deposit,
+      balance: account.total_received + params.security_deposit - account.total_contributions - account.total_welfare,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('cycle_id', params.cycle_id)
+    .eq('member_id', params.member_id);
+
+  if (error) throw new Error(error.message);
+  return { success: true };
+}
+
+// ===== ROSCA WELFARE EXPENDITURES ==========================================
+
+export interface RoscaWelfareExpenditure {
+  id: string;
+  cycle_id: string;
+  draw_number: number;
+  draw_date: string;
+  description: string;
+  amount: number;
+  recorded_by: string | null;
+  created_at: string;
+}
+
+/** List welfare expenditures for a cycle */
+export async function listWelfareExpenditures(cycle_id: string) {
+  const { data, error } = await supabase
+    .from('rosca_welfare_expenditures')
+    .select('*')
+    .eq('cycle_id', cycle_id)
+    .order('draw_number', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return { success: true, expenditures: (data || []) as RoscaWelfareExpenditure[] };
+}
+
+/** Add a welfare expenditure */
+export async function addWelfareExpenditure(params: {
+  cycle_id: string;
+  draw_number: number;
+  draw_date: string;
+  description: string;
+  amount: number;
+  recorded_by?: string;
+}) {
+  const { data, error } = await supabase
+    .from('rosca_welfare_expenditures')
+    .insert({
+      cycle_id: params.cycle_id,
+      draw_number: params.draw_number,
+      draw_date: params.draw_date,
+      description: params.description,
+      amount: params.amount,
+      recorded_by: params.recorded_by || null,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { success: true, expenditure: data as RoscaWelfareExpenditure };
+}
+
+/** Get welfare summary for a cycle */
+export async function getWelfareSummary(cycle_id: string) {
+  // First try to get cached summary
+  let { data: summary, error } = await supabase
+    .from('rosca_welfare_summary')
+    .select('*')
+    .eq('cycle_id', cycle_id)
+    .single();
+
+  if (!summary || error) {
+    // Compute on-the-fly from expenditures + member contributions
+    const { data: expenditures } = await supabase
+      .from('rosca_welfare_expenditures')
+      .select('amount')
+      .eq('cycle_id', cycle_id);
+
+    const { data: accounts } = await supabase
+      .from('rosca_member_accounts')
+      .select('total_welfare')
+      .eq('cycle_id', cycle_id);
+
+    const totalExpended = (expenditures || []).reduce((s, e) => s + Number(e.amount), 0);
+    const totalCollected = (accounts || []).reduce((s, a) => s + Number(a.total_welfare || 0), 0);
+
+    summary = {
+      cycle_id,
+      total_collected: totalCollected,
+      total_expended: totalExpended,
+      balance: totalCollected - totalExpended,
+      updated_at: new Date().toISOString(),
+    };
+  }
+
+  return { success: true, summary };
+}
+
+// ===== ROSCA MEMBER ACCOUNTS (alias for backward compatibility) =============
+
+/** @deprecated Use listRoscaMemberAccounts instead */
+export const listRoscaMonthlyContributions = listRoscaMemberAccounts;
+
+/** @deprecated Use recordMonthlyContribution instead */
+export const upsertRoscaMonthlyContribution = recordMonthlyContribution;
+
+/** @deprecated Use seedRoscaMemberAccounts instead */
+export const seedRoscaMonthlyContributions = seedRoscaMemberAccounts;
+
+/** @deprecated Use listRoscaMemberAccounts instead */
+export const listWelfareContributions = listRoscaMemberAccounts;
+
+/** @deprecated Use recordWelfareContribution instead */
+export const upsertWelfareContribution = recordWelfareContribution;
+
+/** @deprecated Use seedRoscaMemberAccounts instead */
+export const seedWelfareContributions = seedRoscaMemberAccounts;
