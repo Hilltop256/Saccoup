@@ -157,7 +157,7 @@ const RoscaPage: React.FC = () => {
                         <td className="px-4 py-3 text-center">
                           <button onClick={async () => {
                             for (const dn of uniqueDrawNums) {
-                              await recordMonthlyContribution(acc.member_id, dn, 250000, 'confirmed');
+                              await recordMonthlyContribution(acc.member_id, dn, 500000, 'confirmed');
                               await recordWelfareContribution(acc.member_id, dn, 50000, 'confirmed');
                             }
                             showToast(`Confirmed all for ${acc.member_name}`);
@@ -230,7 +230,7 @@ const RoscaPage: React.FC = () => {
             <div className="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
               <div className="h-full bg-purple-500" style={{ width: `${totalDraws > 0 ? (monthlyPaid / totalDraws) * 100 : 0}%` }} />
             </div>
-            <p className="text-xs text-gray-500 mt-1">UGX 250,000 per draw</p>
+            <p className="text-xs text-gray-500 mt-1">UGX 500,000 per draw</p>
           </div>
 
           <div className="bg-white rounded-2xl p-4 shadow-sm">

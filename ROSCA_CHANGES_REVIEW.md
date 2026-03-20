@@ -74,7 +74,7 @@ CREATE TABLE rosca_member_accounts (
   member_name           TEXT,
   
   -- JSONB tracking by draw_number:
-  monthly_contributions  JSONB DEFAULT '{}',  -- {"1": {amount: 250000, status: "confirmed", paid_at: "2025-03-15"}}
+  monthly_contributions  JSONB DEFAULT '{}',  -- {"1": {amount: 500000, status: "confirmed", paid_at: "2025-03-15"}}
   welfare_contributions  JSONB DEFAULT '{}',  -- {"1": {amount: 50000, status: "confirmed", paid_at: "2025-03-15"}}
   
   -- Draw wins:
@@ -97,9 +97,9 @@ CREATE TABLE rosca_member_accounts (
 {
   "member_name": "John Doe",
   "monthly_contributions": {
-    "1": {"amount": 250000, "status": "confirmed", "paid_at": "2025-05-02"},
-    "2": {"amount": 250000, "status": "confirmed", "paid_at": "2025-05-16"},
-    "8": {"amount": 250000, "status": "pending", "paid_at": null}
+    "1": {"amount": 500000, "status": "confirmed", "paid_at": "2025-05-02"},
+    "2": {"amount": 500000, "status": "confirmed", "paid_at": "2025-05-16"},
+    "8": {"amount": 500000, "status": "pending", "paid_at": null}
   },
   "welfare_contributions": {
     "1": {"amount": 50000, "status": "confirmed", "paid_at": "2025-05-02"},
@@ -110,7 +110,7 @@ CREATE TABLE rosca_member_accounts (
     {"draw_number": 5, "slot": "1", "amount": 4500000, "date": "2025-07-04", "confirmed": true}
   ],
   "security_deposit": 500000,
-  "total_contributions": 2000000,  // 8 × 250k
+  "total_contributions": 2000000,  // 8 × 500k
   "total_welfare": 400000,         // 8 × 50k
   "total_received": 4500000,
   "balance": 2600000  // (4.5M + 500k) - (2M + 400k) = 2.6M

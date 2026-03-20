@@ -338,7 +338,7 @@ CREATE POLICY "anon_all_rosca_draws"  ON rosca_draws  FOR ALL TO anon USING (tru
 -- ============================================================
 -- 13. UNIFIED ROSCA MEMBER ACCOUNTS
 --     One row per member per cycle. Tracks all financial activity:
---     monthly contributions, welfare, draw winnings, security deposit.
+--     monthly contributions (500k), welfare (50k), draw winnings, security deposit.
 -- ============================================================
 CREATE TABLE IF NOT EXISTS rosca_member_accounts (
   id                    UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -346,7 +346,7 @@ CREATE TABLE IF NOT EXISTS rosca_member_accounts (
   member_id             UUID          NOT NULL REFERENCES members(id),
   member_name           TEXT          NOT NULL DEFAULT '',
   
-  -- Monthly contributions: {"1": {"amount": 250000, "status": "confirmed", "paid_at": "2025-03-15"}, "2": {...}}
+  -- Monthly contributions: {"1": {"amount": 500000, "status": "confirmed", "paid_at": "2025-03-15"}, "2": {...}}
   monthly_contributions  JSONB         NOT NULL DEFAULT '{}',
   
   -- Welfare contributions: {"1": {"amount": 50000, "status": "confirmed", "paid_at": "2025-03-15"}, "2": {...}}
