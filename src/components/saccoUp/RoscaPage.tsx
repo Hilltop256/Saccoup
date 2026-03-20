@@ -389,7 +389,10 @@ const RoscaPage: React.FC = () => {
 
   // Load draw contributions when cycle/draw changes
   useEffect(() => {
-    if (!selectedCycle?._db_id) return;
+    if (!selectedCycle?._db_id) {
+      setDrawContribs([]);
+      return;
+    }
     ds.listRoscaDrawContributionsByCycle(selectedCycle._db_id, selectedDrawNum)
       .then(res => {
         if (res.success && res.contributions) {
@@ -412,7 +415,10 @@ const RoscaPage: React.FC = () => {
 
   // Load welfare data when cycle/draw changes
   useEffect(() => {
-    if (!selectedCycle?._db_id) return;
+    if (!selectedCycle?._db_id) {
+      setWelfareData(null);
+      return;
+    }
     ds.getRoscaWelfareByDraw(selectedCycle._db_id, selectedDrawNum)
       .then(res => {
         if (res.success && res.welfare) {
@@ -531,9 +537,19 @@ const RoscaPage: React.FC = () => {
   // Handle recording draw contribution
   const handleRecordContrib = async () => {
     if (!newContrib.member_id || !newContrib.amount || !selectedCycle) return;
+    
+    // Check if cycle is in database
+    if (!selectedCycle._db_id) {
+      showToast('Please create a cycle in the database first', 'error');
+      return;
+    }
+    
     const member = groupMembers.find(m => m.id === newContrib.member_id);
     const draw = selectedCycle.draws.find(d => d.draw_number === selectedDrawNum);
-    if (!member || !draw?._db_id) return;
+    if (!member || !draw?._db_id) {
+      showToast('Please add draws to the cycle first', 'error');
+      return;
+    }
     
     setSaving(true);
     try {
@@ -555,10 +571,10 @@ const RoscaPage: React.FC = () => {
             draw_id: c.draw_id,
             member_id: c.member_id,
             member_name: c.member_name,
-            contribution_type: c.contribution_type as 'monthly' | 'welfare',
+            contribution_type: c.contribution_type as any,
             amount: Number(c.amount),
             payment_method: c.payment_method,
-            status: c.status as 'pending' | 'confirmed' | 'failed',
+            status: c.status as any,
           })));
         }
       }
@@ -575,19 +591,36 @@ const RoscaPage: React.FC = () => {
 
   // Handle welfare spending
   const handleWelfareSpend = async () => {
-    if (!newSpendItem.item || !newSpendItem.cost || !welfareData?._db_id || !selectedGroupId) return;
+    if (!newSpendItem.item || !newSpendItem.cost || !selectedGroupId) return;
+    
+    // Check if cycle is in database
+    if (!selectedCycle._db_id) {
+      showToast('Please create a cycle in the database first', 'error');
+      setSaving(false);
+      return;
+    }
+    
     setSaving(true);
     try {
       // First ensure welfare record exists
-      if (!welfareData._db_id && selectedCycle?._db_id) {
-        await ds.createRoscaWelfare({
+      let welfareId = welfareData?._db_id;
+      if (!welfareId) {
+        const result = await ds.createRoscaWelfare({
           cycle_id: selectedCycle._db_id,
           draw_number: selectedDrawNum,
           welfare_amount: 50000,
         });
+        if (result.welfare) {
+          welfareId = result.welfare.id;
+        }
       }
+      
+      if (!welfareId) {
+        throw new Error('Failed to create welfare record');
+      }
+      
       // Add spending item
-      const items = [...(welfareData.spent_items || [])];
+      const items = [...(welfareData?.spent_items || [])];
       items.push({
         item: newSpendItem.item,
         cost: parseInt(newSpendItem.cost),
@@ -595,7 +628,7 @@ const RoscaPage: React.FC = () => {
         recorded_by: 'chairman',
       });
       await ds.updateRoscaWelfareSpending({
-        welfare_id: welfareData._db_id,
+        welfare_id: welfareId,
         spent_items: items,
       });
       // Reload welfare
