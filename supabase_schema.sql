@@ -108,16 +108,27 @@ CREATE TABLE IF NOT EXISTS contributions (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   group_id        UUID          NOT NULL REFERENCES groups(id)  ON DELETE CASCADE,
   member_id       UUID          NOT NULL REFERENCES members(id),
-  member_name     TEXT          NOT NULL,
-  amount          NUMERIC(15,2) NOT NULL,
+  member_name     TEXT          NOT NULL DEFAULT '',
+  amount          NUMERIC(15,2) NOT NULL DEFAULT 0,
   payment_method  TEXT          NOT NULL DEFAULT 'cash',
   status          TEXT          NOT NULL DEFAULT 'pending',
   transaction_ref TEXT,
   period_label    TEXT,
   notes           TEXT,
   updated_at      TIMESTAMPTZ,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
+
+-- Patch contributions table (safe to re-run — adds any columns that may be missing)
+ALTER TABLE contributions ADD COLUMN IF NOT EXISTS member_name     TEXT          NOT NULL DEFAULT '';
+ALTER TABLE contributions ADD COLUMN IF NOT EXISTS amount          NUMERIC(15,2) NOT NULL DEFAULT 0;
+ALTER TABLE contributions ADD COLUMN IF NOT EXISTS payment_method  TEXT          NOT NULL DEFAULT 'cash';
+ALTER TABLE contributions ADD COLUMN IF NOT EXISTS status          TEXT          NOT NULL DEFAULT 'pending';
+ALTER TABLE contributions ADD COLUMN IF NOT EXISTS transaction_ref TEXT;
+ALTER TABLE contributions ADD COLUMN IF NOT EXISTS period_label    TEXT;
+ALTER TABLE contributions ADD COLUMN IF NOT EXISTS notes           TEXT;
+ALTER TABLE contributions ADD COLUMN IF NOT EXISTS updated_at      TIMESTAMPTZ;
+
 CREATE INDEX IF NOT EXISTS idx_contributions_group  ON contributions(group_id);
 CREATE INDEX IF NOT EXISTS idx_contributions_member ON contributions(member_id);
 CREATE INDEX IF NOT EXISTS idx_contributions_status ON contributions(status);
@@ -241,45 +252,74 @@ CREATE POLICY "anon_all_audit_logs"        ON audit_logs        FOR ALL TO anon 
 
 -- ROSCA Cycles table - one row per cycle
 CREATE TABLE IF NOT EXISTS rosca_cycles (
-  id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  group_id              UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-  cycle_number          INTEGER NOT NULL,
-  cycle_name            TEXT NOT NULL,
-  status                TEXT NOT NULL DEFAULT 'upcoming',
-  start_date            DATE NOT NULL,
-  end_date             DATE,
-  total_draws          INTEGER NOT NULL DEFAULT 10,
-  pot_amount_per_draw   NUMERIC(15,2) NOT NULL DEFAULT 5000000,
-  member_count          INTEGER NOT NULL DEFAULT 20,
-  security_deposit      NUMERIC(15,2) NOT NULL DEFAULT 0,
-  notes                 TEXT,
-  created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  id                  UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  group_id            UUID          NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  cycle_number        INTEGER       NOT NULL,
+  cycle_name          TEXT          NOT NULL DEFAULT '',
+  status              TEXT          NOT NULL DEFAULT 'upcoming',
+  start_date          DATE          NOT NULL DEFAULT CURRENT_DATE,
+  end_date            DATE,
+  total_draws         INTEGER       NOT NULL DEFAULT 10,
+  pot_amount_per_draw NUMERIC(15,2) NOT NULL DEFAULT 5000000,
+  member_count        INTEGER       NOT NULL DEFAULT 20,
+  security_deposit    NUMERIC(15,2) NOT NULL DEFAULT 0,
+  notes               TEXT,
+  created_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
   UNIQUE(group_id, cycle_number)
 );
-CREATE INDEX IF NOT EXISTS idx_rosca_cycles_group ON rosca_cycles(group_id);
+
+-- Patch rosca_cycles (safe to re-run — adds any columns that may be missing)
+ALTER TABLE rosca_cycles ADD COLUMN IF NOT EXISTS cycle_name          TEXT          NOT NULL DEFAULT '';
+ALTER TABLE rosca_cycles ADD COLUMN IF NOT EXISTS status              TEXT          NOT NULL DEFAULT 'upcoming';
+ALTER TABLE rosca_cycles ADD COLUMN IF NOT EXISTS start_date          DATE          NOT NULL DEFAULT CURRENT_DATE;
+ALTER TABLE rosca_cycles ADD COLUMN IF NOT EXISTS end_date            DATE;
+ALTER TABLE rosca_cycles ADD COLUMN IF NOT EXISTS total_draws         INTEGER       NOT NULL DEFAULT 10;
+ALTER TABLE rosca_cycles ADD COLUMN IF NOT EXISTS pot_amount_per_draw NUMERIC(15,2) NOT NULL DEFAULT 5000000;
+ALTER TABLE rosca_cycles ADD COLUMN IF NOT EXISTS member_count        INTEGER       NOT NULL DEFAULT 20;
+ALTER TABLE rosca_cycles ADD COLUMN IF NOT EXISTS security_deposit    NUMERIC(15,2) NOT NULL DEFAULT 0;
+ALTER TABLE rosca_cycles ADD COLUMN IF NOT EXISTS notes               TEXT;
+ALTER TABLE rosca_cycles ADD COLUMN IF NOT EXISTS updated_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW();
+
+CREATE INDEX IF NOT EXISTS idx_rosca_cycles_group  ON rosca_cycles(group_id);
+CREATE INDEX IF NOT EXISTS idx_rosca_cycles_status ON rosca_cycles(status);
 
 -- ROSCA Draws table - one row per winner slot (2 winners per draw)
 CREATE TABLE IF NOT EXISTS rosca_draws (
-  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  cycle_id          UUID NOT NULL REFERENCES rosca_cycles(id) ON DELETE CASCADE,
-  draw_number       INTEGER NOT NULL,
-  winner_slot       TEXT NOT NULL CHECK (winner_slot IN ('1', '2')),
-  winner_name       TEXT,
-  winner_id         TEXT,
-  amount_received   NUMERIC(15,2) NOT NULL DEFAULT 5000000,
-  draw_date         DATE NOT NULL,
-  savings           NUMERIC(15,2),
-  paid_out          NUMERIC(15,2),
-  deductions        NUMERIC(15,2),
-  balance           NUMERIC(15,2),
-  status            TEXT NOT NULL DEFAULT 'pending',
-  notes             TEXT,
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  id              UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  cycle_id        UUID          NOT NULL REFERENCES rosca_cycles(id) ON DELETE CASCADE,
+  draw_number     INTEGER       NOT NULL,
+  winner_slot     TEXT          NOT NULL CHECK (winner_slot IN ('1', '2')),
+  winner_name     TEXT,
+  winner_id       TEXT,
+  amount_received NUMERIC(15,2) NOT NULL DEFAULT 5000000,
+  draw_date       DATE          NOT NULL DEFAULT CURRENT_DATE,
+  savings         NUMERIC(15,2),
+  paid_out        NUMERIC(15,2),
+  deductions      NUMERIC(15,2),
+  balance         NUMERIC(15,2),
+  status          TEXT          NOT NULL DEFAULT 'pending',
+  notes           TEXT,
+  created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
   UNIQUE(cycle_id, draw_number, winner_slot)
 );
-CREATE INDEX IF NOT EXISTS idx_rosca_draws_cycle ON rosca_draws(cycle_id);
+
+-- Patch rosca_draws (safe to re-run — adds any columns that may be missing)
+ALTER TABLE rosca_draws ADD COLUMN IF NOT EXISTS winner_name     TEXT;
+ALTER TABLE rosca_draws ADD COLUMN IF NOT EXISTS winner_id       TEXT;
+ALTER TABLE rosca_draws ADD COLUMN IF NOT EXISTS amount_received NUMERIC(15,2) NOT NULL DEFAULT 5000000;
+ALTER TABLE rosca_draws ADD COLUMN IF NOT EXISTS draw_date       DATE          NOT NULL DEFAULT CURRENT_DATE;
+ALTER TABLE rosca_draws ADD COLUMN IF NOT EXISTS savings         NUMERIC(15,2);
+ALTER TABLE rosca_draws ADD COLUMN IF NOT EXISTS paid_out        NUMERIC(15,2);
+ALTER TABLE rosca_draws ADD COLUMN IF NOT EXISTS deductions      NUMERIC(15,2);
+ALTER TABLE rosca_draws ADD COLUMN IF NOT EXISTS balance         NUMERIC(15,2);
+ALTER TABLE rosca_draws ADD COLUMN IF NOT EXISTS status          TEXT          NOT NULL DEFAULT 'pending';
+ALTER TABLE rosca_draws ADD COLUMN IF NOT EXISTS notes           TEXT;
+ALTER TABLE rosca_draws ADD COLUMN IF NOT EXISTS updated_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW();
+
+CREATE INDEX IF NOT EXISTS idx_rosca_draws_cycle  ON rosca_draws(cycle_id);
+CREATE INDEX IF NOT EXISTS idx_rosca_draws_status ON rosca_draws(status);
 
 -- Enable RLS for ROSCA tables
 ALTER TABLE rosca_cycles ENABLE ROW LEVEL SECURITY;
