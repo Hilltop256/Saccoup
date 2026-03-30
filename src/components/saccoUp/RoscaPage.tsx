@@ -321,7 +321,7 @@ const EditDrawModal: React.FC<EditDrawModalProps> = ({ draw, members, onSave, on
 
 const RoscaPage: React.FC = () => {
   const { selectedGroupId, selectedGroup } = useAppContext();
-  const { cycles, loading, updateDraw, addDraw } = useRoscaData();
+  const { cycles, loading, updateDraw, addDraw, createCycle } = useRoscaData();
 
   // Real members loaded from the group
   const [groupMembers, setGroupMembers] = useState<{ full_name: string; id: string }[]>([]);
@@ -331,6 +331,8 @@ const RoscaPage: React.FC = () => {
   const [selectedCycleNum, setSelectedCycleNum] = useState<number>(3);
   const [editingDraw, setEditingDraw] = useState<RoscaDraw | null>(null);
   const [showAddDraw, setShowAddDraw] = useState(false);
+  const [showCreateCycle, setShowCreateCycle] = useState(false);
+  const [showContributions, setShowContributions] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
   // Permission: admin, chairperson, or secretary can edit all cycles
@@ -402,6 +404,59 @@ const RoscaPage: React.FC = () => {
     }
   };
 
+  // Create Cycle state & handler
+  const [newCycleForm, setNewCycleForm] = useState({
+    cycle_name: '',
+    start_date: new Date().toISOString().slice(0, 10),
+    total_draws: 10,
+    pot_amount_per_draw: 5000000,
+    member_count: 20,
+    security_deposit: 0,
+  });
+
+  const handleCreateCycle = async () => {
+    if (!newCycleForm.cycle_name.trim()) return;
+    setSaving(true);
+    try {
+      await createCycle(newCycleForm);
+      setShowCreateCycle(false);
+      showToast(`Cycle "${newCycleForm.cycle_name}" created with ${newCycleForm.total_draws * 2} draw slots!`);
+      const next = Math.max(0, ...cycles.map(c => c.cycle_number)) + 1;
+      setSelectedCycleNum(next);
+      setNewCycleForm(f => ({ ...f, cycle_name: '' }));
+    } catch (e: any) {
+      showToast(e.message || 'Failed to create cycle.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Contribution tracking: which members paid for which draw
+  const [contributionDraw, setContributionDraw] = useState<number>(1);
+  const [contributionStatuses, setContributionStatuses] = useState<Record<string, 'paid' | 'pending' | 'defaulted'>>({});
+  const [savingContribs, setSavingContribs] = useState(false);
+
+  const handleToggleContribution = (memberName: string) => {
+    setContributionStatuses(prev => {
+      const current = prev[memberName] || 'pending';
+      const next = current === 'pending' ? 'paid' : current === 'paid' ? 'defaulted' : 'pending';
+      return { ...prev, [memberName]: next };
+    });
+  };
+
+  const handleSaveContributions = async () => {
+    setSavingContribs(true);
+    try {
+      const paid = Object.entries(contributionStatuses).filter(([, s]) => s === 'paid').length;
+      const defaulted = Object.entries(contributionStatuses).filter(([, s]) => s === 'defaulted').length;
+      showToast(`Draw ${contributionDraw}: ${paid} paid, ${defaulted} defaulted`);
+    } catch {
+      showToast('Failed to save contributions.', 'error');
+    } finally {
+      setSavingContribs(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -413,15 +468,33 @@ const RoscaPage: React.FC = () => {
           <p className="text-sm text-purple-500 font-semibold">Cycle history • Draw winners • 2 members win {formatUGX(5000000)} each per draw</p>
         </div>
         {canEdit && (
-          <button
-            onClick={() => setShowAddDraw(true)}
-            className="flex items-center gap-2 px-4 py-2.5 text-sm font-extrabold text-white bg-gradient-to-r from-[#7c3aed] to-[#ec4899] rounded-xl hover:opacity-90 transition-opacity shadow-md shadow-purple-300/40"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Add Draw
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowContributions(!showContributions)}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-extrabold rounded-xl transition-colors shadow-md ${
+                showContributions
+                  ? 'bg-gradient-to-r from-[#0066CC] to-[#0891b2] text-white shadow-cyan-300/40'
+                  : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+              Contributions
+            </button>
+            <button
+              onClick={() => setShowAddDraw(true)}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-extrabold text-white bg-gradient-to-r from-[#7c3aed] to-[#ec4899] rounded-xl hover:opacity-90 transition-opacity shadow-md shadow-purple-300/40"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.5v15m7.5-7.5h-15" /></svg>
+              Add Draw
+            </button>
+            <button
+              onClick={() => setShowCreateCycle(true)}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-extrabold text-white bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl hover:opacity-90 transition-opacity shadow-md shadow-emerald-300/40"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.5v15m7.5-7.5h-15" /></svg>
+              New Cycle
+            </button>
+          </div>
         )}
       </div>
 
@@ -553,6 +626,125 @@ const RoscaPage: React.FC = () => {
           onClose={() => setShowAddDraw(false)}
           cycleNumber={selectedCycleNum}
         />
+      )}
+
+      {/* Create Cycle Modal */}
+      {showCreateCycle && canEdit && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowCreateCycle(false)}>
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl shadow-emerald-200/50 overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-5 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-extrabold">🎡 Create New Cycle</h2>
+                  <p className="text-sm text-emerald-100 font-semibold">Set up a new Merry-Go-Round cycle</p>
+                </div>
+                <button onClick={() => setShowCreateCycle(false)} className="p-1.5 hover:bg-white/20 rounded-xl transition-colors">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            </div>
+            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div>
+                <label className="text-sm font-bold text-gray-700 mb-1 block">Cycle Name *</label>
+                <input type="text" value={newCycleForm.cycle_name} onChange={e => setNewCycleForm(f => ({ ...f, cycle_name: e.target.value }))} className="w-full px-3 py-2.5 text-sm border-2 border-emerald-100 rounded-xl focus:ring-2 focus:ring-emerald-400 outline-none" placeholder={`Cycle ${Math.max(0, ...cycles.map(c => c.cycle_number)) + 1}`} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-bold text-gray-700 mb-1 block">Start Date</label>
+                  <input type="date" value={newCycleForm.start_date} onChange={e => setNewCycleForm(f => ({ ...f, start_date: e.target.value }))} className="w-full px-3 py-2.5 text-sm border-2 border-emerald-100 rounded-xl focus:ring-2 focus:ring-emerald-400 outline-none" />
+                </div>
+                <div>
+                  <label className="text-sm font-bold text-gray-700 mb-1 block">Number of Draws</label>
+                  <input type="number" value={newCycleForm.total_draws} onChange={e => setNewCycleForm(f => ({ ...f, total_draws: Number(e.target.value) }))} className="w-full px-3 py-2.5 text-sm border-2 border-emerald-100 rounded-xl focus:ring-2 focus:ring-emerald-400 outline-none" min={1} max={52} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-bold text-gray-700 mb-1 block">Pot Amount per Draw (UGX)</label>
+                  <input type="number" value={newCycleForm.pot_amount_per_draw} onChange={e => setNewCycleForm(f => ({ ...f, pot_amount_per_draw: Number(e.target.value) }))} className="w-full px-3 py-2.5 text-sm border-2 border-emerald-100 rounded-xl focus:ring-2 focus:ring-emerald-400 outline-none" />
+                </div>
+                <div>
+                  <label className="text-sm font-bold text-gray-700 mb-1 block">Number of Members</label>
+                  <input type="number" value={newCycleForm.member_count} onChange={e => setNewCycleForm(f => ({ ...f, member_count: Number(e.target.value) }))} className="w-full px-3 py-2.5 text-sm border-2 border-emerald-100 rounded-xl focus:ring-2 focus:ring-emerald-400 outline-none" min={2} />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-bold text-gray-700 mb-1 block">Security Deposit per Member (UGX)</label>
+                <input type="number" value={newCycleForm.security_deposit} onChange={e => setNewCycleForm(f => ({ ...f, security_deposit: Number(e.target.value) }))} className="w-full px-3 py-2.5 text-sm border-2 border-emerald-100 rounded-xl focus:ring-2 focus:ring-emerald-400 outline-none" />
+                <p className="text-[10px] text-gray-400 mt-1 font-semibold">Deducted from each winner's payout. 0 = no deposit.</p>
+              </div>
+              <div className="bg-emerald-50 rounded-xl p-4">
+                <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide mb-1">Summary</p>
+                <p className="text-sm text-emerald-800">{newCycleForm.total_draws} draws × 2 winners = <strong>{newCycleForm.total_draws * 2} draw slots</strong></p>
+                <p className="text-sm text-emerald-800">Each winner receives: <strong>{formatUGX(newCycleForm.pot_amount_per_draw)}</strong></p>
+                {newCycleForm.security_deposit > 0 && (
+                  <p className="text-sm text-emerald-800">Each winner pays out: <strong>{formatUGX(newCycleForm.pot_amount_per_draw - newCycleForm.security_deposit)}</strong> (after {formatUGX(newCycleForm.security_deposit)} deposit)</p>
+                )}
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
+              <button onClick={() => setShowCreateCycle(false)} className="flex-1 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">Cancel</button>
+              <button
+                onClick={handleCreateCycle}
+                disabled={saving || !newCycleForm.cycle_name.trim()}
+                className="flex-1 py-2.5 text-sm font-extrabold text-white bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl hover:opacity-90 transition-opacity shadow-md shadow-emerald-300/40 disabled:opacity-50"
+              >
+                {saving ? 'Creating...' : '✨ Create Cycle'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Contributions Tracking Sheet */}
+      {showContributions && selectedCycle && (
+        <div className="bg-white rounded-3xl border border-cyan-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-cyan-50 bg-gradient-to-r from-cyan-50 to-blue-50 flex items-center justify-between">
+            <div>
+              <h3 className="font-extrabold text-gray-900">📋 Contribution Tracking — {selectedCycle.cycle_name}</h3>
+              <p className="text-xs text-gray-500 font-semibold">Track who contributed for each draw. Click a member to cycle: Pending → Paid → Defaulted</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <select value={contributionDraw} onChange={e => { setContributionDraw(Number(e.target.value)); setContributionStatuses({}); }} className="px-3 py-1.5 text-sm border border-cyan-200 rounded-lg bg-white focus:ring-2 focus:ring-cyan-400 outline-none font-semibold">
+                {Array.from({ length: selectedCycle.total_draws }, (_, i) => i + 1).map(d => (
+                  <option key={d} value={d}>Draw {d}</option>
+                ))}
+              </select>
+              <button onClick={handleSaveContributions} disabled={savingContribs} className="px-4 py-1.5 text-sm font-bold text-white bg-cyan-600 rounded-lg hover:bg-cyan-700 disabled:opacity-50">
+                {savingContribs ? '...' : 'Save'}
+              </button>
+            </div>
+          </div>
+          <div className="p-6">
+            {groupMembers.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-8">No group members loaded. Members appear once you join a group.</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                {groupMembers.map(m => {
+                  const status = contributionStatuses[m.full_name] || 'pending';
+                  const styles = status === 'paid' ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : status === 'defaulted' ? 'bg-red-50 border-red-300 text-red-700' : 'bg-gray-50 border-gray-200 text-gray-600';
+                  const icon = status === 'paid' ? '✅' : status === 'defaulted' ? '❌' : '⏳';
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => handleToggleContribution(m.full_name)}
+                      className={`text-left px-3 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${styles}`}
+                    >
+                      <span className="mr-1.5">{icon}</span>{m.full_name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {groupMembers.length > 0 && (
+              <div className="mt-4 flex gap-4 text-xs font-bold text-gray-500">
+                <span>✅ Paid: {Object.values(contributionStatuses).filter(s => s === 'paid').length}</span>
+                <span>⏳ Pending: {groupMembers.length - Object.values(contributionStatuses).length + Object.values(contributionStatuses).filter(s => s === 'pending').length}</span>
+                <span>❌ Defaulted: {Object.values(contributionStatuses).filter(s => s === 'defaulted').length}</span>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

@@ -19,6 +19,7 @@ interface RoscaContextType {
   isMockData: boolean;
   updateDraw: (cycleNumber: number, updatedDraw: RoscaDraw) => Promise<void>;
   addDraw: (cycleNumber: number, newDraw: RoscaDraw) => Promise<void>;
+  createCycle: (params: { cycle_name: string; start_date: string; total_draws: number; pot_amount_per_draw: number; member_count: number; security_deposit: number }) => Promise<void>;
   refreshCycles: () => Promise<void>;
   getMemberStats: (memberName: string) => {
     totalWon: number;
@@ -292,6 +293,47 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
     }
   }, [cycles, loadCycles]);
 
+  // ── Create new cycle ─────────────────────────────────────────────────────
+  const createCycle = useCallback(async (params: { cycle_name: string; start_date: string; total_draws: number; pot_amount_per_draw: number; member_count: number; security_deposit: number }) => {
+    if (!selectedGroupId) throw new Error('No group selected.');
+    const nextNumber = Math.max(0, ...cycles.map(c => c.cycle_number)) + 1;
+
+    const { cycle } = await ds.createRoscaCycle({
+      group_id: selectedGroupId,
+      cycle_number: nextNumber,
+      cycle_name: params.cycle_name,
+      status: 'upcoming',
+      start_date: params.start_date,
+      total_draws: params.total_draws,
+      pot_amount_per_draw: params.pot_amount_per_draw,
+      member_count: params.member_count,
+      security_deposit: params.security_deposit,
+    });
+
+    if (cycle) {
+      // Auto-generate empty draw slots (2 winners per draw)
+      for (let d = 1; d <= params.total_draws; d++) {
+        for (const slot of ['1', '2'] as const) {
+          await ds.createRoscaDraw({
+            cycle_id: cycle.id,
+            draw_number: d,
+            winner_slot: slot,
+            winner_name: undefined,
+            amount_received: params.pot_amount_per_draw,
+            draw_date: params.start_date,
+            savings: params.security_deposit || 0,
+            paid_out: 0,
+            deductions: 0,
+            balance: 0,
+            status: 'pending',
+            notes: slot === '1' ? `Draw ${d} of ${params.total_draws}` : undefined,
+          });
+        }
+      }
+      await loadCycles();
+    }
+  }, [selectedGroupId, cycles, loadCycles]);
+
   // ── Aggregate helpers ─────────────────────────────────────────────────────
   const getMemberStats = useCallback((memberName: string) => {
     let totalWon = 0, totalSavings = 0, totalDeductions = 0,
@@ -336,6 +378,7 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
       isMockData,
       updateDraw,
       addDraw,
+      createCycle,
       refreshCycles,
       getMemberStats,
       getGroupTotals,
