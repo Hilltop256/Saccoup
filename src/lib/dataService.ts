@@ -270,11 +270,15 @@ export async function listMembers(group_id: string) {
 
       const { data: activeLoans } = await supabase
         .from('loans')
-        .select('amount, repaid_amount')
+        .select('amount')
         .eq('group_id', group_id)
         .eq('member_id', m.id)
         .in('status', ['disbursed', 'repaying']);
-      const loanBalance = (activeLoans || []).reduce((s: number, l: any) => s + (Number(l.amount) - Number(l.repaid_amount || 0)), 0);
+      // Compute remaining balance: amount - repaid_amount (repaid_amount may not exist yet in DB)
+      const loanBalance = (activeLoans || []).reduce((s: number, l: any) => {
+        const repaid = Number(l.repaid_amount || 0);
+        return s + (Number(l.amount) - repaid);
+      }, 0);
 
       return {
         id: m.id,
@@ -594,12 +598,18 @@ export async function updateLoanStatus(loan_id: string, new_status: string, appr
 }
 
 export async function recordRepayment(loan_id: string, amount: number, recorded_by?: string) {
-  const { data: loan } = await supabase
+  const { data: loan, error: fetchErr } = await supabase
     .from('loans')
     .select('amount, repaid_amount')
     .eq('id', loan_id)
     .single();
 
+  if (fetchErr) {
+    if (fetchErr.message?.includes('repaid_amount')) {
+      throw new Error('The repaid_amount column is missing. Run the migration script in Supabase SQL Editor first.');
+    }
+    throw new Error(fetchErr.message);
+  }
   if (!loan) throw new Error('Loan not found.');
 
   const newRepaid = Number(loan.repaid_amount || 0) + amount;
@@ -611,7 +621,12 @@ export async function recordRepayment(loan_id: string, amount: number, recorded_
     .update({ repaid_amount: newRepaid, status: newStatus, updated_at: new Date().toISOString() })
     .eq('id', loan_id);
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.message?.includes('repaid_amount')) {
+      throw new Error('The repaid_amount column is missing. Run the migration script in Supabase SQL Editor first.');
+    }
+    throw new Error(error.message);
+  }
 
   if (recorded_by) {
     await supabase.from('audit_logs').insert({

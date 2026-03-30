@@ -238,6 +238,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     restoreSession();
   }, [loadMemberships]);
 
+  // Database health check on startup
+  useEffect(() => {
+    const checkDb = async () => {
+      try {
+        const { error } = await supabase.from('loans').select('repaid_amount').limit(1);
+        if (error?.message?.includes('repaid_amount')) {
+          console.warn('[SaccoUp] Missing column: loans.repaid_amount — Run migration_repaid_amount.sql in Supabase SQL Editor to enable loan repayment tracking.');
+        }
+      } catch { /* ignore */ }
+    };
+    checkDb();
+  }, []);
+
   // Register
   const register = async (phone: string, pin: string, fullName: string, inviteCode?: string, photoDataUrl?: string) => {
     setAuthError(null);

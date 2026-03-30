@@ -34,6 +34,10 @@ const SettingsPage: React.FC = () => {
   const [pushNotifications, setPushNotifications] = useState(true);
   const [loanAlerts, setLoanAlerts] = useState(true);
 
+  // DB migration check
+  const [repaidAmountMissing, setRepaidAmountMissing] = useState(false);
+  const [migrationCopied, setMigrationCopied] = useState(false);
+
   // Load real group settings
   useEffect(() => {
     if (selectedGroup) {
@@ -53,6 +57,13 @@ const SettingsPage: React.FC = () => {
     }
     setLoading(false);
   }, [selectedGroup, user]);
+
+  // Check for missing DB migrations
+  useEffect(() => {
+    supabase.from('loans').select('repaid_amount').limit(1).then(({ error }) => {
+      if (error?.message?.includes('repaid_amount')) setRepaidAmountMissing(true);
+    });
+  }, []);
 
   const showFeedback = (status: 'success' | 'error', msg: string) => {
     setSaveStatus(status);
@@ -169,6 +180,28 @@ const SettingsPage: React.FC = () => {
       )}
       {saveStatus === 'error' && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{saveMsg}</div>
+      )}
+
+      {/* DB Migration Alert */}
+      {repaidAmountMissing && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-5 space-y-3">
+          <div className="flex items-start gap-3">
+            <svg className="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+            <div>
+              <h3 className="font-bold text-amber-800">Database Migration Needed</h3>
+              <p className="text-sm text-amber-700 mt-1">Loan repayment tracking requires a one-time schema update. Copy this SQL and run it in your <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="underline font-semibold">Supabase SQL Editor</a>:</p>
+            </div>
+          </div>
+          <div className="bg-gray-900 rounded-lg p-4 relative">
+            <pre className="text-sm text-green-400 font-mono">ALTER TABLE loans ADD COLUMN IF NOT EXISTS repaid_amount NUMERIC(15,2) NOT NULL DEFAULT 0;</pre>
+            <button
+              onClick={() => { navigator.clipboard.writeText('ALTER TABLE loans ADD COLUMN IF NOT EXISTS repaid_amount NUMERIC(15,2) NOT NULL DEFAULT 0;'); setMigrationCopied(true); setTimeout(() => setMigrationCopied(false), 3000); }}
+              className="absolute top-2 right-2 px-2 py-1 text-xs font-medium bg-gray-700 text-gray-300 rounded hover:bg-gray-600"
+            >
+              {migrationCopied ? 'Copied!' : 'Copy SQL'}
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Tabs */}

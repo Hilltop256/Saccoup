@@ -15,6 +15,7 @@ import AnnouncementsPage from './saccoUp/AnnouncementsPage';
 import SettingsPage from './saccoUp/SettingsPage';
 import RoscaPage from './saccoUp/RoscaPage';
 import AdminPage from './saccoUp/AdminPage';
+import MigrationPage from './saccoUp/MigrationPage';
 
 type AppView = 'loading' | 'landing' | 'dashboard';
 
@@ -68,6 +69,7 @@ const AppLayout: React.FC = () => {
       case 'announcements': return 'Announcements';
       case 'settings': return 'Settings';
       case 'admin': return '⚙️ Admin';
+      case 'migration': return 'Database Migration';
       default: return 'Dashboard';
     }
   };
@@ -85,6 +87,7 @@ const AppLayout: React.FC = () => {
       case 'announcements': return <AnnouncementsPage />;
       case 'settings': return <SettingsPage />;
       case 'admin': return <AdminPage />;
+      case 'migration': return <MigrationPage />;
       default: return <DashboardOverview onNavigate={setCurrentPage} />;
     }
   };

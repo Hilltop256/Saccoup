@@ -2,7 +2,7 @@ import React from 'react';
 import { useAppContext } from '@/contexts/AppContext';
 import { formatUGX, IMAGES } from '@/lib/constants';
 
-export type DashboardPage = 'overview' | 'members' | 'contributions' | 'loans' | 'reports' | 'groups' | 'chat' | 'settings' | 'announcements' | 'rosca' | 'admin';
+export type DashboardPage = 'overview' | 'members' | 'contributions' | 'loans' | 'reports' | 'groups' | 'chat' | 'settings' | 'announcements' | 'rosca' | 'admin' | 'migration';
 
 interface SidebarProps {
   currentPage: DashboardPage;
