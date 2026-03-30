@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAppContext } from '@/contexts/AppContext';
 import { IMAGES } from '@/lib/constants';
 import * as ds from '@/lib/dataService';
+import { supabase } from '@/lib/supabase';
 
 interface MsgRow {
   id: string;
@@ -43,6 +44,45 @@ const ChatPage: React.FC = () => {
   }, [selectedGroup?.id, user?.member_id]);
 
   useEffect(() => { loadMessages(); }, [loadMessages]);
+
+  // Supabase Realtime subscription for live messages
+  useEffect(() => {
+    if (!selectedGroup?.id) return;
+
+    const channel = supabase
+      .channel(`messages:group_id=eq.${selectedGroup.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `group_id=eq.${selectedGroup.id}`,
+        },
+        (payload) => {
+          const m = payload.new;
+          if (m.sender_id === user?.member_id) return; // Already shown via optimistic update
+          setMessages(prev => {
+            // Deduplicate by ID
+            if (prev.some(msg => msg.id === m.id)) return prev;
+            return [...prev, {
+              id: m.id,
+              sender_id: m.sender_id,
+              sender_name: m.sender_name || 'Unknown',
+              sender_photo: m.sender_photo,
+              message: m.message,
+              created_at: m.created_at ? new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+              is_own: false,
+            }];
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedGroup?.id, user?.member_id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

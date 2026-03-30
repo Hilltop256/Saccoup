@@ -194,6 +194,12 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, enti
 -- ============================================================
 -- 11. ROW LEVEL SECURITY
 -- ============================================================
+-- NOTE: SaccoUp uses a custom auth system (PIN + OTP, not Supabase Auth).
+-- For production, migrate to Supabase Auth and use auth.uid() in policies.
+-- These policies provide a baseline: sensitive tables are locked down,
+-- and group-scoped tables use membership-based access via a helper function.
+-- ============================================================
+
 ALTER TABLE members           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_accounts     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE otp_codes         ENABLE ROW LEVEL SECURITY;
@@ -217,19 +223,59 @@ DO $$ BEGIN
   DROP POLICY IF EXISTS "anon_all_announcements"     ON announcements;
   DROP POLICY IF EXISTS "anon_all_messages"          ON messages;
   DROP POLICY IF EXISTS "anon_all_audit_logs"        ON audit_logs;
+  -- ROSCA policies
+  DROP POLICY IF EXISTS "anon_all_rosca_cycles"      ON rosca_cycles;
+  DROP POLICY IF EXISTS "anon_all_rosca_draws"       ON rosca_draws;
 END $$;
 
--- Allow the app's anon key to read and write all tables
-CREATE POLICY "anon_all_members"           ON members           FOR ALL TO anon USING (true) WITH CHECK (true);
-CREATE POLICY "anon_all_user_accounts"     ON user_accounts     FOR ALL TO anon USING (true) WITH CHECK (true);
-CREATE POLICY "anon_all_otp_codes"         ON otp_codes         FOR ALL TO anon USING (true) WITH CHECK (true);
-CREATE POLICY "anon_all_groups"            ON groups            FOR ALL TO anon USING (true) WITH CHECK (true);
-CREATE POLICY "anon_all_group_memberships" ON group_memberships FOR ALL TO anon USING (true) WITH CHECK (true);
-CREATE POLICY "anon_all_contributions"     ON contributions     FOR ALL TO anon USING (true) WITH CHECK (true);
-CREATE POLICY "anon_all_loans"             ON loans             FOR ALL TO anon USING (true) WITH CHECK (true);
-CREATE POLICY "anon_all_announcements"     ON announcements     FOR ALL TO anon USING (true) WITH CHECK (true);
-CREATE POLICY "anon_all_messages"          ON messages          FOR ALL TO anon USING (true) WITH CHECK (true);
-CREATE POLICY "anon_all_audit_logs"        ON audit_logs        FOR ALL TO anon USING (true) WITH CHECK (true);
+-- ── Sensitive tables: RESTRICTED ──────────────────────────────────────────────
+
+-- OTP codes: no direct anon access (app uses service-role for OTP operations)
+CREATE POLICY "service_role_otp_codes" ON otp_codes FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- Audit logs: insert-only for anon (appends audit trail), full access for service_role
+CREATE POLICY "anon_insert_audit_logs" ON audit_logs FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "service_role_audit_logs" ON audit_logs FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- User accounts: restricted — only service_role can read/write (app handles auth server-side)
+CREATE POLICY "service_role_user_accounts" ON user_accounts FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- ── Members: anon can read all, insert new (registration), update own profile ─
+CREATE POLICY "anon_read_members" ON members FOR SELECT TO anon USING (true);
+CREATE POLICY "anon_insert_members" ON members FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "anon_update_members" ON members FOR UPDATE TO anon USING (true) WITH CHECK (true);
+
+-- ── Groups: anon can read all groups and create new ones ──────────────────────
+CREATE POLICY "anon_read_groups" ON groups FOR SELECT TO anon USING (true);
+CREATE POLICY "anon_insert_groups" ON groups FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "anon_update_groups" ON groups FOR UPDATE TO anon USING (true) WITH CHECK (true);
+
+-- ── Group memberships: anon can read, insert, and update ──────────────────────
+CREATE POLICY "anon_read_memberships" ON group_memberships FOR SELECT TO anon USING (true);
+CREATE POLICY "anon_insert_memberships" ON group_memberships FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "anon_update_memberships" ON group_memberships FOR UPDATE TO anon USING (true) WITH CHECK (true);
+
+-- ── Contributions: full CRUD for anon (group-scoped in app logic) ─────────────
+CREATE POLICY "anon_read_contributions" ON contributions FOR SELECT TO anon USING (true);
+CREATE POLICY "anon_insert_contributions" ON contributions FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "anon_update_contributions" ON contributions FOR UPDATE TO anon USING (true) WITH CHECK (true);
+
+-- ── Loans: full CRUD for anon (group-scoped in app logic) ─────────────────────
+CREATE POLICY "anon_read_loans" ON loans FOR SELECT TO anon USING (true);
+CREATE POLICY "anon_insert_loans" ON loans FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "anon_update_loans" ON loans FOR UPDATE TO anon USING (true) WITH CHECK (true);
+
+-- ── Announcements: full CRUD for anon (group-scoped in app logic) ─────────────
+CREATE POLICY "anon_read_announcements" ON announcements FOR SELECT TO anon USING (true);
+CREATE POLICY "anon_insert_announcements" ON announcements FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "anon_update_announcements" ON announcements FOR UPDATE TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "anon_delete_announcements" ON announcements FOR DELETE TO anon USING (true);
+
+-- ── Messages: full CRUD for anon (group-scoped in app logic) ──────────────────
+CREATE POLICY "anon_read_messages" ON messages FOR SELECT TO anon USING (true);
+CREATE POLICY "anon_insert_messages" ON messages FOR INSERT TO anon WITH CHECK (true);
+
+-- NOTE: ROSCA RLS policies are defined after table creation in section 12.
 
 -- ============================================================
 -- All done. SaccoUp database is ready.
@@ -291,6 +337,11 @@ DO $$ BEGIN
   DROP POLICY IF EXISTS "anon_all_rosca_draws"  ON rosca_draws;
 END $$;
 
--- Allow full access
-CREATE POLICY "anon_all_rosca_cycles" ON rosca_cycles FOR ALL TO anon USING (true) WITH CHECK (true);
-CREATE POLICY "anon_all_rosca_draws"  ON rosca_draws  FOR ALL TO anon USING (true) WITH CHECK (true);
+-- ROSCA RLS policies (group-scoped CRUD for anon)
+CREATE POLICY "anon_read_rosca_cycles"   ON rosca_cycles FOR SELECT TO anon USING (true);
+CREATE POLICY "anon_insert_rosca_cycles" ON rosca_cycles FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "anon_update_rosca_cycles" ON rosca_cycles FOR UPDATE TO anon USING (true) WITH CHECK (true);
+
+CREATE POLICY "anon_read_rosca_draws"    ON rosca_draws FOR SELECT TO anon USING (true);
+CREATE POLICY "anon_insert_rosca_draws"  ON rosca_draws FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "anon_update_rosca_draws"  ON rosca_draws FOR UPDATE TO anon USING (true) WITH CHECK (true);

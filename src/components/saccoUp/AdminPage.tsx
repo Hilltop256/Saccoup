@@ -497,10 +497,22 @@ const ContributionsTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToas
     setEditForm({ ...contrib });
   };
 
-  const handleSave = () => {
-    setEditingId(null);
-    setEditForm(null);
-    onToast('Contribution updated!');
+  const handleSave = async () => {
+    if (!editForm) return;
+    try {
+      await ds.updateContribution(editForm.id, {
+        amount: editForm.amount,
+        payment_method: editForm.payment_method,
+        status: editForm.status,
+      });
+      // Update local state with the edited values
+      setContributions(prev => prev.map(c => c.id === editForm.id ? { ...c, ...editForm, updated_at: new Date().toISOString() } : c));
+      setEditingId(null);
+      setEditForm(null);
+      onToast('Contribution updated!');
+    } catch {
+      onToast('Failed to update contribution.');
+    }
   };
 
   const handleCancel = () => {
@@ -509,7 +521,7 @@ const ContributionsTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToas
   };
 
   const updateField = (field: string, value: any) => {
-    setEditForm(prev => prev ? { ...prev, [field]: value } : null);
+    setEditForm((prev: any) => prev ? { ...prev, [field]: value } : null);
   };
 
   if (loading) return <div className="text-center py-8 text-gray-500">Loading contributions...</div>;

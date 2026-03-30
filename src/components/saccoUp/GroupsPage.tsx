@@ -65,7 +65,7 @@ const GroupsPage: React.FC = () => {
     try {
       const result = await ds.joinGroupByInviteCode(joinCode.trim(), user.member_id);
       if (result.success) {
-        setSuccess(`Successfully joined "${result.group.name}"!`);
+        setSuccess(`Successfully joined "${result.group!.name}"!`);
         setJoinCode('');
         setModalMode(null);
         await refreshGroups();

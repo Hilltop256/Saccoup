@@ -416,6 +416,27 @@ export async function updateContributionStatus(contribution_id: string, new_stat
   return { success: true };
 }
 
+export async function updateContribution(contribution_id: string, updates: { amount?: number; payment_method?: string; status?: string; notes?: string }, updated_by?: string) {
+  const { error } = await supabase
+    .from('contributions')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', contribution_id);
+
+  if (error) throw new Error(error.message);
+
+  if (updated_by) {
+    await supabase.from('audit_logs').insert({
+      actor_id: updated_by,
+      action: 'update_contribution',
+      entity_type: 'contribution',
+      entity_id: contribution_id,
+      details: updates,
+    });
+  }
+
+  return { success: true };
+}
+
 // ===== MOBILE MONEY PAYMENT INITIATION (Uganda: MTN MoMo & Airtel Money) =====
 
 export async function initiateMoMoPayment(params: {
@@ -451,15 +472,32 @@ export async function initiateMoMoPayment(params: {
 
   if (error) throw new Error(error.message);
 
-  // In production this would call the MTN MoMo API or Airtel Money API
-  // For now we return the contribution ID for tracking
-  // MTN MoMo Uganda: Uses MTN MoMo Collections API (OAuth2 + STK Push)
-  // Airtel Money Uganda: Uses Airtel Money API (OAuth2 + Debit Request)
+  // In production this would call the MTN MoMo API or Airtel Money API.
+  // Integration points:
+  //   MTN MoMo Uganda: Collections API (OAuth2 + STK Push)
+  //     - POST /collection/token/ to get access token
+  //   - POST /collection/v1_0/requesttopay to initiate payment
+  //   Airtel Money Uganda: Money API (OAuth2 + Debit Request)
+  //     - POST /auth/oauth2/token to get access token
+  //   - POST /standard/v1/payments to initiate debit
+  // For now, demo mode: the pending contribution record is created for tracking.
+  const isDemo = true;
+
+  if (isDemo) {
+    // Auto-confirm the contribution in demo mode after a short delay
+    await supabase
+      .from('contributions')
+      .update({ status: 'confirmed', transaction_ref: `DEMO-${Date.now()}`, notes: `Demo mode: auto-confirmed` })
+      .eq('id', contrib.id);
+  }
+
   return {
     success: true,
     contribution_id: contrib.id,
-    message: `Payment request sent to ${params.phone}. Please approve the prompt on your phone.`,
-    // In production: external_reference from MTN/Airtel API
+    demo_mode: isDemo,
+    message: isDemo
+      ? `Demo mode: Contribution of UGX ${params.amount.toLocaleString()} recorded and confirmed.`
+      : `Payment request sent to ${params.phone}. Please approve the prompt on your phone.`,
   };
 }
 

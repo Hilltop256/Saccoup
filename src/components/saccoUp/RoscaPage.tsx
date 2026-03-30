@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   formatUGX,
   type RoscaDraw,
+  type RoscaCycle,
   type DrawStatus,
 } from '@/lib/constants';
 import { useAppContext } from '@/contexts/AppContext';
@@ -48,7 +49,7 @@ function emptyDraw(num: number, slot: '1' | '2' = '1'): RoscaDraw {
 
 /** Summary bar for a single cycle */
 const CycleSummaryCard: React.FC<{ cycle: RoscaCycle; onClick: () => void; isSelected: boolean }> = ({ cycle, onClick, isSelected }) => {
-  const totalPaid = cycle.draws.reduce((s, d) => s + d.amount_received, 0);
+  const totalPaid = cycle.draws.reduce((s: number, d: RoscaDraw) => s + d.amount_received, 0);
   const totalWinners = cycle.draws.length;
 
   return (
