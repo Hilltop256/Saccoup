@@ -16,6 +16,7 @@ interface RoscaContextType {
   cycles: RoscaCycleWithId[];
   setCycles: React.Dispatch<React.SetStateAction<RoscaCycleWithId[]>>;
   loading: boolean;
+  isMockData: boolean;
   updateDraw: (cycleNumber: number, updatedDraw: RoscaDraw) => Promise<void>;
   addDraw: (cycleNumber: number, newDraw: RoscaDraw) => Promise<void>;
   refreshCycles: () => Promise<void>;
@@ -82,12 +83,14 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
   const [cycles, setCycles] = useState<RoscaCycleWithId[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
+  const [isMockData, setIsMockData] = useState(false);
 
   // ── Load from Supabase ────────────────────────────────────────────────────
   const loadCycles = useCallback(async () => {
     if (!selectedGroupId) {
       // No group yet — show mock data so UI is never empty
       setCycles(MOCK_PBS_CYCLES.map(c => ({ ...c, _db_id: undefined, draws: c.draws.map(d => ({ ...d, _db_id: undefined })) })));
+      setIsMockData(true);
       setLoading(false);
       return;
     }
@@ -103,13 +106,16 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
           if (draws) drawsMap[c.id] = draws;
         }
         setCycles(mapSupabaseToCycles(dbCycles, drawsMap));
+        setIsMockData(false);
       } else {
         // No data yet — will trigger seed
         setCycles([]);
+        setIsMockData(false);
       }
     } catch (e) {
       console.error('Failed to load ROSCA cycles:', e);
       setCycles(MOCK_PBS_CYCLES.map(c => ({ ...c, _db_id: undefined, draws: c.draws.map(d => ({ ...d, _db_id: undefined })) })));
+      setIsMockData(true);
     }
     setLoading(false);
   }, [selectedGroupId]);
@@ -165,6 +171,7 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
       console.error('Failed to seed ROSCA data:', e);
       // Fall back to mock data with no UUIDs
       setCycles(MOCK_PBS_CYCLES.map(c => ({ ...c, _db_id: undefined, draws: c.draws.map(d => ({ ...d, _db_id: undefined })) })));
+      setIsMockData(true);
     }
     setSeeding(false);
   }, [selectedGroupId, seeding, loadCycles]);
@@ -326,6 +333,7 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
       cycles,
       setCycles,
       loading,
+      isMockData,
       updateDraw,
       addDraw,
       refreshCycles,

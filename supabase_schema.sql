@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS loans (
   guarantor_ids           UUID[]        NOT NULL DEFAULT '{}',
   approved_at             TIMESTAMPTZ,
   disbursed_at            TIMESTAMPTZ,
+  repaid_amount           NUMERIC(15,2) NOT NULL DEFAULT 0,
   updated_at              TIMESTAMPTZ,
   created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

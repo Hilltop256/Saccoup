@@ -270,11 +270,11 @@ export async function listMembers(group_id: string) {
 
       const { data: activeLoans } = await supabase
         .from('loans')
-        .select('amount')
+        .select('amount, repaid_amount')
         .eq('group_id', group_id)
         .eq('member_id', m.id)
         .in('status', ['disbursed', 'repaying']);
-      const loanBalance = (activeLoans || []).reduce((s: number, l: any) => s + Number(l.amount), 0);
+      const loanBalance = (activeLoans || []).reduce((s: number, l: any) => s + (Number(l.amount) - Number(l.repaid_amount || 0)), 0);
 
       return {
         id: m.id,
@@ -358,7 +358,7 @@ export async function recordContribution(params: {
       transaction_ref: params.transaction_ref,
       period_label: params.period_label,
       notes: params.notes,
-      status: params.payment_method === 'cash' ? 'confirmed' : 'pending',
+      status: 'confirmed',
     })
     .select('id')
     .single();
@@ -591,6 +591,39 @@ export async function updateLoanStatus(loan_id: string, new_status: string, appr
   }
 
   return { success: true };
+}
+
+export async function recordRepayment(loan_id: string, amount: number, recorded_by?: string) {
+  const { data: loan } = await supabase
+    .from('loans')
+    .select('amount, repaid_amount')
+    .eq('id', loan_id)
+    .single();
+
+  if (!loan) throw new Error('Loan not found.');
+
+  const newRepaid = Number(loan.repaid_amount || 0) + amount;
+  const totalOwed = Number(loan.amount);
+  const newStatus: string = newRepaid >= totalOwed ? 'completed' : 'repaying';
+
+  const { error } = await supabase
+    .from('loans')
+    .update({ repaid_amount: newRepaid, status: newStatus, updated_at: new Date().toISOString() })
+    .eq('id', loan_id);
+
+  if (error) throw new Error(error.message);
+
+  if (recorded_by) {
+    await supabase.from('audit_logs').insert({
+      actor_id: recorded_by,
+      action: 'loan_repayment',
+      entity_type: 'loan',
+      entity_id: loan_id,
+      details: { amount, new_repaid: newRepaid, new_status: newStatus },
+    });
+  }
+
+  return { success: true, repaid_amount: newRepaid, status: newStatus };
 }
 
 // ===== ANNOUNCEMENT OPERATIONS =====

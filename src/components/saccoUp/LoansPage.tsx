@@ -7,6 +7,7 @@ interface LoanRow {
   id: string; member_name: string; member_id: string; amount: number;
   interest_rate: number; purpose: string; repayment_period_months: number;
   status: LoanStatus; created_at: string; guarantors: string[]; member_photo?: string;
+  repaid_amount: number;
 }
 
 interface MemberOption { id: string; full_name: string; }
@@ -23,6 +24,8 @@ const LoansPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [newLoan, setNewLoan] = useState({ member_id: '', amount: '', purpose: '', repayment_period_months: '6', guarantor_ids: [] as string[] });
+  const [repaymentAmount, setRepaymentAmount] = useState('');
+  const [isRepaying, setIsRepaying] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!selectedGroup?.id) { setLoading(false); return; }
@@ -39,6 +42,7 @@ const LoansPage: React.FC = () => {
           purpose: l.purpose || '', repayment_period_months: l.repayment_period_months,
           status: l.status, created_at: l.created_at?.split('T')[0] || '',
           guarantors: l.guarantors || [], member_photo: l.member_photo,
+          repaid_amount: Number(l.repaid_amount || 0),
         })));
       }
       if (memberResult.success) {
@@ -85,11 +89,31 @@ const LoansPage: React.FC = () => {
     } catch (e: any) { setError(e.message); }
   };
 
+  const handleRepayment = async () => {
+    if (!selectedLoan || !repaymentAmount) return;
+    const amount = parseInt(repaymentAmount);
+    if (isNaN(amount) || amount <= 0) { setError('Enter a valid repayment amount.'); return; }
+    const remaining = selectedLoan.amount - selectedLoan.repaid_amount;
+    if (amount > remaining) { setError(`Repayment cannot exceed remaining balance of ${formatUGX(remaining)}.`); return; }
+    setIsRepaying(true);
+    setError(null);
+    try {
+      await ds.recordRepayment(selectedLoan.id, amount, user?.member_id);
+      setSuccess(`Repayment of ${formatUGX(amount)} recorded.`);
+      setRepaymentAmount('');
+      setSelectedLoan(null);
+      await loadData();
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (e: any) { setError(e.message); }
+    setIsRepaying(false);
+  };
+
   const getNextStatus = (status: LoanStatus): { label: string; status: LoanStatus; color: string } | null => {
     switch (status) {
       case 'pending': return { label: 'Approve (Treasurer)', status: 'treasurer_approved', color: 'bg-blue-600' };
       case 'treasurer_approved': return { label: 'Approve (Chairperson)', status: 'approved', color: 'bg-emerald-600' };
       case 'approved': return { label: 'Disburse Funds', status: 'disbursed', color: 'bg-[#0066CC]' };
+      case 'disbursed': return { label: 'Start Repayment', status: 'repaying', color: 'bg-purple-600' };
       default: return null;
     }
   };
@@ -154,7 +178,15 @@ const LoansPage: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-6">
-                    <div className="text-right"><p className="text-lg font-bold text-gray-900">{formatUGX(loan.amount)}</p><p className="text-xs text-gray-500">{formatUGX(monthly)}/mo x {loan.repayment_period_months}</p></div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-gray-900">{formatUGX(loan.amount)}</p>
+                      <p className="text-xs text-gray-500">{formatUGX(monthly)}/mo x {loan.repayment_period_months}</p>
+                      {(loan.status === 'disbursed' || loan.status === 'repaying' || loan.status === 'completed') && (
+                        <p className={`text-xs font-medium mt-1 ${loan.status === 'completed' ? 'text-emerald-600' : 'text-blue-600'}`}>
+                          {formatUGX(loan.repaid_amount)} repaid
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
                 {nextAction && (
@@ -261,6 +293,45 @@ const LoansPage: React.FC = () => {
               <div className="bg-gray-50 rounded-lg p-3"><p className="text-xs text-gray-500 mb-1">Purpose</p><p className="text-sm">{selectedLoan.purpose}</p></div>
               {selectedLoan.guarantors.length > 0 && (
                 <div className="bg-gray-50 rounded-lg p-3"><p className="text-xs text-gray-500 mb-1">Guarantors</p><div className="flex flex-wrap gap-2">{selectedLoan.guarantors.map((g, i) => <span key={i} className="px-2 py-1 bg-white rounded text-xs font-medium border">{g}</span>)}</div></div>
+              )}
+              {/* Repayment progress & recording */}
+              {(selectedLoan.status === 'disbursed' || selectedLoan.status === 'repaying' || selectedLoan.status === 'completed') && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-blue-700 uppercase tracking-wider">Repayment Progress</p>
+                    <p className="text-sm font-bold text-blue-800">{formatUGX(selectedLoan.repaid_amount)} / {formatUGX(selectedLoan.amount)}</p>
+                  </div>
+                  <div className="w-full bg-blue-200 rounded-full h-2.5">
+                    <div
+                      className="bg-blue-600 h-2.5 rounded-full transition-all"
+                      style={{ width: `${Math.min(100, (selectedLoan.repaid_amount / selectedLoan.amount) * 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-blue-600">
+                    {selectedLoan.status === 'completed'
+                      ? 'Fully repaid'
+                      : `Remaining: ${formatUGX(selectedLoan.amount - selectedLoan.repaid_amount)}`
+                    }
+                  </p>
+                  {selectedLoan.status !== 'completed' && (
+                    <div className="flex gap-2 pt-1">
+                      <input
+                        type="number"
+                        value={repaymentAmount}
+                        onChange={(e) => setRepaymentAmount(e.target.value)}
+                        placeholder="Amount (UGX)"
+                        className="flex-1 px-3 py-2 text-sm border border-blue-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-400 outline-none"
+                      />
+                      <button
+                        onClick={handleRepayment}
+                        disabled={isRepaying || !repaymentAmount}
+                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {isRepaying ? '...' : 'Record'}
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
             <div className="flex gap-3 mt-6">

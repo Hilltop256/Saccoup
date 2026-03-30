@@ -202,9 +202,9 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
           role: m.role || 'member',
           photo_url: m.photo_url,
           kyc_verified: m.kyc_verified || false,
-          total_contributions: m.total_contributions || 0,
-          savings_balance: m.savings_balance || 0,
-          loan_balance: m.loan_balance || 0,
+          total_contributions: m.totalContributions || m.total_contributions || 0,
+          savings_balance: m.savingsBalance || m.savings_balance || 0,
+          loan_balance: m.loanBalance || m.loan_balance || 0,
         })));
       }
     } catch (e: any) {

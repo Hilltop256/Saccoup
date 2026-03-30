@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAppContext } from '@/contexts/AppContext';
+import { useRoscaData } from '@/contexts/RoscaContext';
 import { formatUGX, getRoleColor, IMAGES, type UserRole } from '@/lib/constants';
 import * as ds from '@/lib/dataService';
 
@@ -27,6 +28,7 @@ const Spinner = () => (
 
 const MembersPage: React.FC = () => {
   const { user, selectedGroup } = useAppContext();
+  const { getMemberStats } = useRoscaData();
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -219,6 +221,7 @@ const MembersPage: React.FC = () => {
                   <th className="text-left px-6 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider hidden md:table-cell">Role</th>
                   <th className="text-right px-6 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Savings</th>
                   <th className="text-right px-6 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Loans</th>
+                  <th className="text-right px-6 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider hidden xl:table-cell">ROSCA</th>
                   <th className="text-center px-6 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider">KYC</th>
                   <th className="text-right px-6 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
@@ -244,6 +247,11 @@ const MembersPage: React.FC = () => {
                     <td className="px-6 py-4 text-sm font-bold text-gray-900 text-right hidden lg:table-cell">{formatUGX(m.savingsBalance)}</td>
                     <td className="px-6 py-4 text-sm font-bold text-right hidden lg:table-cell">
                       <span className={m.loanBalance > 0 ? 'text-amber-600' : 'text-gray-400'}>{formatUGX(m.loanBalance)}</span>
+                    </td>
+                    <td className="px-6 py-4 text-right hidden xl:table-cell">
+                      {(() => { const rs = getMemberStats(m.full_name); return rs.wins > 0 ? (
+                        <span className="text-sm font-bold text-emerald-600">{formatUGX(rs.totalWon)}</span>
+                      ) : <span className="text-sm text-gray-400">—</span>; })()}
                     </td>
                     <td className="px-6 py-4 text-center">
                       {m.kyc_verified ? (
@@ -374,6 +382,18 @@ const MembersPage: React.FC = () => {
                     {formatUGX(selectedMember.loanBalance)}
                   </p>
                 </div>
+                {(() => { const rs = getMemberStats(selectedMember.full_name); return rs.wins > 0 ? (
+                  <>
+                    <div className="bg-emerald-50 rounded-2xl p-3">
+                      <p className="text-xs text-gray-500 font-bold uppercase tracking-wide">🎡 ROSCA Won</p>
+                      <p className="text-sm font-extrabold text-emerald-700 mt-0.5">{formatUGX(rs.totalWon)}</p>
+                    </div>
+                    <div className="bg-cyan-50 rounded-2xl p-3">
+                      <p className="text-xs text-gray-500 font-bold uppercase tracking-wide">📋 ROSCA Wins</p>
+                      <p className="text-sm font-extrabold text-cyan-700 mt-0.5">{rs.wins} draw{rs.wins > 1 ? 's' : ''}</p>
+                    </div>
+                  </>
+                ) : null; })()}
               </div>
 
               {/* KYC status */}
