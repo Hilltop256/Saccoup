@@ -9,6 +9,13 @@ if (!supabaseUrl || !supabaseKey) {
   );
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  global: {
+    headers: {
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`,
+    },
+  },
+});
 
 export { supabase };
