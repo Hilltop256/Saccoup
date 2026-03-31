@@ -70,6 +70,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
   const [name, setName] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [inviteCode, setInviteCode] = useState('');
+  const [nationalId, setNationalId] = useState('');
+  const [email, setEmail] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState('');
   const [otpCode, setOtpCode] = useState('');
@@ -91,6 +94,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
     setName('');
     setConfirmPin('');
     setInviteCode('');
+    setNationalId('');
+    setEmail('');
+    setDateOfBirth('');
     setPhotoDataUrl(null);
     setPhotoError('');
   }, [initialMode, isOpen]);
@@ -142,12 +148,17 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
       if (pin !== confirmPin) { setError('PINs do not match'); return; }
       if (!/^\d+$/.test(pin)) { setError('PIN must contain only numbers'); return; }
       if (!photoDataUrl) { setError('Please upload your profile photo — it\'s required!'); return; }
+      if (!nationalId.trim()) { setError('Please enter your National ID (NIN)'); return; }
+      if (!email.trim()) { setError('Please enter your email address'); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError('Please enter a valid email address'); return; }
+      if (!dateOfBirth) { setError('Please enter your date of birth'); return; }
+      if (!inviteCode.trim()) { setError('Invite code is required. Ask your group chairman for the code.'); return; }
     }
 
     setLoading(true);
     try {
       const result = mode === 'register'
-        ? await register(phone, pin, name.trim(), inviteCode.trim() || undefined, photoDataUrl || undefined)
+        ? await register(phone, pin, name.trim(), inviteCode.trim(), photoDataUrl || '', nationalId.trim(), email.trim(), dateOfBirth)
         : await login(phone, pin);
 
       if (result.success && result.phone) {
@@ -357,7 +368,38 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
                   )}
                 </div>
                 <div>
-                  <label className="text-sm font-bold text-gray-700 mb-1 block">Invite Code <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <label className="text-sm font-bold text-gray-700 mb-1 block">National ID (NIN) *</label>
+                  <input
+                    type="text"
+                    value={nationalId}
+                    onChange={(e) => setNationalId(e.target.value.toUpperCase())}
+                    className="w-full px-3 py-2.5 text-sm border-2 border-purple-100 rounded-xl focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none font-mono"
+                    placeholder="CM12345678"
+                    autoComplete="off"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-bold text-gray-700 mb-1 block">Email *</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm border-2 border-purple-100 rounded-xl focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none"
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-bold text-gray-700 mb-1 block">Date of Birth *</label>
+                  <input
+                    type="date"
+                    value={dateOfBirth}
+                    onChange={(e) => setDateOfBirth(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm border-2 border-purple-100 rounded-xl focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-bold text-gray-700 mb-1 block">Invite Code *</label>
                   <input
                     type="text"
                     value={inviteCode}
@@ -366,7 +408,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
                     placeholder="e.g. PBS2026A"
                     maxLength={10}
                   />
-                  <p className="text-xs text-gray-400 mt-1 font-semibold">Join an existing group during registration</p>
+                  <p className="text-xs text-gray-400 mt-1 font-semibold">Ask your group chairman for the invite code</p>
                 </div>
               </>
             )}

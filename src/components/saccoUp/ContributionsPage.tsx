@@ -42,7 +42,7 @@ function normUgPhone(ph: string): string {
 }
 
 const ContributionsPage: React.FC = () => {
-  const { user, selectedGroup } = useAppContext();
+  const { user, selectedGroup, isElevated } = useAppContext();
   const [contributions, setContributions] = useState<ContribRow[]>([]);
   const [members, setMembers] = useState<MemberOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,7 +118,8 @@ const ContributionsPage: React.FC = () => {
   const totalFailed = contributions.filter(c => c.status === 'failed').reduce((s, c) => s + c.amount, 0);
 
   const handleRecord = async () => {
-    if (!newContribution.member_id || !newContribution.amount || !selectedGroup?.id) return;
+    const memberId = isElevated ? newContribution.member_id : (user?.member_id || '');
+    if (!memberId || !newContribution.amount || !selectedGroup?.id) return;
     setIsRecording(true); setError(null); setMomoPrompt(null);
     try {
       if (isMoMoMethod && newContribution.use_momo_push && newContribution.momo_phone) {
@@ -126,7 +127,7 @@ const ContributionsPage: React.FC = () => {
         const normalizedPhone = normUgPhone(newContribution.momo_phone);
         const result = await ds.initiateMoMoPayment({
           group_id: selectedGroup.id,
-          member_id: newContribution.member_id,
+          member_id: memberId,
           phone: normalizedPhone,
           amount: parseInt(newContribution.amount),
           period_label: newContribution.period_label,
@@ -148,7 +149,7 @@ const ContributionsPage: React.FC = () => {
         // Manual record
         const result = await ds.recordContribution({
           group_id: selectedGroup.id,
-          member_id: newContribution.member_id,
+          member_id: memberId,
           amount: parseInt(newContribution.amount),
           payment_method: newContribution.payment_method,
           transaction_ref: newContribution.transaction_ref || undefined,
@@ -200,7 +201,7 @@ const ContributionsPage: React.FC = () => {
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
-          Record Contribution
+          {isElevated ? 'Record Contribution' : 'Record My Payment'}
         </button>
       </div>
 
@@ -359,7 +360,7 @@ const ContributionsPage: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        {c.status === 'pending' && (
+                        {c.status === 'pending' && isElevated && (
                           <>
                             <button
                               onClick={() => handleStatusChange(c.id, 'confirmed')}
@@ -402,7 +403,7 @@ const ContributionsPage: React.FC = () => {
           <div className="bg-white rounded-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-lg font-bold text-gray-900">Record Contribution</h2>
+                <h2 className="text-lg font-bold text-gray-900">{isElevated ? 'Record Contribution' : 'Record My Payment'}</h2>
                 <p className="text-xs text-gray-500 mt-0.5">{selectedGroup.name}</p>
               </div>
               <button onClick={() => setShowRecordModal(false)} className="p-1 text-gray-400 hover:text-gray-600">
@@ -417,6 +418,7 @@ const ContributionsPage: React.FC = () => {
             )}
 
             <div className="space-y-4">
+              {isElevated ? (
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Member *</label>
                 <select
@@ -428,6 +430,14 @@ const ContributionsPage: React.FC = () => {
                   {members.map(m => <option key={m.id} value={m.id}>{m.full_name}</option>)}
                 </select>
               </div>
+              ) : (
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Member</label>
+                <p className="px-3 py-2.5 text-sm font-bold text-gray-900 bg-gray-50 rounded-lg border border-gray-200">
+                  {user?.full_name || 'You'}
+                </p>
+              </div>
+              )}
 
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Amount (UGX) *</label>

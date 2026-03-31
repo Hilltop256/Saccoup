@@ -335,9 +335,9 @@ const RoscaPage: React.FC = () => {
   const [showContributions, setShowContributions] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
-  // Permission: admin, chairperson, or secretary can edit all cycles
+  // Permission: admin, chairperson, treasurer, or secretary can edit all cycles
   const membershipRole = (selectedGroup?.user_role || '').toLowerCase();
-  const canEdit = ['admin', 'chairperson', 'chairman', 'secretary'].includes(membershipRole);
+  const canEdit = ['admin', 'chairperson', 'chairman', 'treasurer', 'secretary'].includes(membershipRole);
 
   // Load real group members
   useEffect(() => {

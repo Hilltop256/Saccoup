@@ -60,11 +60,23 @@ export async function createGroup(params: {
   await supabase.from('group_memberships').insert({
     group_id: group.id,
     member_id: params.member_id,
-    role: 'admin',
+    role: 'chairperson',
     is_active: true,
   });
 
   return { success: true, group };
+}
+
+export async function regenerateInviteCode(group_id: string) {
+  const newCode = Math.random().toString(36).substring(2, 7).toUpperCase() + Math.random().toString(36).substring(2, 5).toUpperCase();
+  const { data, error } = await supabase
+    .from('groups')
+    .update({ invite_code: newCode, updated_at: new Date().toISOString() })
+    .eq('id', group_id)
+    .select('invite_code')
+    .single();
+  if (error) throw new Error(error.message);
+  return { success: true, invite_code: data.invite_code };
 }
 
 export async function listGroups(member_id: string) {
@@ -362,7 +374,7 @@ export async function recordContribution(params: {
       transaction_ref: params.transaction_ref,
       period_label: params.period_label,
       notes: params.notes,
-      status: 'confirmed',
+      status: 'pending',
     })
     .select('id')
     .single();

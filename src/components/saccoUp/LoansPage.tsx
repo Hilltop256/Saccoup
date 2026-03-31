@@ -13,7 +13,7 @@ interface LoanRow {
 interface MemberOption { id: string; full_name: string; }
 
 const LoansPage: React.FC = () => {
-  const { user, selectedGroup } = useAppContext();
+  const { user, selectedGroup, isElevated } = useAppContext();
   const [loans, setLoans] = useState<LoanRow[]>([]);
   const [members, setMembers] = useState<MemberOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -189,7 +189,7 @@ const LoansPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                {nextAction && (
+                {nextAction && isElevated && (
                   <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
                     <p className="text-xs text-gray-500">Guarantors: {loan.guarantors.join(', ') || 'None'}</p>
                     <button onClick={(e) => { e.stopPropagation(); handleStatusUpdate(loan.id, nextAction.status); }} className={`px-3 py-1.5 text-xs font-medium text-white ${nextAction.color} rounded-lg hover:opacity-90`}>
@@ -335,12 +335,12 @@ const LoansPage: React.FC = () => {
               )}
             </div>
             <div className="flex gap-3 mt-6">
-              {getNextStatus(selectedLoan.status) && (
+              {getNextStatus(selectedLoan.status) && isElevated && (
                 <button onClick={() => handleStatusUpdate(selectedLoan.id, getNextStatus(selectedLoan.status)!.status)} className="flex-1 py-2.5 text-sm font-medium text-white bg-[#0066CC] rounded-lg hover:bg-[#004C99]">
                   {getNextStatus(selectedLoan.status)!.label}
                 </button>
               )}
-              {(selectedLoan.status === 'pending' || selectedLoan.status === 'treasurer_approved') && (
+              {(selectedLoan.status === 'pending' || selectedLoan.status === 'treasurer_approved') && isElevated && (
                 <button onClick={() => handleStatusUpdate(selectedLoan.id, 'rejected')} className="px-4 py-2.5 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100">Reject</button>
               )}
               <button onClick={() => setSelectedLoan(null)} className="flex-1 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Close</button>

@@ -43,16 +43,17 @@ CREATE INDEX        IF NOT EXISTS idx_groups_created_by  ON groups(created_by);
 -- 2. MEMBERS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS members (
-  id           UUID    PRIMARY KEY DEFAULT uuid_generate_v4(),
-  full_name    TEXT    NOT NULL,
-  phone        TEXT    NOT NULL UNIQUE,
-  email        TEXT,
-  national_id  TEXT,
-  photo_url    TEXT,
-  kyc_verified BOOLEAN NOT NULL DEFAULT FALSE,
-  is_active    BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id              UUID    PRIMARY KEY DEFAULT uuid_generate_v4(),
+  full_name       TEXT    NOT NULL,
+  phone           TEXT    NOT NULL UNIQUE,
+  email           TEXT,
+  national_id     TEXT,
+  date_of_birth   DATE,
+  photo_url       TEXT,
+  kyc_verified    BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_members_phone ON members(phone);
 

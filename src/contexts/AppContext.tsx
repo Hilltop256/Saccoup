@@ -59,8 +59,13 @@ interface AppContextType {
   selectedGroup: GroupData | null;
   setSelectedGroupId: (id: string) => void;
   refreshGroups: () => Promise<void>;
+  // Role-based permissions
+  isChairman: boolean;
+  isTreasurer: boolean;
+  isAdmin: boolean;
+  isElevated: boolean; // chairman, treasurer, or admin
   // Auth actions
-  register: (phone: string, pin: string, fullName: string, inviteCode?: string, photoDataUrl?: string) => Promise<{ success: boolean; phone?: string; demoOtp?: string; error?: string }>;
+  register: (phone: string, pin: string, fullName: string, inviteCode: string, photoDataUrl: string, nationalId: string, email: string, dateOfBirth: string) => Promise<{ success: boolean; phone?: string; demoOtp?: string; error?: string }>;
   login: (phone: string, pin: string) => Promise<{ success: boolean; phone?: string; demoOtp?: string; error?: string }>;
   verifyOtp: (phone: string, otpCode: string) => Promise<{ success: boolean; error?: string }>;
   resendOtp: (phone: string) => Promise<{ success: boolean; demoOtp?: string; error?: string }>;
@@ -100,6 +105,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const clearAuthError = () => setAuthError(null);
 
   const selectedGroup = groups.find(g => g.id === selectedGroupId) || groups[0] || null;
+
+  // Role-based permissions
+  const role = (selectedGroup?.user_role || '').toLowerCase();
+  const isChairman = role === 'chairperson';
+  const isTreasurer = role === 'treasurer';
+  const isAdmin = role === 'admin' || role === 'super_admin';
+  const isElevated = isChairman || isTreasurer || isAdmin;
 
   const setSelectedGroupId = (id: string) => {
     setSelectedGroupIdState(id);
@@ -252,18 +264,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   // Register
-  const register = async (phone: string, pin: string, fullName: string, inviteCode?: string, photoDataUrl?: string) => {
+  const register = async (phone: string, pin: string, fullName: string, inviteCode: string, photoDataUrl: string, nationalId: string, email: string, dateOfBirth: string) => {
     setAuthError(null);
     const normalizedPhone = normPhone(phone);
     if (pin.length < 4) return { success: false, error: 'PIN must be at least 4 digits' };
+    if (!inviteCode || !inviteCode.trim()) return { success: false, error: 'Invite code is required. Ask your group chairman for the code.' };
     const { data: existing, error: existErr } = await supabase.from('user_accounts').select('id').eq('phone', normalizedPhone).maybeSingle();
     if (existErr && (existErr.code === '42P01' || existErr.message?.includes('relation') || existErr.message?.includes('does not exist'))) {
       return { success: false, error: 'Database not set up. Run supabase_schema.sql in your Supabase SQL Editor first.' };
     }
     if (existing) return { success: false, error: 'Phone already registered. Please sign in.' };
+    // Validate invite code
+    const { data: grp } = await supabase.from('groups').select('id, name').eq('invite_code', inviteCode.toUpperCase()).maybeSingle();
+    if (!grp) return { success: false, error: 'Invalid invite code. Please check with your group chairman.' };
     const { data: member, error: memErr } = await supabase.from('members').insert({
       full_name: fullName,
       phone: normalizedPhone,
+      email: email || null,
+      national_id: nationalId || null,
       kyc_verified: false,
       is_active: true,
       photo_url: photoDataUrl || null,
@@ -272,10 +290,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const pinHash = await hashPin(pin);
     const { error: accErr } = await supabase.from('user_accounts').insert({ member_id: member.id, phone: normalizedPhone, pin_hash: pinHash });
     if (accErr) { await supabase.from('members').delete().eq('id', member.id); return { success: false, error: 'Failed to create account.' }; }
-    if (inviteCode) {
-      const { data: grp } = await supabase.from('groups').select('id').eq('invite_code', inviteCode.toUpperCase()).maybeSingle();
-      if (grp) await supabase.from('group_memberships').insert({ group_id: grp.id, member_id: member.id, role: 'member', is_active: true });
-    }
+    await supabase.from('group_memberships').insert({ group_id: grp.id, member_id: member.id, role: 'member', is_active: true });
     const otp = String(Math.floor(100000 + Math.random() * 900000));
     await supabase.from('otp_codes').insert({ phone: normalizedPhone, code: otp, purpose: 'register', expires_at: new Date(Date.now() + 600000).toISOString() });
     return { success: true, phone: normalizedPhone, demoOtp: otp };
@@ -352,6 +367,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       sidebarOpen, toggleSidebar,
       user, memberships, isAuthenticated: !!user, isAuthLoading, authError,
       groups, selectedGroupId, selectedGroup, setSelectedGroupId, refreshGroups,
+      isChairman, isTreasurer, isAdmin, isElevated,
       register, login, verifyOtp, resendOtp, logout, clearAuthError,
     }}>
       {children}

@@ -42,7 +42,8 @@ const MembersPage: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [newMember, setNewMember] = useState({ full_name: '', phone: '', email: '', national_id: '', role: 'member' as UserRole });
 
-  const isAdmin = selectedGroup?.user_role === 'admin' || selectedGroup?.user_role === 'super_admin';
+  const role = (selectedGroup?.user_role || '').toLowerCase();
+  const isAdmin = ['admin', 'super_admin', 'chairperson', 'chairman', 'secretary'].includes(role);
 
   const loadMembers = useCallback(async () => {
     if (!selectedGroup?.id) { setLoading(false); return; }

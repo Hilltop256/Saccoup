@@ -6,7 +6,7 @@ import * as ds from '@/lib/dataService';
 type ModalMode = 'create' | 'join' | null;
 
 const GroupsPage: React.FC = () => {
-  const { user, groups, refreshGroups, setSelectedGroupId } = useAppContext();
+  const { user, groups, refreshGroups, setSelectedGroupId, isChairman } = useAppContext();
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +23,30 @@ const GroupsPage: React.FC = () => {
     grace_period_days: '3',
   });
   const [joinCode, setJoinCode] = useState('');
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  const handleRegenerate = async (groupId: string) => {
+    setRegeneratingId(groupId);
+    try {
+      const result = await ds.regenerateInviteCode(groupId);
+      if (result.success) {
+        await refreshGroups();
+        setSuccess('Invite code regenerated!');
+        setTimeout(() => setSuccess(null), 4000);
+      }
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setRegeneratingId(null);
+  };
+
+  const handleCopyLink = (code: string) => {
+    const link = `${window.location.origin}/join?code=${code}`;
+    navigator.clipboard?.writeText(link);
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 3000);
+  };
 
   const handleCreate = async () => {
     if (!newGroup.name.trim() || !user?.member_id) return;
@@ -192,27 +216,41 @@ const GroupsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                  <div>
-                    <p className="text-xs text-gray-500">Contribution</p>
-                    <p className="text-sm font-medium text-gray-900">
-                      {formatUGX(g.contribution_amount)} / {g.contribution_schedule}
-                    </p>
+                  <div className="flex items-center gap-2 pt-4 border-t border-gray-100">
+                    <div>
+                      <p className="text-xs text-gray-500">Contribution</p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {formatUGX(g.contribution_amount)} / {g.contribution_schedule}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 ml-auto">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); navigator.clipboard?.writeText(g.invite_code); }}
+                        className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded text-xs text-gray-500 hover:bg-gray-100 transition-colors"
+                        title="Click to copy code"
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" /></svg>
+                        <span className="font-mono font-medium">{g.invite_code}</span>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleCopyLink(g.invite_code); }}
+                        className="px-2 py-1 rounded text-xs font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                        title="Copy invite link"
+                      >
+                        {copiedCode === g.invite_code ? 'Copied!' : 'Copy Link'}
+                      </button>
+                      {isChairman && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleRegenerate(g.id); }}
+                          disabled={regeneratingId === g.id}
+                          className="px-2 py-1 rounded text-xs font-medium bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors disabled:opacity-50"
+                          title="Generate new invite code"
+                        >
+                          {regeneratingId === g.id ? '...' : 'New Code'}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div
-                    className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded text-xs text-gray-500 cursor-pointer hover:bg-gray-100 transition-colors"
-                    title="Invite code — click to copy"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigator.clipboard?.writeText(g.invite_code);
-                    }}
-                  >
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
-                    </svg>
-                    <span className="font-mono font-medium">{g.invite_code}</span>
-                  </div>
-                </div>
               </div>
             </div>
           ))}
