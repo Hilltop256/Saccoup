@@ -25,6 +25,8 @@ const SavingsDashboard: React.FC<SavingsDashboardProps> = ({ onNavigate }) => {
   const [memberContribs, setMemberContribs] = useState<MemberContrib[]>([]);
   const [moneyRequests, setMoneyRequests] = useState<MoneyRequest[]>([]);
   const [totalSavings, setTotalSavings] = useState(0);
+  const [totalDue, setTotalDue] = useState(0);
+  const [totalUnpaid, setTotalUnpaid] = useState(0);
   const [totalContributions, setTotalContributions] = useState(0);
   const [pendingContributions, setPendingContributions] = useState(0);
   const [collectionRate, setCollectionRate] = useState(0);
@@ -59,7 +61,15 @@ const SavingsDashboard: React.FC<SavingsDashboardProps> = ({ onNavigate }) => {
         const confirmed = contribs.filter((c: any) => c.status === 'confirmed');
         const pending = contribs.filter((c: any) => c.status === 'pending');
         const totalSaved = confirmed.reduce((s: number, c: any) => s + Number(c.amount), 0);
+        const totalDueAmt = confirmed.reduce((s: number, c: any) => {
+          const due = Number(c.amount_due || 0);
+          if (!due && c.notes) { const m = c.notes.match(/Due: (\d+)/); return s + (m ? parseInt(m[1]) : 0); }
+          return s + due;
+        }, 0);
+        const totalUnpaidAmt = Math.max(0, totalDueAmt - totalSaved);
         setTotalSavings(totalSaved);
+        setTotalDue(totalDueAmt);
+        setTotalUnpaid(totalUnpaidAmt);
         setTotalContributions(confirmed.length);
         setPendingContributions(pending.length);
       }
@@ -198,22 +208,22 @@ const SavingsDashboard: React.FC<SavingsDashboardProps> = ({ onNavigate }) => {
         <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
           <p className="text-sm text-gray-500">Total Savings</p>
           <p className="text-2xl font-bold text-emerald-700 mt-1">{formatUGX(totalSavings)}</p>
-          <p className="text-xs text-emerald-500 font-medium mt-1">{collectionRate}% collection rate</p>
+          <p className="text-xs text-emerald-500 font-medium mt-1">{collectionRate}% collected</p>
         </div>
         <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-          <p className="text-sm text-gray-500">Confirmed Payments</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{totalContributions}</p>
-          <p className="text-xs text-amber-500 font-medium mt-1">{pendingContributions} pending</p>
+          <p className="text-sm text-gray-500">Total Due</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{formatUGX(totalDue)}</p>
+          <p className="text-xs text-gray-400 font-medium mt-1">expected from all members</p>
+        </div>
+        <div className={`bg-white rounded-xl p-5 border shadow-sm ${totalUnpaid > 0 ? 'border-red-200' : 'border-gray-100'}`}>
+          <p className="text-sm text-gray-500">Unpaid Balance</p>
+          <p className={`text-2xl font-bold mt-1 ${totalUnpaid > 0 ? 'text-red-600' : 'text-emerald-600'}`}>{totalUnpaid > 0 ? formatUGX(totalUnpaid) : '✅ All Paid'}</p>
+          <p className="text-xs text-red-400 font-medium mt-1">{memberContribs.filter(m => m.status === 'behind').length} members behind</p>
         </div>
         <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
           <p className="text-sm text-gray-500">Members</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">{memberCount}</p>
           <p className="text-xs text-gray-400 font-medium mt-1">{memberContribs.filter(m => m.status === 'current').length} current</p>
-        </div>
-        <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-          <p className="text-sm text-gray-500">Per {getScheduleLabel(selectedGroup?.contribution_schedule || '')}</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{formatUGX(selectedGroup?.contribution_amount || 0)}</p>
-          <p className="text-xs text-gray-400 font-medium mt-1">expected per member</p>
         </div>
       </div>
 
@@ -266,6 +276,32 @@ const SavingsDashboard: React.FC<SavingsDashboardProps> = ({ onNavigate }) => {
           </table>
         </div>
       </div>
+
+      {/* Unpaid Dues — Members Behind */}
+      {memberContribs.filter(m => m.status === 'behind').length > 0 && (
+        <div className="bg-white rounded-xl border-2 border-red-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-red-100 bg-red-50">
+            <h2 className="text-lg font-bold text-red-800">⚠️ Unpaid Dues</h2>
+            <p className="text-xs text-red-600">Members who have not made any contributions</p>
+          </div>
+          <div className="divide-y divide-red-50">
+            {memberContribs.filter(m => m.status === 'behind').map(m => (
+              <div key={m.id} className="px-6 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <img src={m.photo_url || IMAGES.avatars[0]} alt={m.full_name} className="w-8 h-8 rounded-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = IMAGES.avatars[0]; }} />
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">{m.full_name}</p>
+                    <p className="text-xs text-red-500">No payments recorded</p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">
+                  {formatUGX(selectedGroup?.contribution_amount || 0)} / {getScheduleLabel(selectedGroup?.contribution_schedule || '')}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Money Requests Section */}
       <div id="money-requests" className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">

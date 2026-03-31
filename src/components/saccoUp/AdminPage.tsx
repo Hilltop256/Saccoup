@@ -11,7 +11,9 @@ type AdminTab = 'rosca' | 'members' | 'contributions' | 'loans';
 
 const AdminPage: React.FC = () => {
   const { selectedGroupId, selectedGroup } = useAppContext();
-  const [activeTab, setActiveTab] = useState<AdminTab>('rosca');
+  const groupType = (selectedGroup?.group_type || '').toLowerCase();
+  const isRoscaType = groupType === 'rosca' || groupType === 'hybrid';
+  const [activeTab, setActiveTab] = useState<AdminTab>(isRoscaType ? 'rosca' : 'members');
   const [toast, setToast] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -44,7 +46,7 @@ const AdminPage: React.FC = () => {
             { id: 'members', label: '👥 Members' },
             { id: 'contributions', label: '💰 Contributions' },
             { id: 'loans', label: '🏦 Loans' },
-          ].map((tab) => (
+          ].filter(tab => tab.id !== 'rosca' || isRoscaType).map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as AdminTab)}

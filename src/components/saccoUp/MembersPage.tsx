@@ -29,6 +29,8 @@ const Spinner = () => (
 const MembersPage: React.FC = () => {
   const { user, selectedGroup } = useAppContext();
   const { getMemberStats } = useRoscaData();
+  const groupType = (selectedGroup?.group_type || '').toLowerCase();
+  const isRoscaType = groupType === 'rosca' || groupType === 'hybrid';
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -264,7 +266,8 @@ const MembersPage: React.FC = () => {
                   <th className="text-left px-6 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider hidden md:table-cell">Role</th>
                   <th className="text-right px-6 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Savings</th>
                   <th className="text-right px-6 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Loans</th>
-                  <th className="text-right px-6 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider hidden xl:table-cell">ROSCA</th>
+                  {isRoscaType && <th className="text-right px-6 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider hidden xl:table-cell">ROSCA</th>}
+                  {!isRoscaType && <th className="text-right px-6 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider hidden xl:table-cell">Unpaid</th>}
                   <th className="text-center px-6 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider">KYC</th>
                   <th className="text-right px-6 py-3 text-xs font-extrabold text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
@@ -291,11 +294,19 @@ const MembersPage: React.FC = () => {
                     <td className="px-6 py-4 text-sm font-bold text-right hidden lg:table-cell">
                       <span className={m.loanBalance > 0 ? 'text-amber-600' : 'text-gray-400'}>{formatUGX(m.loanBalance)}</span>
                     </td>
+                    {isRoscaType ? (
                     <td className="px-6 py-4 text-right hidden xl:table-cell">
                       {(() => { const rs = getMemberStats(m.full_name); return rs.wins > 0 ? (
                         <span className="text-sm font-bold text-emerald-600">{formatUGX(rs.totalWon)}</span>
                       ) : <span className="text-sm text-gray-400">—</span>; })()}
                     </td>
+                    ) : (
+                    <td className="px-6 py-4 text-right hidden xl:table-cell">
+                      {m.loanBalance > 0 ? (
+                        <span className="text-sm font-bold text-red-600">{formatUGX(m.loanBalance)}</span>
+                      ) : <span className="text-sm text-gray-400">—</span>}
+                    </td>
+                    )}
                     <td className="px-6 py-4 text-center">
                       {m.kyc_verified ? (
                         <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-100">
@@ -425,7 +436,7 @@ const MembersPage: React.FC = () => {
                     {formatUGX(selectedMember.loanBalance)}
                   </p>
                 </div>
-                {(() => { const rs = getMemberStats(selectedMember.full_name); return rs.wins > 0 ? (
+                {isRoscaType && (() => { const rs = getMemberStats(selectedMember.full_name); return rs.wins > 0 ? (
                   <>
                     <div className="bg-emerald-50 rounded-2xl p-3">
                       <p className="text-xs text-gray-500 font-bold uppercase tracking-wide">🎡 ROSCA Won</p>
@@ -437,6 +448,12 @@ const MembersPage: React.FC = () => {
                     </div>
                   </>
                 ) : null; })()}
+                {!isRoscaType && selectedMember.loanBalance > 0 && (
+                  <div className="bg-red-50 rounded-2xl p-3">
+                    <p className="text-xs text-gray-500 font-bold uppercase tracking-wide">⚠️ Unpaid Balance</p>
+                    <p className="text-sm font-extrabold text-red-600 mt-0.5">{formatUGX(selectedMember.loanBalance)}</p>
+                  </div>
+                )}
               </div>
 
               {/* KYC status */}
