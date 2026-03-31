@@ -34,6 +34,15 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, onCl
   const userRole = (selectedGroup?.user_role || '').toLowerCase();
   const isAdmin = ['admin', 'chairperson', 'chairman', 'secretary'].includes(userRole);
 
+  // Filter nav items based on group type
+  const groupType = (selectedGroup?.group_type || '').toLowerCase();
+  const isRoscaType = groupType === 'rosca' || groupType === 'hybrid';
+  const filteredNavItems = navItems.filter(item => {
+    if (item.id === 'rosca' && !isRoscaType) return false;
+    if (item.id === 'loans' && groupType === 'rosca') return false; // ROSCAs don't do loans
+    return true;
+  });
+
   return (
     <>
       {isOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={onClose} />}
@@ -78,7 +87,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, onCl
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto px-3 py-4">
             <div className="space-y-1">
-              {navItems.map((item) => (
+              {filteredNavItems.map((item) => (
                 <button key={item.id} onClick={() => { onNavigate(item.id); onClose(); }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
                     currentPage === item.id
