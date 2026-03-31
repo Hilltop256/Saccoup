@@ -12,19 +12,25 @@ interface ContribRow {
 
 interface MemberOption { id: string; full_name: string; phone: string; }
 
-// Generate last 12 months as period options
+// Generate period options from Jan 2024 to 12 months ahead
 function generatePeriodOptions(): { value: string; label: string }[] {
   const options: { value: string; label: string }[] = [];
-  const now = new Date();
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'];
-    const shortMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const value = `${shortMonths[d.getMonth()]} ${d.getFullYear()}`;
-    const label = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  const shortMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  // Start from Jan 2024, go 12 months past current date
+  const start = new Date(2024, 0, 1);
+  const end = new Date();
+  end.setMonth(end.getMonth() + 12);
+
+  const current = new Date(end);
+  while (current >= start) {
+    const value = `${shortMonths[current.getMonth()]} ${current.getFullYear()}`;
+    const label = `${monthNames[current.getMonth()]} ${current.getFullYear()}`;
     options.push({ value, label });
+    current.setMonth(current.getMonth() - 1);
   }
   return options;
 }
