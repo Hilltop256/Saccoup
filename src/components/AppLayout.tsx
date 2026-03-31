@@ -16,6 +16,7 @@ import SettingsPage from './saccoUp/SettingsPage';
 import RoscaPage from './saccoUp/RoscaPage';
 import AdminPage from './saccoUp/AdminPage';
 import MigrationPage from './saccoUp/MigrationPage';
+import SavingsDashboard from './saccoUp/SavingsDashboard';
 
 type AppView = 'loading' | 'landing' | 'dashboard';
 
@@ -75,8 +76,11 @@ const AppLayout: React.FC = () => {
   };
 
   const renderPage = () => {
+    const groupType = (selectedGroup?.group_type || '').toLowerCase();
+    const isSavingsType = ['savings_club', 'investment_club', 'sacco'].includes(groupType);
+
     switch (currentPage) {
-      case 'overview': return <DashboardOverview onNavigate={setCurrentPage} />;
+      case 'overview': return isSavingsType ? <SavingsDashboard onNavigate={setCurrentPage} /> : <DashboardOverview onNavigate={setCurrentPage} />;
       case 'rosca': return <RoscaPage />;
       case 'members': return <MembersPage />;
       case 'contributions': return <ContributionsPage />;

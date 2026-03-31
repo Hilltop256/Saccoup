@@ -905,3 +905,71 @@ export async function deleteRoscaDraw(draw_id: string) {
   if (error) throw new Error(error.message);
   return { success: true };
 }
+
+// ===== MONEY REQUEST OPERATIONS =============================================
+
+export interface MoneyRequestRow {
+  id: string;
+  group_id: string;
+  member_id: string;
+  member_name: string;
+  member_photo?: string;
+  amount: number;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected' | 'disbursed';
+  requested_at: string;
+  approved_by?: string;
+  approved_at?: string;
+  notes?: string;
+}
+
+export async function submitMoneyRequest(params: {
+  group_id: string;
+  member_id: string;
+  member_name: string;
+  amount: number;
+  reason: string;
+}) {
+  const { data, error } = await supabase
+    .from('money_requests')
+    .insert({
+      group_id: params.group_id,
+      member_id: params.member_id,
+      member_name: params.member_name,
+      amount: params.amount,
+      reason: params.reason,
+      status: 'pending',
+      requested_at: new Date().toISOString(),
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { success: true, request: data };
+}
+
+export async function listMoneyRequests(group_id: string) {
+  const { data, error } = await supabase
+    .from('money_requests')
+    .select('*')
+    .eq('group_id', group_id)
+    .order('requested_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return { success: true, requests: data || [] };
+}
+
+export async function updateMoneyRequestStatus(request_id: string, status: 'approved' | 'rejected' | 'disbursed', approved_by?: string, notes?: string) {
+  const updates: any = { status, updated_at: new Date().toISOString() };
+  if (approved_by) updates.approved_by = approved_by;
+  if (status === 'approved' || status === 'rejected') updates.approved_at = new Date().toISOString();
+  if (notes) updates.notes = notes;
+
+  const { error } = await supabase
+    .from('money_requests')
+    .update(updates)
+    .eq('id', request_id);
+
+  if (error) throw new Error(error.message);
+  return { success: true };
+}

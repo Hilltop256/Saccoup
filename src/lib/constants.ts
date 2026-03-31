@@ -379,3 +379,15 @@ export const getGroupTypeColor = (type: GroupType): string => {
     case 'hybrid': return 'bg-cyan-100 text-cyan-700';
   }
 };
+
+export const getScheduleLabel = (schedule: string): string => {
+  switch (schedule) {
+    case 'daily': return 'Daily';
+    case 'weekly': return 'Weekly';
+    case 'biweekly': return 'Bi-Weekly';
+    case 'monthly': return 'Monthly';
+    case 'quarterly': return 'Quarterly';
+    case 'annual': return 'Annual';
+    default: return schedule || 'Monthly';
+  }
+};
