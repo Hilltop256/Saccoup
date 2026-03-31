@@ -353,6 +353,7 @@ export async function recordContribution(params: {
   group_id: string;
   member_id: string;
   amount: number;
+  amount_due?: number;
   payment_method: string;
   transaction_ref?: string;
   period_label?: string;
@@ -373,6 +374,7 @@ export async function recordContribution(params: {
       member_id: params.member_id,
       member_name: member?.full_name || 'Unknown',
       amount: params.amount,
+      amount_due: params.amount_due || 0,
       payment_method: params.payment_method,
       transaction_ref: params.transaction_ref,
       period_label: params.period_label,

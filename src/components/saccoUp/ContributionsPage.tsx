@@ -5,9 +5,10 @@ import * as ds from '@/lib/dataService';
 
 interface ContribRow {
   id: string; member_name: string; member_id: string; amount: number;
+  amount_due: number;
   payment_method: PaymentMethod; status: ContributionStatus;
   period_label: string; transaction_ref?: string; created_at: string;
-  member_photo?: string;
+  member_photo?: string; notes?: string;
 }
 
 interface MemberOption { id: string; full_name: string; phone: string; }
@@ -79,13 +80,22 @@ const ContributionsPage: React.FC = () => {
         ds.listMembers(selectedGroup.id),
       ]);
       if (contribResult.success) {
-        setContributions((contribResult.contributions || []).map((c: any) => ({
-          id: c.id, member_name: c.member_name, member_id: c.member_id,
-          amount: Number(c.amount), payment_method: c.payment_method,
-          status: c.status, period_label: c.period_label || '',
-          transaction_ref: c.transaction_ref, created_at: c.created_at?.split('T')[0] || '',
-          member_photo: c.member_photo,
-        })));
+        setContributions((contribResult.contributions || []).map((c: any) => {
+          // Parse amount_due from notes if column doesn't exist yet
+          let amountDue = Number(c.amount_due || 0);
+          if (!amountDue && c.notes) {
+            const match = c.notes.match(/Due: (\d+)/);
+            if (match) amountDue = parseInt(match[1]);
+          }
+          return {
+            id: c.id, member_name: c.member_name, member_id: c.member_id,
+            amount: Number(c.amount), amount_due: amountDue,
+            payment_method: c.payment_method,
+            status: c.status, period_label: c.period_label || '',
+            transaction_ref: c.transaction_ref, created_at: c.created_at?.split('T')[0] || '',
+            member_photo: c.member_photo, notes: c.notes,
+          };
+        }));
       }
       if (memberResult.success) {
         setMembers((memberResult.members || []).map((m: any) => ({
@@ -324,7 +334,9 @@ const ContributionsPage: React.FC = () => {
                   <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Member</th>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Period</th>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Method</th>
-                  <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+                  <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Due</th>
+                  <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Paid</th>
+                  <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Balance</th>
                   <th className="text-center px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
@@ -332,7 +344,7 @@ const ContributionsPage: React.FC = () => {
               <tbody className="divide-y divide-gray-50">
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-500">
+                    <td colSpan={8} className="px-6 py-12 text-center text-sm text-gray-500">
                       No contributions recorded yet. Click "Record Contribution" to add one.
                     </td>
                   </tr>
@@ -358,7 +370,15 @@ const ContributionsPage: React.FC = () => {
                         {getPaymentMethodLabel(c.payment_method)}
                       </span>
                     </td>
+                    <td className="px-6 py-4 text-sm text-gray-500 text-right hidden md:table-cell">{c.amount_due > 0 ? formatUGX(c.amount_due) : '—'}</td>
                     <td className="px-6 py-4 text-sm font-semibold text-gray-900 text-right">{formatUGX(c.amount)}</td>
+                    <td className="px-6 py-4 text-right hidden lg:table-cell">
+                      {c.amount_due > 0 ? (
+                        <span className={`text-sm font-bold ${c.amount >= c.amount_due ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {c.amount >= c.amount_due ? '✅ Paid' : formatUGX(c.amount_due - c.amount)}
+                        </span>
+                      ) : <span className="text-sm text-gray-400">—</span>}
+                    </td>
                     <td className="px-6 py-4 text-center">
                       <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium capitalize ${getStatusColor(c.status)}`}>
                         {c.status}

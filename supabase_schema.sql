@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS contributions (
   member_id       UUID          NOT NULL REFERENCES members(id),
   member_name     TEXT          NOT NULL,
   amount          NUMERIC(15,2) NOT NULL,
+  amount_due      NUMERIC(15,2) DEFAULT 0,
   payment_method  TEXT          NOT NULL DEFAULT 'cash',
   status          TEXT          NOT NULL DEFAULT 'pending',
   transaction_ref TEXT,
