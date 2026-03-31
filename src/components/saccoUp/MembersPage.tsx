@@ -41,6 +41,8 @@ const MembersPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [newMember, setNewMember] = useState({ full_name: '', phone: '', email: '', national_id: '', role: 'member' as UserRole });
+  const [inviteInfo, setInviteInfo] = useState<{ code: string; name: string; group: string; link: string } | null>(null);
+  const [copiedInvite, setCopiedInvite] = useState(false);
 
   const role = (selectedGroup?.user_role || '').toLowerCase();
   const isAdmin = ['admin', 'super_admin', 'chairperson', 'chairman', 'secretary'].includes(role);
@@ -94,11 +96,12 @@ const MembersPage: React.FC = () => {
         added_by: user?.member_id,
       });
       if (result.success) {
-        setSuccess(`${newMember.full_name} added to the group successfully!`);
+        const code = result.invite_code || '';
+        const link = `${window.location.origin}/join?code=${code}`;
+        setInviteInfo({ code, name: result.member_name || newMember.full_name, group: result.group_name || '', link });
         setNewMember({ full_name: '', phone: '', email: '', national_id: '', role: 'member' });
         setShowAddModal(false);
         await loadMembers();
-        setTimeout(() => setSuccess(null), 4000);
       }
     } catch (e: any) {
       setError(e.message || 'Failed to add member');
@@ -180,6 +183,45 @@ const MembersPage: React.FC = () => {
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-sm font-bold">
           ⚠️ {error}
+        </div>
+      )}
+
+      {/* Invite code card — shown after adding a member */}
+      {inviteInfo && (
+        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-200 rounded-2xl p-5 space-y-3">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm font-bold text-emerald-800">✅ {inviteInfo.name} added to {inviteInfo.group}</p>
+              <p className="text-xs text-emerald-600 mt-0.5">Share this invite code with them to complete registration:</p>
+            </div>
+            <button onClick={() => setInviteInfo(null)} className="text-emerald-400 hover:text-emerald-600">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-emerald-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Invite Code</p>
+                <p className="text-2xl font-extrabold text-emerald-700 font-mono tracking-widest">{inviteInfo.code}</p>
+              </div>
+              <button
+                onClick={() => { navigator.clipboard?.writeText(inviteInfo.code); setCopiedInvite(true); setTimeout(() => setCopiedInvite(false), 3000); }}
+                className="px-3 py-1.5 text-xs font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+              >
+                {copiedInvite ? 'Copied!' : 'Copy Code'}
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-gray-500 truncate flex-1 font-mono">{inviteInfo.link}</p>
+              <button
+                onClick={() => { navigator.clipboard?.writeText(inviteInfo.link); }}
+                className="px-3 py-1.5 text-xs font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 whitespace-nowrap"
+              >
+                Copy Link
+              </button>
+            </div>
+          </div>
+          <p className="text-xs text-emerald-600">The member can use this code + link to register and join this group.</p>
         </div>
       )}
 

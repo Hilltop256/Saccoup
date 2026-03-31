@@ -245,7 +245,10 @@ export async function addMemberToGroup(params: {
     });
   }
 
-  return { success: true };
+  // Fetch group invite code for chairman to share
+  const { data: grp } = await supabase.from('groups').select('invite_code, name').eq('id', params.group_id).maybeSingle();
+
+  return { success: true, invite_code: grp?.invite_code || null, member_name: params.full_name, group_name: grp?.name || null };
 }
 
 export async function listMembers(group_id: string) {
