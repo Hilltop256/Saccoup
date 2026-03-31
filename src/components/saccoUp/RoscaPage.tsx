@@ -463,9 +463,9 @@ const RoscaPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
-            🎡 PBS Merry-Go-Round
+            🎡 Merry-Go-Round
           </h1>
-          <p className="text-sm text-purple-500 font-semibold">Cycle history • Draw winners • 2 members win {formatUGX(5000000)} each per draw</p>
+          <p className="text-sm text-purple-500 font-semibold">Cycle history • Draw winners • Track member payouts</p>
         </div>
         {canEdit && (
           <div className="flex gap-2">

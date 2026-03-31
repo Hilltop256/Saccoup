@@ -83,7 +83,6 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
   const { selectedGroupId } = useAppContext();
   const [cycles, setCycles] = useState<RoscaCycleWithId[]>([]);
   const [loading, setLoading] = useState(true);
-  const [seeding, setSeeding] = useState(false);
   const [isMockData, setIsMockData] = useState(false);
 
   // ── Load from Supabase ────────────────────────────────────────────────────
@@ -121,71 +120,14 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
     setLoading(false);
   }, [selectedGroupId]);
 
-  // ── Seed canonical data to Supabase (one-time per group) ─────────────────
+  // ── Seed: DISABLED for multi-tenancy — groups create their own cycles via UI ──
   const seedToSupabase = useCallback(async () => {
-    if (!selectedGroupId || seeding) return;
-    setSeeding(true);
-    try {
-      // Double-check still empty
-      const { cycles: existing } = await ds.listRoscaCycles(selectedGroupId);
-      if (existing && existing.length > 0) {
-        await loadCycles();
-        setSeeding(false);
-        return;
-      }
-
-      for (const cycle of MOCK_PBS_CYCLES) {
-        const { cycle: newCycle } = await ds.createRoscaCycle({
-          group_id: selectedGroupId,
-          cycle_number: cycle.cycle_number,
-          cycle_name: cycle.cycle_name,
-          status: cycle.status,
-          start_date: cycle.start_date,
-          end_date: cycle.end_date,
-          total_draws: cycle.total_draws,
-          pot_amount_per_draw: cycle.pot_amount_per_draw,
-          member_count: cycle.draws.length / 2,
-          security_deposit: cycle.cycle_number === 3 ? 500000 : 0,
-        });
-
-        if (newCycle) {
-          for (const draw of cycle.draws) {
-            await ds.createRoscaDraw({
-              cycle_id: newCycle.id,
-              draw_number: draw.draw_number,
-              winner_slot: draw.winner_slot,
-              winner_name: draw.winner_name || undefined,
-              amount_received: draw.amount_received,
-              draw_date: draw.draw_date,
-              savings: draw.savings,
-              paid_out: draw.paid_out,
-              deductions: draw.deductions,
-              balance: draw.balance,
-              status: draw.status,
-              notes: draw.notes,
-            });
-          }
-        }
-      }
-      await loadCycles();
-    } catch (e) {
-      console.error('Failed to seed ROSCA data:', e);
-      // Fall back to mock data with no UUIDs
-      setCycles(MOCK_PBS_CYCLES.map(c => ({ ...c, _db_id: undefined, draws: c.draws.map(d => ({ ...d, _db_id: undefined })) })));
-      setIsMockData(true);
-    }
-    setSeeding(false);
-  }, [selectedGroupId, seeding, loadCycles]);
+    // No auto-seeding. Groups use "New Cycle" button to create their own ROSCA cycles.
+  }, []);
 
   useEffect(() => { loadCycles(); }, [loadCycles]);
 
-  // Trigger seed when load completes with empty result
-  useEffect(() => {
-    if (!loading && cycles.length === 0 && selectedGroupId && !seeding) {
-      seedToSupabase();
-    }
-  }, [loading, cycles.length, selectedGroupId, seeding, seedToSupabase]);
-
+  // No auto-seed — groups create their own ROSCA cycles via the UI
   const refreshCycles = useCallback(async () => { await loadCycles(); }, [loadCycles]);
 
   // ── Update draw — persists to Supabase then reloads ────────────────────

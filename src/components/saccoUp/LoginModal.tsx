@@ -280,7 +280,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
           )}
 
           <h2 className="text-xl font-extrabold text-white">
-            {step === 'otp' ? '🔐 Verify Your Phone' : mode === 'login' ? '👋 Welcome Back!' : '🎉 Join PBS Merry-Go!'}
+            {step === 'otp' ? '🔐 Verify Your Phone' : mode === 'login' ? '👋 Welcome Back!' : '🎉 Join SaccoUp!'}
           </h2>
           <p className="text-sm text-purple-100 mt-1">
             {step === 'otp'

@@ -102,7 +102,7 @@ const AppLayout: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
             </svg>
           </div>
-          <p className="text-xl font-extrabold text-gray-900">PBS <span className="text-[#a855f7]">Merry-Go</span></p>
+          <p className="text-xl font-extrabold text-gray-900">Sacco<span className="text-[#a855f7]">Up</span></p>
           <div className="flex items-center justify-center gap-1.5 mt-3">
             <div className="w-2 h-2 bg-[#a855f7] rounded-full animate-bounce [animation-delay:0ms]" />
             <div className="w-2 h-2 bg-[#ec4899] rounded-full animate-bounce [animation-delay:150ms]" />

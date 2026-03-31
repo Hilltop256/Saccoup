@@ -45,7 +45,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, onCl
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#a855f7] to-[#ec4899] flex items-center justify-center shadow-lg shadow-purple-900/50">
                 <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
               </div>
-              <span className="text-xl font-extrabold text-white tracking-tight">PBS<span className="text-[#a855f7]"> Merry-Go</span></span>
+              <span className="text-xl font-extrabold text-white tracking-tight">Sacco<span className="text-[#a855f7]">Up</span></span>
             </div>
             <button onClick={onClose} className="lg:hidden p-1 text-purple-300 hover:text-white">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
