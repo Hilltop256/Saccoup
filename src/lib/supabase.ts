@@ -1,27 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Use env vars if set, otherwise fall back to defaults
+// For production, set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel Settings
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || 'https://hfashvzkvohylakpwisc.supabase.co').trim();
+const supabaseKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhmYXNodnprdm9oeWxha3B3aXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1NTI2MTUsImV4cCI6MjA4ODEyODYxNX0.-3LhPuRJl5UJyd1JfXbG6HU39kvMUM7hDoYkhg5blrc').trim();
 
-if (!supabaseUrl || !supabaseKey) {
-  const msg = `Missing Supabase env vars. URL=${supabaseUrl ? 'set' : 'MISSING'}, KEY=${supabaseKey ? 'set' : 'MISSING'}. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel Settings → Environment Variables, then redeploy.`;
-  console.error('[SaccoUp]', msg);
-  throw new Error(msg);
-}
-
-const cleanUrl = supabaseUrl.trim();
-const cleanKey = supabaseKey.trim();
-
-// Runtime diagnostic (visible in browser console on Vercel)
-console.log('[SaccoUp] Supabase URL:', cleanUrl);
-console.log('[SaccoUp] API key length:', cleanKey.length, '| starts with:', cleanKey.substring(0, 20) + '...');
-
-// Validate key format (JWT should be 3 parts separated by dots)
-const jwtParts = cleanKey.split('.');
-if (jwtParts.length !== 3) {
-  console.error('[SaccoUp] API key does not look like a valid JWT. Got', jwtParts.length, 'parts instead of 3.');
-}
-
-const supabase = createClient(cleanUrl, cleanKey);
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export { supabase };
