@@ -186,7 +186,42 @@ CREATE INDEX IF NOT EXISTS idx_money_requests_group  ON money_requests(group_id)
 CREATE INDEX IF NOT EXISTS idx_money_requests_status ON money_requests(group_id, status);
 
 -- ============================================================
--- 10. MESSAGES TABLE (group chat)
+-- 10. EXPENSES TABLE (group expenditures - treasurer/secretary only)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS expenses (
+  id              UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  group_id        UUID          NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  description     TEXT          NOT NULL,
+  amount          NUMERIC(15,2) NOT NULL CHECK (amount > 0),
+  category        TEXT          NOT NULL DEFAULT 'general',
+  period_label    TEXT,
+  recorded_by     TEXT,
+  notes           TEXT,
+  created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_expenses_group ON expenses(group_id);
+
+-- ============================================================
+-- 11. GROUP FINANCIALS TABLE (bank balance, investments per period)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS group_financials (
+  id              UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  group_id        UUID          NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  period_label    TEXT          NOT NULL,
+  bank_balance    NUMERIC(15,2) NOT NULL DEFAULT 0,
+  investments     NUMERIC(15,2) NOT NULL DEFAULT 0,
+  total_expenses  NUMERIC(15,2) NOT NULL DEFAULT 0,
+  notes           TEXT,
+  recorded_by     TEXT,
+  created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ,
+  UNIQUE(group_id, period_label)
+);
+CREATE INDEX IF NOT EXISTS idx_group_financials_group ON group_financials(group_id);
+
+-- ============================================================
+-- 12. MESSAGES TABLE (group chat)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS messages (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

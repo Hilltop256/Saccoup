@@ -32,6 +32,9 @@ const SavingsDashboard: React.FC<SavingsDashboardProps> = ({ onNavigate }) => {
   const [memberCount, setMemberCount] = useState(0);
   const [membersBehind, setMembersBehind] = useState(0);
   const [collectionRate, setCollectionRate] = useState(0);
+  const [bankBalance, setBankBalance] = useState(0);
+  const [investments, setInvestments] = useState(0);
+  const [lastMonthExpenses, setLastMonthExpenses] = useState(0);
   const [loading, setLoading] = useState(true);
 
   // Money request form
@@ -50,10 +53,11 @@ const SavingsDashboard: React.FC<SavingsDashboardProps> = ({ onNavigate }) => {
     if (!selectedGroup?.id) { setLoading(false); return; }
     setLoading(true);
     try {
-      const [contribResult, memberResult, requestResult] = await Promise.all([
+      const [contribResult, memberResult, requestResult, financialResult] = await Promise.all([
         ds.listContributions(selectedGroup.id),
         ds.listMembers(selectedGroup.id),
         ds.listMoneyRequests(selectedGroup.id).catch(() => ({ success: false, requests: [] })),
+        ds.getGroupFinancials(selectedGroup.id).catch(() => ({ success: false, financials: null })),
       ]);
 
       const contribs = contribResult.contributions || [];
@@ -108,6 +112,14 @@ const SavingsDashboard: React.FC<SavingsDashboardProps> = ({ onNavigate }) => {
           amount: Number(r.amount), reason: r.reason, status: r.status,
           requested_at: r.requested_at?.split('T')[0] || '', notes: r.notes,
         })));
+      }
+
+      // Group financials (bank balance, investments, expenses)
+      if (financialResult.success && financialResult.financials) {
+        const f = financialResult.financials;
+        setBankBalance(Number(f.bank_balance || 0));
+        setInvestments(Number(f.investments || 0));
+        setLastMonthExpenses(Number(f.total_expenses || 0));
       }
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -185,10 +197,32 @@ const SavingsDashboard: React.FC<SavingsDashboardProps> = ({ onNavigate }) => {
         <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Group Financials</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+            <p className="text-sm text-gray-500">Bank Balance</p>
+            <p className="text-2xl font-bold text-blue-700 mt-1">{formatUGX(bankBalance)}</p>
+            <p className="text-xs text-gray-400 font-medium mt-1">last recorded balance</p>
+          </div>
+          <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
             <p className="text-sm text-gray-500">Total Collected</p>
             <p className="text-2xl font-bold text-emerald-700 mt-1">{formatUGX(totalSavings)}</p>
             <p className="text-xs text-gray-400 font-medium mt-1">{collectionRate}% collection rate</p>
           </div>
+          <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+            <p className="text-sm text-gray-500">Last Month Expenses</p>
+            <p className="text-2xl font-bold text-red-600 mt-1">{formatUGX(lastMonthExpenses)}</p>
+            <p className="text-xs text-gray-400 font-medium mt-1">recorded expenditures</p>
+          </div>
+          <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+            <p className="text-sm text-gray-500">Investments</p>
+            <p className="text-2xl font-bold text-purple-600 mt-1">{formatUGX(investments)}</p>
+            <p className="text-xs text-gray-400 font-medium mt-1">group investments</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Group Position */}
+      <div>
+        <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Group Position</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
             <p className="text-sm text-gray-500">Total Due</p>
             <p className="text-2xl font-bold text-gray-900 mt-1">{formatUGX(totalDue)}</p>
@@ -205,6 +239,11 @@ const SavingsDashboard: React.FC<SavingsDashboardProps> = ({ onNavigate }) => {
             <p className="text-sm text-gray-500">Members</p>
             <p className="text-2xl font-bold text-gray-900 mt-1">{memberCount}</p>
             <p className="text-xs text-gray-400 font-medium mt-1">{memberCount - membersBehind} current</p>
+          </div>
+          <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+            <p className="text-sm text-gray-500">Net Position</p>
+            <p className="text-2xl font-bold text-emerald-700 mt-1">{formatUGX(bankBalance + investments - lastMonthExpenses)}</p>
+            <p className="text-xs text-gray-400 font-medium mt-1">balance + investments − expenses</p>
           </div>
         </div>
       </div>

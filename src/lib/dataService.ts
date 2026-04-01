@@ -975,3 +975,117 @@ export async function updateMoneyRequestStatus(request_id: string, status: 'appr
   if (error) throw new Error(error.message);
   return { success: true };
 }
+
+// ===== EXPENSES OPERATIONS ==================================================
+
+export async function addExpense(params: {
+  group_id: string;
+  description: string;
+  amount: number;
+  category?: string;
+  period_label?: string;
+  recorded_by?: string;
+  notes?: string;
+}) {
+  const { data, error } = await supabase
+    .from('expenses')
+    .insert({
+      group_id: params.group_id,
+      description: params.description,
+      amount: params.amount,
+      category: params.category || 'general',
+      period_label: params.period_label,
+      recorded_by: params.recorded_by,
+      notes: params.notes,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { success: true, expense: data };
+}
+
+export async function listExpenses(group_id: string, period_label?: string) {
+  let query = supabase
+    .from('expenses')
+    .select('*')
+    .eq('group_id', group_id)
+    .order('created_at', { ascending: false });
+
+  if (period_label) query = query.eq('period_label', period_label);
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return { success: true, expenses: data || [] };
+}
+
+export async function updateExpense(expense_id: string, updates: { description?: string; amount?: number; category?: string; notes?: string }) {
+  const { error } = await supabase
+    .from('expenses')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', expense_id);
+
+  if (error) throw new Error(error.message);
+  return { success: true };
+}
+
+export async function deleteExpense(expense_id: string) {
+  const { error } = await supabase.from('expenses').delete().eq('id', expense_id);
+  if (error) throw new Error(error.message);
+  return { success: true };
+}
+
+// ===== GROUP FINANCIALS OPERATIONS ==========================================
+
+export async function upsertGroupFinancials(params: {
+  group_id: string;
+  period_label: string;
+  bank_balance?: number;
+  investments?: number;
+  total_expenses?: number;
+  notes?: string;
+  recorded_by?: string;
+}) {
+  const { data, error } = await supabase
+    .from('group_financials')
+    .upsert({
+      group_id: params.group_id,
+      period_label: params.period_label,
+      bank_balance: params.bank_balance || 0,
+      investments: params.investments || 0,
+      total_expenses: params.total_expenses || 0,
+      notes: params.notes,
+      recorded_by: params.recorded_by,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'group_id,period_label' })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { success: true, financials: data };
+}
+
+export async function getGroupFinancials(group_id: string, period_label?: string) {
+  let query = supabase
+    .from('group_financials')
+    .select('*')
+    .eq('group_id', group_id)
+    .order('period_label', { ascending: false });
+
+  if (period_label) query = query.eq('period_label', period_label);
+
+  const { data, error } = await query.limit(1);
+  if (error) throw new Error(error.message);
+  return { success: true, financials: data?.[0] || null };
+}
+
+export async function listGroupFinancials(group_id: string) {
+  const { data, error } = await supabase
+    .from('group_financials')
+    .select('*')
+    .eq('group_id', group_id)
+    .order('period_label', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return { success: true, financials: data || [] };
+}
