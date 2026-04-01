@@ -104,16 +104,26 @@ const ReportsPage: React.FC = () => {
 
       // Members
       if (membersRes.status === 'fulfilled' && membersRes.value?.members) {
+        // Compute outstanding balance from contributions for savings groups
+        const contribsData = contribRes.status === 'fulfilled' ? (contribRes.value?.contributions || []) : [];
+        const memberOutstanding: Record<string, number> = {};
+        for (const c of contribsData) {
+          const due = Number(c.amount_due || 0);
+          const paid = Number(c.amount);
+          if (due > 0) {
+            memberOutstanding[c.member_id] = (memberOutstanding[c.member_id] || 0) + (due - paid);
+          }
+        }
+
         setMembers(membersRes.value.members.map((m: any) => ({
           id: m.id,
           full_name: m.full_name || 'Unknown',
           phone: m.phone || '',
           role: m.role || 'member',
-          // dataService returns camelCase from listMembers
           total_contributions: m.totalContributions || m.total_contributions || 0,
           savings_balance: m.savingsBalance || m.savings_balance || 0,
-          loan_balance: m.loanBalance || m.loan_balance || 0,
-          net_position: (m.savingsBalance || m.savings_balance || 0) - (m.loanBalance || m.loan_balance || 0),
+          loan_balance: memberOutstanding[m.id] || m.loanBalance || m.loan_balance || 0,
+          net_position: (m.savingsBalance || m.savings_balance || 0) - (memberOutstanding[m.id] || m.loanBalance || m.loan_balance || 0),
         })));
       }
 
@@ -706,7 +716,7 @@ const ReportsPage: React.FC = () => {
                         <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Savings</th>
                         {isRoscaType && <><th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">ROSCA Won</th>
                         <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">ROSCA Savings</th></>}
-                        <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Loans</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">{isRoscaType ? 'Loans' : 'Outstanding'}</th>
                         <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Net Position</th>
                       </tr>
                     </thead>
@@ -730,7 +740,12 @@ const ReportsPage: React.FC = () => {
                           <td className="px-4 py-3 text-sm text-purple-600 text-right">
                             {m.rosca_savings > 0 ? formatUGX(m.rosca_savings) : <span className="text-gray-300">—</span>}
                           </td></>}
-                          <td className="px-4 py-3 text-sm text-amber-600 text-right">{m.loan_balance > 0 ? formatUGX(m.loan_balance) : <span className="text-gray-300">—</span>}</td>
+                          <td className="px-4 py-3 text-sm text-right">
+                            {isRoscaType
+                              ? (m.loan_balance > 0 ? <span className="text-amber-600">{formatUGX(m.loan_balance)}</span> : <span className="text-gray-300">—</span>)
+                              : (m.loan_balance > 0 ? <span className="font-bold text-red-600">{formatUGX(m.loan_balance)}</span> : <span className="text-emerald-600">✅</span>)
+                            }
+                          </td>
                           <td className="px-4 py-3 text-sm font-bold text-right">
                             <span className={m.combined_net >= 0 ? 'text-[#00CC99]' : 'text-red-500'}>
                               {formatUGX(m.combined_net)}
@@ -746,7 +761,7 @@ const ReportsPage: React.FC = () => {
                         <td className="px-4 py-3 text-sm text-[#0066CC] text-right">{formatUGX(totalSavings)}</td>
                         {isRoscaType && <><td className="px-4 py-3 text-sm text-emerald-600 text-right">{formatUGX(roscaGroupTotals.totalPaidOut)}</td>
                         <td className="px-4 py-3 text-sm text-purple-600 text-right">{formatUGX(roscaGroupTotals.totalSavings)}</td></>}
-                        <td className="px-4 py-3 text-sm text-amber-600 text-right">{formatUGX(totalLoans)}</td>
+                        <td className={`px-4 py-3 text-sm text-right ${isRoscaType ? 'text-amber-600' : 'text-red-600 font-bold'}`}>{formatUGX(totalLoans)}</td>
                         <td className="px-4 py-3 text-sm text-right">
                           <span className={netPosition >= 0 ? 'text-[#00CC99]' : 'text-red-500'}>{formatUGX(netPosition + (isRoscaType ? roscaGroupTotals.totalSavings : 0))}</span>
                         </td>
