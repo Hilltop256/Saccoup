@@ -3,6 +3,7 @@ import { useAppContext } from '@/contexts/AppContext';
 import { useRoscaData } from '@/contexts/RoscaContext';
 import { formatUGX, getRoleColor, IMAGES, type UserRole } from '@/lib/constants';
 import * as ds from '@/lib/dataService';
+import { supabase } from '@/lib/supabase';
 
 interface MemberRow {
   id: string; full_name: string; phone: string; email?: string;
@@ -45,9 +46,13 @@ const MembersPage: React.FC = () => {
   const [newMember, setNewMember] = useState({ full_name: '', phone: '', email: '', national_id: '', role: 'member' as UserRole });
   const [inviteInfo, setInviteInfo] = useState<{ code: string; name: string; group: string; link: string } | null>(null);
   const [copiedInvite, setCopiedInvite] = useState(false);
+  const [editingMember, setEditingMember] = useState(false);
+  const [editForm, setEditForm] = useState({ phone: '', email: '', national_id: '' });
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   const role = (selectedGroup?.user_role || '').toLowerCase();
   const isAdmin = ['admin', 'super_admin', 'chairperson', 'chairman', 'secretary'].includes(role);
+  const isChairman = ['chairperson', 'chairman'].includes(role);
 
   const loadMembers = useCallback(async () => {
     if (!selectedGroup?.id) { setLoading(false); return; }
@@ -129,6 +134,34 @@ const MembersPage: React.FC = () => {
       setError(e.message || 'Failed to update role. Please try again.');
     }
     setIsChangingRole(false);
+  };
+
+  const handleSaveMemberEdit = async () => {
+    if (!selectedMember) return;
+    setIsSavingEdit(true);
+    setError(null);
+    try {
+      const { error } = await supabase
+        .from('members')
+        .update({
+          phone: editForm.phone.trim(),
+          email: editForm.email.trim() || null,
+          national_id: editForm.national_id.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', selectedMember.id);
+      if (error) throw error;
+      setMembers(prev => prev.map(m =>
+        m.id === selectedMember.id ? { ...m, phone: editForm.phone.trim(), email: editForm.email.trim(), national_id: editForm.national_id.trim() } : m
+      ));
+      setSelectedMember(prev => prev ? { ...prev, phone: editForm.phone.trim(), email: editForm.email.trim(), national_id: editForm.national_id.trim() } : null);
+      setEditingMember(false);
+      setSuccess(`${selectedMember.full_name}'s contact details updated!`);
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (e: any) {
+      setError(e.message || 'Failed to update contact details.');
+    }
+    setIsSavingEdit(false);
   };
 
   const handleRemoveMember = async (id: string) => {
@@ -400,6 +433,18 @@ const MembersPage: React.FC = () => {
               <button onClick={() => setSelectedMember(null)} className="absolute right-4 top-4 p-1.5 hover:bg-white/20 rounded-xl transition-colors">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
+              {isChairman && (
+                <button onClick={() => {
+                  setEditForm({
+                    phone: selectedMember.phone || '',
+                    email: (selectedMember as any).email || '',
+                    national_id: (selectedMember as any).national_id || '',
+                  });
+                  setEditingMember(true);
+                }} className="absolute right-12 top-4 p-1.5 hover:bg-white/20 rounded-xl transition-colors" title="Edit Contact Details">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
+                </button>
+              )}
               <div className="flex items-center gap-4">
                 <img
                   src={getAvatar(selectedMember)}
@@ -418,14 +463,43 @@ const MembersPage: React.FC = () => {
             <div className="p-6 space-y-5">
               {/* Stats grid */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-gray-50 rounded-2xl p-3">
-                  <p className="text-xs text-gray-500 font-bold uppercase tracking-wide">📞 Phone</p>
-                  <p className="text-sm font-bold text-gray-900 mt-0.5">{selectedMember.phone}</p>
-                </div>
-                <div className="bg-gray-50 rounded-2xl p-3">
-                  <p className="text-xs text-gray-500 font-bold uppercase tracking-wide">🪪 National ID</p>
-                  <p className="text-sm font-bold text-gray-900 mt-0.5">{selectedMember.national_id || 'Not provided'}</p>
-                </div>
+                {!editingMember ? (
+                  <>
+                    <div className="bg-gray-50 rounded-2xl p-3">
+                      <p className="text-xs text-gray-500 font-bold uppercase tracking-wide">📞 Phone</p>
+                      <p className="text-sm font-bold text-gray-900 mt-0.5">{selectedMember.phone}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-2xl p-3">
+                      <p className="text-xs text-gray-500 font-bold uppercase tracking-wide">🪪 National ID</p>
+                      <p className="text-sm font-bold text-gray-900 mt-0.5">{selectedMember.national_id || 'Not provided'}</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label className="text-xs text-gray-500 font-bold uppercase tracking-wide block mb-1">📞 Phone</label>
+                      <input type="tel" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-400 outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 font-bold uppercase tracking-wide block mb-1">🪪 National ID</label>
+                      <input type="text" value={editForm.national_id} onChange={e => setEditForm(f => ({ ...f, national_id: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-400 outline-none" placeholder="CM12345678" />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-xs text-gray-500 font-bold uppercase tracking-wide block mb-1">📧 Email</label>
+                      <input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-400 outline-none" placeholder="email@example.com" />
+                    </div>
+                    <div className="col-span-2 flex gap-2">
+                      <button onClick={() => setEditingMember(false)} className="flex-1 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200">Cancel</button>
+                      <button onClick={handleSaveMemberEdit} disabled={isSavingEdit}
+                        className="flex-1 py-2 text-sm font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 disabled:opacity-50">
+                        {isSavingEdit ? 'Saving...' : '✅ Save'}
+                      </button>
+                    </div>
+                  </>
+                )}
                 <div className="bg-purple-50 rounded-2xl p-3">
                   <p className="text-xs text-gray-500 font-bold uppercase tracking-wide">💰 Total Savings</p>
                   <p className="text-sm font-extrabold text-purple-700 mt-0.5">{formatUGX(selectedMember.savingsBalance)}</p>
