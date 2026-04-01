@@ -2,7 +2,7 @@ import React from 'react';
 import { useAppContext } from '@/contexts/AppContext';
 import { formatUGX, IMAGES } from '@/lib/constants';
 
-export type DashboardPage = 'overview' | 'members' | 'contributions' | 'loans' | 'reports' | 'groups' | 'chat' | 'settings' | 'announcements' | 'rosca' | 'admin' | 'migration';
+export type DashboardPage = 'overview' | 'members' | 'contributions' | 'loans' | 'reports' | 'groups' | 'chat' | 'settings' | 'announcements' | 'rosca' | 'admin' | 'migration' | 'spreadsheet';
 
 interface SidebarProps {
   currentPage: DashboardPage;
@@ -30,9 +30,10 @@ const adminNavItem = { id: 'admin' as DashboardPage, label: 'Admin', icon: 'M10.
 const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, onClose, onLogout }) => {
   const { user, groups, selectedGroup, setSelectedGroupId } = useAppContext();
 
-  // Check if user is admin/chairman/secretary
+  // Check if user is admin/chairman/secretary/treasurer
   const userRole = (selectedGroup?.user_role || '').toLowerCase();
   const isAdmin = ['admin', 'chairperson', 'chairman', 'secretary'].includes(userRole);
+  const isFinancial = ['admin', 'chairperson', 'chairman', 'treasurer', 'secretary'].includes(userRole);
 
   // Filter nav items based on group type
   const groupType = (selectedGroup?.group_type || '').toLowerCase();
@@ -122,6 +123,21 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen, onCl
                       Admin
                     </button>
                   </div>
+                  {isFinancial && (
+                    <div className="px-3 mt-1">
+                      <button
+                        onClick={() => { onNavigate('spreadsheet'); onClose(); }}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                          currentPage === 'spreadsheet'
+                            ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md shadow-emerald-900/40'
+                            : 'text-purple-200 hover:bg-purple-700/30 hover:text-white'
+                        }`}
+                      >
+                        <span className="w-5 h-5 flex-shrink-0 text-base leading-none flex items-center justify-center">📋</span>
+                        Spreadsheet
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
             </div>
