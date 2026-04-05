@@ -908,6 +908,183 @@ export async function deleteRoscaDraw(draw_id: string) {
   return { success: true };
 }
 
+// ===== ENHANCED ROSCA TRACKING ===============================================
+
+export interface RoscaMemberContribution {
+  id: string;
+  cycle_id: string;
+  member_id: string;
+  member_name: string;
+  draw_number: number;
+  expected_amount: number;
+  actual_amount: number;
+  shortfall: number;
+  payment_date: string | null;
+  payment_method: string;
+  status: 'pending' | 'partial' | 'paid' | 'shortfall' | 'waived';
+  notes: string | null;
+}
+
+export async function listRoscaMemberContributions(cycle_id: string, member_id?: string) {
+  let query = supabase
+    .from('rosca_member_contributions')
+    .select('*')
+    .eq('cycle_id', cycle_id)
+    .order('draw_number', { ascending: true });
+
+  if (member_id) query = query.eq('member_id', member_id);
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return { success: true, contributions: data || [] };
+}
+
+export async function upsertRoscaMemberContribution(params: {
+  cycle_id: string;
+  member_id: string;
+  member_name: string;
+  draw_number: number;
+  expected_amount: number;
+  actual_amount: number;
+  shortfall?: number;
+  payment_date?: string;
+  payment_method?: string;
+  status?: string;
+  notes?: string;
+}) {
+  const shortfall = params.shortfall ?? Math.max(0, params.expected_amount - params.actual_amount);
+
+  const { data, error } = await supabase
+    .from('rosca_member_contributions')
+    .upsert({
+      cycle_id: params.cycle_id,
+      member_id: params.member_id,
+      member_name: params.member_name,
+      draw_number: params.draw_number,
+      expected_amount: params.expected_amount,
+      actual_amount: params.actual_amount,
+      shortfall,
+      payment_date: params.payment_date || null,
+      payment_method: params.payment_method || 'cash',
+      status: params.status || (params.actual_amount >= params.expected_amount ? 'paid' : params.actual_amount > 0 ? 'partial' : 'pending'),
+      notes: params.notes || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'cycle_id,member_id,draw_number' })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { success: true, contribution: data };
+}
+
+export interface RoscaPaymentHistory {
+  id: string;
+  cycle_id: string;
+  member_id: string;
+  member_name: string;
+  draw_number: number;
+  payment_type: 'monthly_contribution' | 'winning_payout' | 'security_deposit' | 'security_withdrawal';
+  expected_amount: number;
+  actual_amount: number;
+  difference: number;
+  payment_date: string | null;
+  status: 'pending' | 'partial' | 'paid' | 'shortfall' | 'waived';
+  notes: string | null;
+}
+
+export async function listRoscaPaymentHistory(cycle_id: string, member_id?: string) {
+  let query = supabase
+    .from('rosca_payment_history')
+    .select('*')
+    .eq('cycle_id', cycle_id)
+    .order('created_at', { ascending: false });
+
+  if (member_id) query = query.eq('member_id', member_id);
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return { success: true, payments: data || [] };
+}
+
+export async function addRoscaPaymentHistory(params: {
+  cycle_id: string;
+  member_id: string;
+  member_name: string;
+  draw_number: number;
+  payment_type: string;
+  expected_amount: number;
+  actual_amount: number;
+  difference?: number;
+  payment_date?: string;
+  status?: string;
+  notes?: string;
+}) {
+  const difference = params.difference ?? (params.expected_amount - params.actual_amount);
+
+  const { data, error } = await supabase
+    .from('rosca_payment_history')
+    .insert({
+      cycle_id: params.cycle_id,
+      member_id: params.member_id,
+      member_name: params.member_name,
+      draw_number: params.draw_number,
+      payment_type: params.payment_type,
+      expected_amount: params.expected_amount,
+      actual_amount: params.actual_amount,
+      difference,
+      payment_date: params.payment_date || null,
+      status: params.status || (difference > 0 ? 'shortfall' : difference < 0 ? 'paid' : 'paid'),
+      notes: params.notes || null,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { success: true, payment: data };
+}
+
+export async function getMemberRoscaSummary(cycle_id: string, member_id: string) {
+  const [contributionsResult, paymentsResult] = await Promise.all([
+    listRoscaMemberContributions(cycle_id, member_id),
+    listRoscaPaymentHistory(cycle_id, member_id),
+  ]);
+
+  const contributions = contributionsResult.contributions || [];
+  const payments = paymentsResult.payments || [];
+
+  const totalExpected = contributions.reduce((s, c) => s + c.expected_amount, 0);
+  const totalActual = contributions.reduce((s, c) => s + c.actual_amount, 0);
+  const totalShortfall = contributions.reduce((s, c) => s + c.shortfall, 0);
+
+  const monthlyContribs = payments.filter(p => p.payment_type === 'monthly_contribution');
+  const payouts = payments.filter(p => p.payment_type === 'winning_payout');
+  const securityDeps = payments.filter(p => p.payment_type === 'security_deposit');
+  const securityWiths = payments.filter(p => p.payment_type === 'security_withdrawal');
+
+  const totalPayoutsReceived = payouts.reduce((s, p) => s + p.actual_amount, 0);
+  const totalSecurityDeposited = securityDeps.reduce((s, p) => s + p.actual_amount, 0);
+  const totalSecurityUsed = securityWiths.reduce((s, p) => s + p.actual_amount, 0);
+
+  const netPosition = totalActual - totalPayoutsReceived - totalShortfall + totalSecurityDeposited - totalSecurityUsed;
+
+  return {
+    success: true,
+    summary: {
+      totalExpected,
+      totalActual,
+      totalShortfall,
+      totalPayoutsReceived,
+      totalSecurityDeposited,
+      totalSecurityUsed,
+      netPosition,
+      drawsPaid: contributions.filter(c => c.status === 'paid').length,
+      drawsPending: contributions.filter(c => c.status === 'pending').length,
+      drawsPartial: contributions.filter(c => c.status === 'partial').length,
+      drawsShortfall: contributions.filter(c => c.status === 'shortfall').length,
+    },
+  };
+}
+
 // ===== MONEY REQUEST OPERATIONS =============================================
 
 export interface MoneyRequestRow {

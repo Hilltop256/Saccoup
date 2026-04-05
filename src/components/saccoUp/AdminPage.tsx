@@ -280,6 +280,13 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
 
 // ─── Members Tab ────────────────────────────────────────────────────────────────
 
+interface DrawContribution {
+  expected: number;
+  actual: number;
+  shortfall: number;
+  status: 'paid' | 'partial' | 'pending' | 'shortfall';
+}
+
 const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => {
   const { selectedGroupId, user, selectedGroup } = useAppContext();
   const { getMemberStats, cycles } = useRoscaData();
@@ -289,10 +296,13 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
   const [editForm, setEditForm] = useState<any>(null);
   const [selectedCycle, setSelectedCycle] = useState<number>(1);
   const [editingDrawId, setEditingDrawId] = useState<string | null>(null);
-  const [drawContributions, setDrawContributions] = useState<number[]>([]);
+  const [drawContributions, setDrawContributions] = useState<DrawContribution[]>([]);
 
   const groupType = (selectedGroup?.group_type || '').toLowerCase();
   const isRoscaType = groupType === 'rosca' || groupType === 'hybrid';
+  const currentCycle = cycles.find(c => c.cycle_number === selectedCycle);
+  const potAmount = currentCycle?.pot_amount_per_draw || 5000000;
+  const expectedMonthly = potAmount / 10 || 500000;
 
   const loadMembers = () => {
     if (!selectedGroupId) return;
@@ -339,9 +349,17 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
     if (!memberCycles) return;
     
     const memberDraws = memberCycles.draws.filter(d => d.winner_name === member.full_name || d.winner_id === member.id);
-    const contributions = Array(10).fill(0).map((_, i) => {
+    const contributions: DrawContribution[] = Array(10).fill(0).map((_, i) => {
       const draw = memberDraws.find(d => d.draw_number === i + 1);
-      return draw?.paid_out || 0;
+      const actual = draw?.paid_out || 0;
+      const expected = expectedMonthly;
+      const shortfall = Math.max(0, expected - actual);
+      return {
+        expected,
+        actual,
+        shortfall,
+        status: actual >= expected ? 'paid' : actual > 0 ? 'partial' : 'pending',
+      };
     });
     setEditingDrawId(member.id);
     setDrawContributions(contributions);
@@ -349,33 +367,40 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
 
   const handleSaveDraws = async (memberId: string) => {
     if (!selectedGroupId || cycles.length === 0) return;
-    const currentCycle = cycles.find(c => c.cycle_number === selectedCycle);
-    if (!currentCycle?._db_id) return;
+    const currentCycleData = cycles.find(c => c.cycle_number === selectedCycle);
+    if (!currentCycleData?._db_id) return;
 
     for (let i = 0; i < drawContributions.length; i++) {
-      const amount = drawContributions[i];
+      const contrib = drawContributions[i];
       const member = members.find(m => m.id === memberId);
       if (!member) continue;
 
-      const existingDraws = await ds.listRoscaDraws(currentCycle._db_id);
+      const existingDraws = await ds.listRoscaDraws(currentCycleData._db_id);
       const existingDraw = (existingDraws.draws || []).find((d: any) => 
         d.draw_number === i + 1 && (d.winner_name === member.full_name || d.winner_id === member.id)
       );
 
       if (existingDraw) {
         await ds.updateRoscaDraw(existingDraw.id, {
-          paid_out: amount,
-          balance: amount - (existingDraw.amount_received || 0) + (existingDraw.savings || 0),
+          paid_out: contrib.actual,
+          expected_amount: contrib.expected,
+          actual_amount: contrib.actual,
+          payment_shortfall: contrib.shortfall,
+          payment_status: contrib.status,
         });
-      } else if (amount > 0) {
+      } else if (contrib.actual > 0) {
         await ds.createRoscaDraw({
-          cycle_id: currentCycle._db_id,
+          cycle_id: currentCycleData._db_id,
           draw_number: i + 1,
           winner_slot: '1',
           winner_name: member.full_name,
           winner_id: member.id,
           amount_received: 0,
-          paid_out: amount,
+          paid_out: contrib.actual,
+          expected_amount: contrib.expected,
+          actual_amount: contrib.actual,
+          payment_shortfall: contrib.shortfall,
+          payment_status: contrib.status,
           status: 'won',
         });
       }
@@ -385,43 +410,102 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
     onToast('Draw contributions saved!');
   };
 
-  const updateDrawContribution = (index: number, value: number) => {
-    setDrawContributions(prev => prev.map((v, i) => i === index ? value : v));
+  const updateDrawContribution = (index: number, field: 'expected' | 'actual', value: number) => {
+    setDrawContributions(prev => prev.map((c, i) => {
+      if (i !== index) return c;
+      const newExpected = field === 'expected' ? value : c.expected;
+      const newActual = field === 'actual' ? value : c.actual;
+      const newShortfall = Math.max(0, newExpected - newActual);
+      return {
+        expected: newExpected,
+        actual: newActual,
+        shortfall: newShortfall,
+        status: newActual >= newExpected ? 'paid' : newActual > 0 ? 'partial' : 'pending',
+      };
+    }));
   };
 
   if (loading) return <div className="text-center py-8 text-gray-500">Loading members...</div>;
 
-  const currentCycle = cycles.find(c => c.cycle_number === selectedCycle);
+  const memberStats = members.map(member => {
+    const memberCycle = cycles.find(c => c.cycle_number === selectedCycle);
+    const memberDraws = memberCycle?.draws.filter(d => d.winner_name === member.full_name || d.winner_id === member.id) || [];
+    
+    let totalExpected = 0;
+    let totalActual = 0;
+    let totalShortfall = 0;
+    let hasWon = false;
+    let amountReceivedAtWin = 0;
 
-  // Compute totals for footer
-  const totals = members.reduce((acc, member) => {
-    const rs = getMemberStats(member.full_name);
+    memberDraws.forEach((draw, i) => {
+      const exp = draw.expected_amount || expectedMonthly;
+      const act = draw.paid_out || 0;
+      totalExpected += exp;
+      totalActual += act;
+      totalShortfall += Math.max(0, exp - act);
+      
+      if (draw.status === 'won' || draw.amount_received > 0) {
+        hasWon = true;
+        amountReceivedAtWin = draw.amount_received || 0;
+      }
+    });
+
+    const expectedPayout = hasWon ? potAmount : 0;
+    const actualPayout = hasWon ? amountReceivedAtWin : 0;
+    const payoutShortfall = hasWon ? Math.max(0, expectedPayout - actualPayout) : 0;
+    const securityUsed = totalShortfall > 0 && hasWon ? Math.min(totalShortfall, payoutShortfall) : 0;
+    const netPosition = totalActual - actualPayout - securityUsed;
+
     return {
-      sacco: acc.sacco + (member.savingsBalance || member.totalContributions || 0),
-      loans: acc.loans + (member.loanBalance || 0),
-      roscaWon: acc.roscaWon + rs.totalWon,
-      roscaSavings: acc.roscaSavings + rs.totalSavings,
-      roscaDeductions: acc.roscaDeductions + rs.totalDeductions,
+      member,
+      totalExpected,
+      totalActual,
+      totalShortfall,
+      hasWon,
+      expectedPayout,
+      actualPayout,
+      payoutShortfall,
+      securityUsed,
+      netPosition,
+      drawsPaid: memberDraws.filter(d => (d.paid_out || 0) >= (d.expected_amount || expectedMonthly)).length,
+      drawsPending: memberDraws.filter(d => !d.paid_out || d.paid_out === 0).length,
+      drawsPartial: memberDraws.filter(d => d.paid_out > 0 && (d.paid_out || 0) < (d.expected_amount || expectedMonthly)).length,
     };
-  }, { sacco: 0, loans: 0, roscaWon: 0, roscaSavings: 0, roscaDeductions: 0 });
+  });
+
+  const totals = memberStats.reduce((acc, ms) => ({
+    sacco: acc.sacco + (ms.member.savingsBalance || ms.member.totalContributions || 0),
+    loans: acc.loans + (ms.member.loanBalance || 0),
+    roscaWon: acc.roscaWon + ms.actualPayout,
+    roscaSavings: acc.roscaSavings + ms.totalActual,
+    roscaDeductions: acc.roscaDeductions + ms.securityUsed,
+    totalExpected: acc.totalExpected + ms.totalExpected,
+    totalShortfall: acc.totalShortfall + ms.totalShortfall,
+    securityUsed: acc.securityUsed + ms.securityUsed,
+  }), { sacco: 0, loans: 0, roscaWon: 0, roscaSavings: 0, roscaDeductions: 0, totalExpected: 0, totalShortfall: 0, securityUsed: 0 });
 
   return (
     <div className="space-y-4">
       {/* Cycle Selector for ROSCA groups */}
       {isRoscaType && cycles.length > 0 && (
-        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
-          <label className="text-sm font-bold text-amber-700">Cycle:</label>
-          <select
-            value={selectedCycle}
-            onChange={e => { setSelectedCycle(Number(e.target.value)); setEditingDrawId(null); }}
-            className="px-3 py-1.5 text-sm font-bold border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none"
-          >
-            {cycles.map(c => (
-              <option key={c.cycle_number} value={c.cycle_number}>
-                {c.cycle_name}
-              </option>
-            ))}
-          </select>
+        <div className="flex flex-wrap items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-bold text-amber-700">Cycle:</label>
+            <select
+              value={selectedCycle}
+              onChange={e => { setSelectedCycle(Number(e.target.value)); setEditingDrawId(null); }}
+              className="px-3 py-1.5 text-sm font-bold border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none"
+            >
+              {cycles.map(c => (
+                <option key={c.cycle_number} value={c.cycle_number}>
+                  {c.cycle_name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <span className="text-xs text-amber-600">
+            Pot: {formatUGX(potAmount)} | Monthly: {formatUGX(expectedMonthly)}
+          </span>
           <span className="text-xs text-amber-600">
             {currentCycle?.start_date} → {currentCycle?.end_date || 'ongoing'}
           </span>
@@ -429,22 +513,30 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
       )}
 
       {/* Summary row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
           <p className="text-sm font-extrabold text-blue-700">{formatUGX(totals.sacco)}</p>
-          <p className="text-xs text-gray-500 mt-0.5">Total SACCO Savings</p>
+          <p className="text-xs text-gray-500 mt-0.5">SACCO Savings</p>
         </div>
         <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
-          <p className="text-sm font-extrabold text-emerald-700">{formatUGX(totals.roscaWon)}</p>
-          <p className="text-xs text-gray-500 mt-0.5">Total ROSCA Won</p>
+          <p className="text-sm font-extrabold text-emerald-700">{formatUGX(totals.totalExpected)}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Expected Contrib.</p>
+        </div>
+        <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
+          <p className="text-sm font-extrabold text-amber-700">{formatUGX(totals.totalShortfall)}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Total Shortfall</p>
+        </div>
+        <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-center">
+          <p className="text-sm font-extrabold text-red-700">{formatUGX(totals.securityUsed)}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Security Used</p>
+        </div>
+        <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 text-center">
+          <p className="text-sm font-extrabold text-purple-700">{formatUGX(totals.roscaWon)}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Payouts Rec'd</p>
         </div>
         <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 text-center">
           <p className="text-sm font-extrabold text-orange-700">{formatUGX(totals.loans)}</p>
-          <p className="text-xs text-gray-500 mt-0.5">Total Loan Balance</p>
-        </div>
-        <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 text-center">
-          <p className="text-sm font-extrabold text-purple-700">{formatUGX(totals.sacco + totals.roscaSavings - totals.loans)}</p>
-          <p className="text-xs text-gray-500 mt-0.5">Net Combined Position</p>
+          <p className="text-xs text-gray-500 mt-0.5">Loan Balance</p>
         </div>
       </div>
 
@@ -453,54 +545,42 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Name</th>
-                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Phone</th>
-                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Role</th>
+                <th className="px-2 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Name</th>
+                <th className="px-2 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Role</th>
                 {isRoscaType && [...Array(10)].map((_, i) => (
-                  <th key={i} className="px-2 py-3 text-center text-xs font-extrabold text-amber-600 uppercase">D{i + 1}</th>
+                  <th key={i} className="px-1 py-3 text-center text-[10px] font-extrabold text-amber-600 uppercase">D{i + 1}</th>
                 ))}
                 {isRoscaType && (
                   <>
-                    <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Out. Balance</th>
-                    <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase">Total Paid</th>
+                    <th className="px-2 py-3 text-center text-xs font-extrabold text-gray-500 uppercase">Paid</th>
+                    <th className="px-2 py-3 text-center text-xs font-extrabold text-red-600 uppercase">Short</th>
+                    <th className="px-2 py-3 text-center text-xs font-extrabold text-amber-600 uppercase">Won</th>
+                    <th className="px-2 py-3 text-center text-xs font-extrabold text-red-600 uppercase">Sec.Used</th>
+                    <th className="px-2 py-3 text-center text-xs font-extrabold text-purple-600 uppercase">Net</th>
                   </>
                 )}
-                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase hidden lg:table-cell">SACCO Savings</th>
-                <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase hidden lg:table-cell">Loan Balance</th>
-                {isRoscaType && (
+                {!isRoscaType && (
                   <>
-                    <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase hidden lg:table-cell">ROSCA Won</th>
-                    <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase hidden lg:table-cell">Savings</th>
+                    <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase hidden lg:table-cell">SACCO Savings</th>
+                    <th className="px-3 py-3 text-left text-xs font-extrabold text-gray-500 uppercase hidden lg:table-cell">Loan Balance</th>
                   </>
                 )}
-                <th className="px-3 py-3 text-right text-xs font-extrabold text-gray-500 uppercase">Action</th>
+                <th className="px-2 py-3 text-right text-xs font-extrabold text-gray-500 uppercase">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {members.length === 0 ? (
                 <tr><td colSpan={isRoscaType ? 20 : 8} className="px-6 py-10 text-center text-sm text-gray-400">No members found.</td></tr>
-              ) : members.map(member => {
-                const rs = getMemberStats(member.full_name);
-                const saccoBal = member.savingsBalance || member.totalContributions || 0;
-                const loanBal = member.loanBalance || 0;
-                
-                const memberCycle = cycles.find(c => c.cycle_number === selectedCycle);
-                const memberDraws = memberCycle?.draws.filter(d => d.winner_name === member.full_name || d.winner_id === member.id) || [];
-                const totalPaid = memberDraws.reduce((s, d) => s + (d.paid_out || 0), 0);
-                const totalReceived = memberDraws.reduce((s, d) => s + (d.amount_received || 0), 0);
-                const outstanding = totalPaid - totalReceived;
-
-                return (
+              ) : memberStats.map(({ member, totalExpected, totalActual, totalShortfall, hasWon, actualPayout, securityUsed, netPosition, drawsPaid, drawsPending, drawsPartial }) => (
                 <tr key={member.id} className="hover:bg-purple-50/50">
                   {editingId === member.id && editForm ? (
                     <>
-                      <td className="px-3 py-2 text-sm font-medium text-gray-800">{member.full_name}</td>
-                      <td className="px-3 py-2 text-sm text-gray-600">{member.phone}</td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-2 text-sm font-medium text-gray-800">{member.full_name}</td>
+                      <td className="px-2 py-2">
                         <select
                           value={editForm.role}
                           onChange={e => updateField('role', e.target.value)}
-                          className="w-full px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
+                          className="w-full px-2 py-1 text-xs border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
                         >
                           <option value="member">Member</option>
                           <option value="admin">Admin</option>
@@ -509,16 +589,8 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
                           <option value="treasurer">Treasurer</option>
                         </select>
                       </td>
-                      {isRoscaType && <td colSpan={12} className="px-3 py-2 text-sm text-gray-400">Save role first to edit draws</td>}
-                      <td className="px-3 py-2 text-sm text-blue-600 hidden lg:table-cell">{formatUGX(saccoBal)}</td>
-                      <td className="px-3 py-2 text-sm text-orange-600 hidden lg:table-cell">{formatUGX(loanBal)}</td>
-                      {isRoscaType && (
-                        <>
-                          <td className="px-3 py-2 text-sm text-amber-600 hidden lg:table-cell">{rs.wins}</td>
-                          <td className="px-3 py-2 text-sm text-purple-600 hidden lg:table-cell">{formatUGX(rs.totalSavings)}</td>
-                        </>
-                      )}
-                      <td className="px-3 py-2 text-right">
+                      {isRoscaType && <td colSpan={15} className="px-2 py-2 text-xs text-gray-400">Save role first to edit draws</td>}
+                      <td className="px-2 py-2 text-right">
                         <div className="flex gap-1 justify-end">
                           <button onClick={handleSave} className="px-2 py-1 text-xs font-bold text-white bg-emerald-500 rounded hover:bg-emerald-600">Save</button>
                           <button onClick={handleCancel} className="px-2 py-1 text-xs font-bold text-gray-600 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
@@ -527,10 +599,9 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
                     </>
                   ) : editingDrawId === member.id ? (
                     <>
-                      <td className="px-3 py-2 text-sm font-medium text-gray-800">{member.full_name}</td>
-                      <td className="px-3 py-2 text-sm text-gray-600">{member.phone}</td>
-                      <td className="px-3 py-2">
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold capitalize ${
+                      <td className="px-2 py-2 text-xs font-medium text-gray-800">{member.full_name}</td>
+                      <td className="px-2 py-2">
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold capitalize ${
                           member.role === 'admin' ? 'bg-purple-100 text-purple-700' :
                           member.role === 'chairperson' ? 'bg-emerald-100 text-emerald-700' :
                           member.role === 'treasurer' ? 'bg-blue-100 text-blue-700' :
@@ -540,27 +611,48 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
                           {member.role}
                         </span>
                       </td>
-                      {drawContributions.map((val, i) => (
+                      {drawContributions.map((contrib, i) => (
                         <td key={i} className="px-1 py-2 text-center">
-                          <input
-                            type="number"
-                            value={val || ''}
-                            onChange={e => updateDrawContribution(i, parseInt(e.target.value) || 0)}
-                            className="w-14 px-1 py-1 text-xs text-center border border-amber-300 rounded focus:ring-2 focus:ring-amber-400 outline-none font-mono"
-                            placeholder="0"
-                          />
+                          <div className="space-y-1">
+                            <input
+                              type="number"
+                              value={contrib.actual || ''}
+                              onChange={e => updateDrawContribution(i, 'actual', parseInt(e.target.value) || 0)}
+                              className="w-14 px-1 py-0.5 text-[10px] text-center border border-amber-300 rounded focus:ring-2 focus:ring-amber-400 outline-none font-mono"
+                              placeholder="Paid"
+                            />
+                            <div className={`text-[8px] ${contrib.shortfall > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                              {contrib.shortfall > 0 ? `-${formatUGX(contrib.shortfall).replace('UGX ', '')}` : '✓'}
+                            </div>
+                          </div>
                         </td>
                       ))}
-                      <td className="px-2 py-2 text-sm font-bold text-red-600">{formatUGX(outstanding)}</td>
-                      <td className="px-2 py-2 text-sm font-bold text-emerald-600">{formatUGX(totalPaid)}</td>
-                      <td className="px-3 py-2 text-sm text-blue-600 hidden lg:table-cell">{formatUGX(saccoBal)}</td>
-                      <td className="px-3 py-2 text-sm text-orange-600 hidden lg:table-cell">{loanBal > 0 ? formatUGX(loanBal) : '—'}</td>
-                      {isRoscaType && (
-                        <>
-                          <td className="px-3 py-2 text-sm text-amber-600 hidden lg:table-cell">{rs.wins > 0 ? rs.wins : '—'}</td>
-                          <td className="px-3 py-2 text-sm text-purple-600 hidden lg:table-cell">{rs.totalSavings > 0 ? formatUGX(rs.totalSavings) : '—'}</td>
-                        </>
-                      )}
+                      <td className="px-2 py-2 text-center">
+                        <div className="text-xs font-bold text-emerald-600">{formatUGX(totalActual).replace('UGX ', '')}</div>
+                        <div className="text-[10px] text-gray-400">{drawsPaid}✓ {drawsPartial}½ {drawsPending}○</div>
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        <span className={`text-xs font-bold ${totalShortfall > 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                          {totalShortfall > 0 ? formatUGX(totalShortfall).replace('UGX ', '') : '—'}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        {hasWon ? (
+                          <span className="text-xs font-bold text-amber-600">{formatUGX(actualPayout).replace('UGX ', '')}</span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        <span className={`text-xs font-bold ${securityUsed > 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                          {securityUsed > 0 ? formatUGX(securityUsed).replace('UGX ', '') : '—'}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        <span className={`text-xs font-bold ${netPosition >= 0 ? 'text-purple-600' : 'text-red-600'}`}>
+                          {formatUGX(netPosition).replace('UGX ', '')}
+                        </span>
+                      </td>
                       <td className="px-2 py-2 text-right">
                         <div className="flex gap-1 justify-end">
                           <button onClick={() => handleSaveDraws(member.id)} className="px-2 py-1 text-xs font-bold text-white bg-amber-500 rounded hover:bg-amber-600">Save</button>
@@ -570,10 +662,9 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
                     </>
                   ) : (
                     <>
-                      <td className="px-3 py-3 text-sm font-medium text-gray-800">{member.full_name}</td>
-                      <td className="px-3 py-3 text-sm text-gray-600">{member.phone}</td>
-                      <td className="px-3 py-3">
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold capitalize ${
+                      <td className="px-2 py-3 text-xs font-medium text-gray-800">{member.full_name}</td>
+                      <td className="px-2 py-3">
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold capitalize ${
                           member.role === 'admin' ? 'bg-purple-100 text-purple-700' :
                           member.role === 'chairperson' ? 'bg-emerald-100 text-emerald-700' :
                           member.role === 'treasurer' ? 'bg-blue-100 text-blue-700' :
@@ -583,42 +674,72 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
                           {member.role}
                         </span>
                       </td>
-                      {isRoscaType && memberDraws.slice(0, 10).map((draw, i) => (
-                        <td key={i} className="px-1 py-3 text-center">
-                          <span className={`text-xs font-mono ${(draw.paid_out || 0) > 0 ? 'text-emerald-600 font-bold' : 'text-gray-400'}`}>
-                            {(draw.paid_out || 0) > 0 ? formatUGX(draw.paid_out).replace('UGX ', '') : '—'}
-                          </span>
-                        </td>
-                      ))}
                       {isRoscaType && (
                         <>
-                          <td className={`px-3 py-3 text-sm font-bold ${outstanding > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                            {outstanding !== 0 ? formatUGX(outstanding) : '—'}
+                          {(() => {
+                            const memberCycle = cycles.find(c => c.cycle_number === selectedCycle);
+                            const memberDraws = memberCycle?.draws.filter(d => d.winner_name === member.full_name || d.winner_id === member.id) || [];
+                            return [...Array(10)].map((_, i) => {
+                              const draw = memberDraws.find(d => d.draw_number === i + 1);
+                              const paid = draw?.paid_out || 0;
+                              const exp = draw?.expected_amount || expectedMonthly;
+                              const hasShortfall = paid < exp && paid > 0;
+                              const isPaid = paid >= exp;
+                              return (
+                                <td key={i} className="px-1 py-3 text-center">
+                                  <span className={`text-[10px] font-mono ${isPaid ? 'text-emerald-600 font-bold' : hasShortfall ? 'text-amber-600' : 'text-gray-400'}`}>
+                                    {paid > 0 ? formatUGX(paid).replace(/UGX|\s/g, '') : '—'}
+                                  </span>
+                                </td>
+                              );
+                            });
+                          })()}
+                          <td className="px-2 py-3 text-center">
+                            <span className="text-xs font-bold text-emerald-600">{formatUGX(totalActual).replace('UGX ', '')}</span>
                           </td>
-                          <td className="px-3 py-3 text-sm font-bold text-emerald-600">{formatUGX(totalPaid)}</td>
+                          <td className="px-2 py-3 text-center">
+                            <span className={`text-xs font-bold ${totalShortfall > 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                              {totalShortfall > 0 ? formatUGX(totalShortfall).replace('UGX ', '') : '—'}
+                            </span>
+                          </td>
+                          <td className="px-2 py-3 text-center">
+                            {hasWon ? (
+                              <span className="text-xs font-bold text-amber-600">✓ {formatUGX(actualPayout).replace('UGX ', '')}</span>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-3 text-center">
+                            <span className={`text-xs font-bold ${securityUsed > 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                              {securityUsed > 0 ? formatUGX(securityUsed).replace('UGX ', '') : '—'}
+                            </span>
+                          </td>
+                          <td className="px-2 py-3 text-center">
+                            <span className={`text-xs font-bold ${netPosition >= 0 ? 'text-purple-600' : 'text-red-600'}`}>
+                              {formatUGX(netPosition).replace('UGX ', '')}
+                            </span>
+                          </td>
                         </>
                       )}
-                      <td className="px-3 py-3 text-sm font-medium text-blue-600 hidden lg:table-cell">{formatUGX(saccoBal)}</td>
-                      <td className="px-3 py-3 text-sm text-orange-600 hidden lg:table-cell">{loanBal > 0 ? formatUGX(loanBal) : '—'}</td>
-                      {isRoscaType && (
+                      {!isRoscaType && (
                         <>
-                          <td className="px-3 py-3 text-sm font-bold text-amber-600 hidden lg:table-cell">{rs.wins > 0 ? rs.wins : '—'}</td>
-                          <td className="px-3 py-3 text-sm font-bold text-purple-600 hidden lg:table-cell">{rs.totalSavings > 0 ? formatUGX(rs.totalSavings) : '—'}</td>
+                          <td className="px-3 py-3 text-xs font-medium text-blue-600 hidden lg:table-cell">{formatUGX(member.savingsBalance || member.totalContributions || 0)}</td>
+                          <td className="px-3 py-3 text-xs text-orange-600 hidden lg:table-cell">{(member.loanBalance || 0) > 0 ? formatUGX(member.loanBalance) : '—'}</td>
                         </>
                       )}
-                      <td className="px-3 py-3 text-right">
+                      <td className="px-2 py-3 text-right">
                         <div className="flex gap-1 justify-end">
                           {isRoscaType && (
                             <button
                               onClick={() => handleEditDraws(member)}
-                              className="px-2 py-1 text-xs font-bold text-amber-600 bg-amber-100 rounded hover:bg-amber-200"
+                              className="px-1.5 py-1 text-[10px] font-bold text-amber-600 bg-amber-100 rounded hover:bg-amber-200"
                             >
                               Draws
                             </button>
                           )}
                           <button
                             onClick={() => handleEdit(member)}
-                            className="px-2 py-1 text-xs font-bold text-purple-600 bg-purple-100 rounded hover:bg-purple-200"
+                            className="px-1.5 py-1 text-[10px] font-bold text-purple-600 bg-purple-100 rounded hover:bg-purple-200"
                           >
                             Role
                           </button>
@@ -627,41 +748,29 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
                     </>
                   )}
                 </tr>
-              );
-              })}
+              ))}
             </tbody>
             {members.length > 0 && (
               <tfoot>
                 <tr className="bg-gray-50 font-bold border-t-2 border-gray-200">
-                  <td className="px-3 py-3 text-xs text-gray-700" colSpan={isRoscaType ? 3 : 2}>TOTALS ({members.length} members)</td>
+                  <td className="px-2 py-3 text-xs text-gray-700" colSpan={isRoscaType ? 2 : 1}>TOTALS ({members.length})</td>
                   {isRoscaType && <td colSpan={10}></td>}
                   {isRoscaType && (
                     <>
-                      <td className="px-3 py-3 text-xs text-red-700">{
-                        formatUGX(members.reduce((s, m) => {
-                          const mc = cycles.find(c => c.cycle_number === selectedCycle);
-                          const md = mc?.draws.filter(d => d.winner_name === m.full_name || d.winner_id === m.id) || [];
-                          return s + (md.reduce((a, d) => a + (d.paid_out || 0), 0) - md.reduce((a, d) => a + (d.amount_received || 0), 0));
-                        }, 0))
-                      }</td>
-                      <td className="px-3 py-3 text-xs text-emerald-700">{
-                        formatUGX(members.reduce((s, m) => {
-                          const mc = cycles.find(c => c.cycle_number === selectedCycle);
-                          const md = mc?.draws.filter(d => d.winner_name === m.full_name || d.winner_id === m.id) || [];
-                          return s + md.reduce((a, d) => a + (d.paid_out || 0), 0);
-                        }, 0))
-                      }</td>
+                      <td className="px-2 py-3 text-center text-xs text-emerald-700">{formatUGX(totals.totalExpected - totals.totalShortfall).replace('UGX ', '')}</td>
+                      <td className="px-2 py-3 text-center text-xs text-red-700">{formatUGX(totals.totalShortfall).replace('UGX ', '')}</td>
+                      <td className="px-2 py-3 text-center text-xs text-amber-700">{formatUGX(totals.roscaWon).replace('UGX ', '')}</td>
+                      <td className="px-2 py-3 text-center text-xs text-red-700">{formatUGX(totals.securityUsed).replace('UGX ', '')}</td>
+                      <td className="px-2 py-3 text-center text-xs text-purple-700">{formatUGX(totals.totalExpected - totals.totalShortfall - totals.roscaWon - totals.securityUsed).replace('UGX ', '')}</td>
                     </>
                   )}
-                  <td className="px-3 py-3 text-xs text-blue-700 hidden lg:table-cell">{formatUGX(totals.sacco)}</td>
-                  <td className="px-3 py-3 text-xs text-orange-700 hidden lg:table-cell">{formatUGX(totals.loans)}</td>
-                  {isRoscaType && (
+                  {!isRoscaType && (
                     <>
-                      <td className="px-3 py-3 text-xs text-amber-700 hidden lg:table-cell">—</td>
-                      <td className="px-3 py-3 text-xs text-purple-700 hidden lg:table-cell">{formatUGX(totals.roscaSavings)}</td>
+                      <td className="px-3 py-3 text-xs text-blue-700 hidden lg:table-cell">{formatUGX(totals.sacco)}</td>
+                      <td className="px-3 py-3 text-xs text-orange-700 hidden lg:table-cell">{formatUGX(totals.loans)}</td>
                     </>
                   )}
-                  <td className="px-3 py-3"></td>
+                  <td className="px-2 py-3"></td>
                 </tr>
               </tfoot>
             )}
