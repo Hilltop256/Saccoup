@@ -37,9 +37,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onLogin }) => {
 
   const pricingTiers = [
     { name: 'Free', price: 0, members: 20, groups: 1, features: ['Basic contributions', 'Cash recording', 'Member management', 'Group chat'] },
-    { name: 'Small Group', price: 30000, members: 50, groups: 3, features: ['Mobile Money integration', 'Loan management', 'SMS reminders', 'Basic reports', 'USSD access'] },
-    { name: 'Medium SACCO', price: 100000, members: 200, groups: 10, features: ['Advanced reporting', 'Investment tracking', 'ROSCA module', 'PDF/Excel export', 'Priority support'] },
-    { name: 'Large Cooperative', price: null, members: null, groups: null, features: ['Unlimited everything', 'Custom branding', 'API access', 'UMRA compliance', 'Dedicated support', 'Custom integrations'] },
+    { name: 'Starter', price: null, members: 50, groups: 3, features: ['Mobile Money integration', 'Loan management', 'SMS reminders', 'Basic reports', 'USSD access'] },
+    { name: 'Growth', price: null, members: 200, groups: 10, features: ['Advanced reporting', 'Investment tracking', 'ROSCA module', 'PDF/Excel export', 'Priority support'] },
+    { name: 'Enterprise', price: null, members: null, groups: null, features: ['Unlimited everything', 'Custom branding', 'API access', 'UMRA compliance', 'Dedicated support', 'Custom integrations'] },
   ];
 
   const stats = [
@@ -270,7 +270,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onLogin }) => {
                   {tier.price !== null ? (
                     <><span className="text-3xl font-bold text-gray-900">{tier.price === 0 ? 'Free' : formatUGX(tier.price)}</span>{tier.price > 0 && <span className="text-sm text-gray-500">/month</span>}</>
                   ) : (
-                    <span className="text-3xl font-bold text-gray-900">Custom</span>
+                    <><span className="text-3xl font-bold text-gray-900">TBC</span><span className="text-sm text-gray-500">/month</span></>
                   )}
                 </div>
                 <p className="text-sm text-gray-500 mb-6">
