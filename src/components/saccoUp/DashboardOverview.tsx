@@ -114,8 +114,11 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
 
   const roscaTotals = getGroupTotals();
   const roscaCycles = useRoscaData().cycles;
-  const currentCycleNum = roscaCycles?.[0]?.cycle_number || 1;
-  const currentDrawNum = roscaTotals.totalWinners + 1;
+  // Get current active/upcoming cycle, or default to cycle 4 if just completed cycle 3
+  const activeCycle = roscaCycles?.find(c => c.status === 'active' || c.status === 'upcoming');
+  const currentCycleNum = activeCycle?.cycle_number || 4;
+  // Get the draw number for current cycle (count wins in this cycle + 1 for next)
+  const currentDrawNum = activeCycle ? (activeCycle.draws?.filter(d => d.winner_name).length || 0) + 1 : 1;
 
   const loadDashboardData = useCallback(async () => {
     if (!selectedGroup?.id) {
@@ -412,17 +415,17 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
         )}
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Card 1: Contribution Tracker */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+      <div className="grid lg:grid-cols-2 gap-6">
+        {/* Card 1: Contribution Tracker - wider to fit all members */}
+        <div className="lg:col-span-1 bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900">📋 C{currentCycleNum}D{currentDrawNum} Contributions</h2>
             <button onClick={() => onNavigate('rosca')} className="text-xs text-purple-600 font-medium hover:underline">Full View</button>
           </div>
           {totalMembers > 0 ? (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
-                {members.slice(0, 12).map(m => (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 mb-3">
+                {members.map(m => (
                   <button
                     key={m.id}
                     className="px-2 py-1.5 rounded-lg border text-xs font-semibold bg-amber-50 border-amber-300 text-amber-700"
@@ -443,28 +446,6 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
           )}
         </div>
 
-        {/* Card 2: Current Draw Pot */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">💰 C{currentCycleNum}D{currentDrawNum} Pot</h2>
-            <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-600 rounded-lg">Current</span>
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-50">
-              <span className="text-sm text-gray-600">✅ Paid</span>
-              <span className="font-bold text-emerald-600">{confirmedCount}</span>
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-amber-50">
-              <span className="text-sm text-gray-600">⏳ Pending</span>
-              <span className="font-bold text-amber-600">{pendingCount}</span>
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-red-50">
-              <span className="text-sm text-gray-600">❌ Defaulted</span>
-              <span className="font-bold text-red-600">{failedCount}</span>
-            </div>
-          </div>
-        </div>
-
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900">🏆 Recent Winners</h2>
@@ -474,68 +455,15 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
             <div className="space-y-2">
               <div className="p-2 rounded-lg bg-gray-50 text-center text-sm text-gray-400">Winners from past draws</div>
             </div>
-          ) : (
+) : (
             <div className="flex flex-col items-center justify-center h-24 text-gray-400">
               <p className="text-sm font-medium">No winners yet</p>
             </div>
           )}
         </div>
-
-        {/* Contribution Collection */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">
-            {new Date().toLocaleString('default', { month: 'short' })} {new Date().getFullYear()} Collection
-          </h2>
-          {loading ? (
-            <div className="flex items-center justify-center h-48">
-              <svg className="w-8 h-8 animate-spin text-[#0066CC]" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            </div>
-          ) : totalMembers > 0 ? (
-            <>
-              <div className="relative w-32 h-32 mx-auto mb-4">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 120 120">
-                  <circle cx="60" cy="60" r="50" fill="none" stroke="#E5E7EB" strokeWidth="10" />
-                  <circle cx="60" cy="60" r="50" fill="none" stroke="#0066CC" strokeWidth="10"
-                    strokeDasharray={`${(collectionRate / 100) * 314} 314`} strokeLinecap="round" />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-2xl font-bold text-gray-900">{Math.round(collectionRate)}%</span>
-                  <span className="text-xs text-gray-500">Collected</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Confirmed</span>
-                  <span className="font-semibold text-[#00CC99]">{confirmedCount} contribution{confirmedCount !== 1 ? 's' : ''}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Pending</span>
-                  <span className="font-semibold text-amber-500">{pendingCount} contribution{pendingCount !== 1 ? 's' : ''}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Failed</span>
-                  <span className="font-semibold text-red-500">{failedCount} contribution{failedCount !== 1 ? 's' : ''}</span>
-                </div>
-              </div>
-              <button onClick={() => onNavigate('contributions')} className="w-full mt-4 py-2 text-sm text-[#0066CC] font-medium bg-[#0066CC]/10 rounded-lg hover:bg-[#0066CC]/20 transition-colors">
-                View All Contributions
-              </button>
-            </>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-              <svg className="w-10 h-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-              </svg>
-              <p className="text-sm font-medium">No collection data</p>
-              <p className="text-xs mt-1">Add members to start tracking</p>
-            </div>
-          )}
-        </div>
       </div>
 
+      {/* Contribution Collection */}
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Recent Transactions */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
