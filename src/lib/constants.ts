@@ -188,16 +188,15 @@ export const PBS_MEMBERS: RoscaMember[] = [
   { id: 'pbs-009', full_name: 'Jonathan Wakoko' },
   { id: 'pbs-010', full_name: 'Peter Bakashaba' },
   { id: 'pbs-011', full_name: 'Peter Lwanga' },
-  { id: 'pbs-012', full_name: 'Peter Masaaba' },
+  { id: 'pbs-012', full_name: 'Paul Masaaba' },
   { id: 'pbs-013', full_name: 'Peter Ogwal' },
   { id: 'pbs-014', full_name: 'Robert Kyobe' },
   { id: 'pbs-015', full_name: 'Timothy Halango' },
   { id: 'pbs-016', full_name: 'William Nakaima' },
-  { id: 'pbs-017', full_name: 'Paul Masaaba' },
-  { id: 'pbs-018', full_name: 'Gerald Nuwahereza' },
-  { id: 'pbs-019', full_name: 'Eric Mabirizi' },
-  { id: 'pbs-020', full_name: 'Eric Bamuwangulide' },
-  { id: 'pbs-021', full_name: 'Peter Lwanjo' },
+  { id: 'pbs-017', full_name: 'Gerald Nuwahereza' },
+  { id: 'pbs-018', full_name: 'Eric Mabirizi' },
+  { id: 'pbs-019', full_name: 'Eric Bamuwangulide' },
+  { id: 'pbs-020', full_name: 'Peter Lwanjo' },
 ];
 
 export interface RoscaDraw {
