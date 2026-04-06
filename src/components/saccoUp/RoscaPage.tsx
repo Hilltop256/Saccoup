@@ -434,22 +434,68 @@ const RoscaPage: React.FC = () => {
   // Contribution tracking: which members paid for which draw
   const [contributionDraw, setContributionDraw] = useState<number>(1);
   const [contributionStatuses, setContributionStatuses] = useState<Record<string, 'paid' | 'pending' | 'defaulted'>>({});
+  const [contributionAmounts, setContributionAmounts] = useState<Record<string, number>>({});
   const [savingContribs, setSavingContribs] = useState(false);
+  const [amountModalMember, setAmountModalMember] = useState<string | null>(null);
+
+  // Load contributions from DB when draw changes
+  useEffect(() => {
+    if (!selectedCycle?.id || !canEdit) return;
+    async function loadContributions() {
+      try {
+        const { contributions } = await ds.listRoscaContributions(selectedCycle.id, contributionDraw);
+        const loadedStatuses: Record<string, 'paid' | 'pending' | 'defaulted'> = {};
+        const loadedAmounts: Record<string, number> = {};
+        (contributions || []).forEach((c: ds.RoscaContributionRow) => {
+          loadedStatuses[c.member_name] = c.status;
+          loadedAmounts[c.member_name] = c.amount || 0;
+        });
+        setContributionStatuses(loadedStatuses);
+        setContributionAmounts(loadedAmounts);
+      } catch (e) {
+        console.error('Failed to load contributions:', e);
+      }
+    }
+    loadContributions();
+  }, [selectedCycle?.id, contributionDraw, canEdit]);
 
   const handleToggleContribution = (memberName: string) => {
     setContributionStatuses(prev => {
       const current = prev[memberName] || 'pending';
       const next = current === 'pending' ? 'paid' : current === 'paid' ? 'defaulted' : 'pending';
+      if (next === 'paid') {
+        setAmountModalMember(memberName);
+      }
       return { ...prev, [memberName]: next };
     });
   };
 
+  const handleConfirmAmount = () => {
+    if (!amountModalMember) return;
+    const expected = selectedCycle?.pot_amount_per_draw || 500000;
+    setContributionAmounts(prev => ({ ...prev, [amountModalMember]: expected }));
+    setAmountModalMember(null);
+  };
+
   const handleSaveContributions = async () => {
+    if (!selectedCycle?.id) return;
     setSavingContribs(true);
     try {
+      const contributions = groupMembers.map(m => ({
+        member_id: m.id,
+        member_name: m.full_name,
+        amount: contributionAmounts[m.full_name] || 0,
+        status: contributionStatuses[m.full_name] || 'pending',
+        confirmed_by: user?.full_name,
+      }));
+      await ds.saveRoscaContributions({
+        cycle_id: selectedCycle.id,
+        draw_number: contributionDraw,
+        contributions,
+      });
       const paid = Object.entries(contributionStatuses).filter(([, s]) => s === 'paid').length;
       const defaulted = Object.entries(contributionStatuses).filter(([, s]) => s === 'defaulted').length;
-      showToast(`Draw ${contributionDraw}: ${paid} paid, ${defaulted} defaulted`);
+      showToast(`Draw ${contributionDraw}: ${paid} paid, ${defaulted} defaulted ✓`);
     } catch {
       showToast('Failed to save contributions.', 'error');
     } finally {
@@ -705,7 +751,7 @@ const RoscaPage: React.FC = () => {
               <p className="text-xs text-gray-500 font-semibold">Track who contributed for each draw. Click a member to cycle: Pending → Paid → Defaulted</p>
             </div>
             <div className="flex items-center gap-2">
-              <select value={contributionDraw} onChange={e => { setContributionDraw(Number(e.target.value)); setContributionStatuses({}); }} className="px-3 py-1.5 text-sm border border-cyan-200 rounded-lg bg-white focus:ring-2 focus:ring-cyan-400 outline-none font-semibold">
+              <select value={contributionDraw} onChange={e => setContributionDraw(Number(e.target.value))} className="px-3 py-1.5 text-sm border border-cyan-200 rounded-lg bg-white focus:ring-2 focus:ring-cyan-400 outline-none font-semibold">
                 {Array.from({ length: selectedCycle.total_draws }, (_, i) => i + 1).map(d => (
                   <option key={d} value={d}>Draw {d}</option>
                 ))}
@@ -722,6 +768,7 @@ const RoscaPage: React.FC = () => {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                 {groupMembers.map(m => {
                   const status = contributionStatuses[m.full_name] || 'pending';
+                  const amount = contributionAmounts[m.full_name] || 0;
                   const styles = status === 'paid' ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : status === 'defaulted' ? 'bg-red-50 border-red-300 text-red-700' : 'bg-gray-50 border-gray-200 text-gray-600';
                   const icon = status === 'paid' ? '✅' : status === 'defaulted' ? '❌' : '⏳';
                   return (
@@ -731,6 +778,9 @@ const RoscaPage: React.FC = () => {
                       className={`text-left px-3 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${styles}`}
                     >
                       <span className="mr-1.5">{icon}</span>{m.full_name}
+                      {status === 'paid' && amount > 0 && (
+                        <span className="block text-xs opacity-75">{formatUGX(amount)}</span>
+                      )}
                     </button>
                   );
                 })}
@@ -743,6 +793,40 @@ const RoscaPage: React.FC = () => {
                 <span>❌ Defaulted: {Object.values(contributionStatuses).filter(s => s === 'defaulted').length}</span>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Amount Modal for Paid Members */}
+      {amountModalMember && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
+            <h3 className="text-lg font-extrabold text-gray-900 mb-4">💰 Enter Amount Received</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              How much did <span className="font-bold">{amountModalMember}</span> pay for Draw {contributionDraw}?
+            </p>
+            <input
+              type="number"
+              value={contributionAmounts[amountModalMember] || selectedCycle?.pot_amount_per_draw || 500000}
+              onChange={e => setContributionAmounts(prev => ({ ...prev, [amountModalMember]: parseInt(e.target.value) || 0 }))}
+              className="w-full px-4 py-3 text-lg font-bold border-2 border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none mb-4"
+              placeholder="Enter amount"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setAmountModalMember(null)}
+                className="flex-1 px-4 py-3 text-sm font-bold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmAmount}
+                className="flex-1 px-4 py-3 text-sm font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700"
+              >
+                Confirm
+              </button>
+            </div>
           </div>
         </div>
       )}

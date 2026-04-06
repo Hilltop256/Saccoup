@@ -404,3 +404,28 @@ CREATE POLICY "anon_update_rosca_cycles" ON rosca_cycles FOR UPDATE TO anon USIN
 CREATE POLICY "anon_read_rosca_draws"    ON rosca_draws FOR SELECT TO anon USING (true);
 CREATE POLICY "anon_insert_rosca_draws"  ON rosca_draws FOR INSERT TO anon WITH CHECK (true);
 CREATE POLICY "anon_update_rosca_draws"  ON rosca_draws FOR UPDATE TO anon USING (true) WITH CHECK (true);
+
+-- ROSCA Contributions table - tracks member payments per draw
+CREATE TABLE IF NOT EXISTS rosca_contributions (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  cycle_id         UUID NOT NULL REFERENCES rosca_cycles(id) ON DELETE CASCADE,
+  draw_number     INTEGER NOT NULL,
+  member_id       UUID NOT NULL REFERENCES members(id),
+  member_name     TEXT NOT NULL,
+  amount         NUMERIC(15,2) NOT NULL DEFAULT 0,
+  status         TEXT NOT NULL DEFAULT 'pending',
+  payment_date   TIMESTAMPTZ,
+  confirmed_by   TEXT,
+  confirmed_at  TIMESTAMPTZ,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(cycle_id, draw_number, member_id)
+);
+CREATE INDEX IF NOT EXISTS idx_rosca_contributions_cycle ON rosca_contributions(cycle_id);
+CREATE INDEX IF NOT EXISTS idx_rosca_contributions_draw ON rosca_contributions(cycle_id, draw_number);
+
+-- Enable RLS for rosca_contributions
+ALTER TABLE rosca_contributions ENABLE ROW LEVEL SECURITY;
+
+-- RLS policies
+DROP POLICY IF EXISTS "anon_all_rosca_contributions" ON rosca_contributions;
+CREATE POLICY "anon_all_rosca_contributions" ON rosca_contributions FOR ALL TO anon USING (true) WITH CHECK (true);

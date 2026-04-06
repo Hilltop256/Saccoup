@@ -908,6 +908,78 @@ export async function deleteRoscaDraw(draw_id: string) {
   return { success: true };
 }
 
+// ===== ROSCA CONTRIBUTIONS OPERATIONS =============================================
+
+export interface RoscaContributionRow {
+  id?: string;
+  cycle_id: string;
+  draw_number: number;
+  member_id: string;
+  member_name: string;
+  amount: number;
+  status: 'pending' | 'paid' | 'defaulted';
+  payment_date?: string;
+  confirmed_by?: string;
+  confirmed_at?: string;
+}
+
+export async function listRoscaContributions(cycle_id: string, draw_number: number) {
+  const { data, error } = await supabase
+    .from('rosca_contributions')
+    .select('*')
+    .eq('cycle_id', cycle_id)
+    .eq('draw_number', draw_number);
+
+  if (error) throw new Error(error.message);
+  return { success: true, contributions: data || [] };
+}
+
+export async function saveRoscaContributions(params: {
+  cycle_id: string;
+  draw_number: number;
+  contributions: Array<{
+    member_id: string;
+    member_name: string;
+    amount: number;
+    status: 'pending' | 'paid' | 'defaulted';
+    confirmed_by?: string;
+  }>;
+}) {
+  const { cycle_id, draw_number, contributions } = params;
+
+  // Get existing contributions for this cycle/draw
+  const { data: existing } = await supabase
+    .from('rosca_contributions')
+    .select('id, member_id')
+    .eq('cycle_id', cycle_id)
+    .eq('draw_number', draw_number);
+
+  const existingMap = new Map((existing || []).map(e => [e.member_id, e.id]));
+
+  const toUpsert = contributions.map(c => {
+    const existingId = existingMap.get(c.member_id);
+    return {
+      ...(existingId ? { id: existingId } : {}),
+      cycle_id,
+      draw_number,
+      member_id: c.member_id,
+      member_name: c.member_name,
+      amount: c.amount,
+      status: c.status,
+      payment_date: c.status === 'paid' ? new Date().toISOString() : null,
+      confirmed_by: c.confirmed_by || null,
+      confirmed_at: c.status === 'paid' ? new Date().toISOString() : null,
+    };
+  });
+
+  const { error } = await supabase
+    .from('rosca_contributions')
+    .upsert(toUpsert, { onConflict: 'cycle_id,draw_number,member_id' });
+
+  if (error) throw new Error(error.message);
+  return { success: true };
+}
+
 // ===== MONEY REQUEST OPERATIONS =============================================
 
 export interface MoneyRequestRow {

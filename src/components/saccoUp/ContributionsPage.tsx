@@ -167,6 +167,7 @@ const ContributionsPage: React.FC = () => {
           group_id: selectedGroup.id,
           member_id: memberId,
           amount: parseInt(newContribution.amount),
+          amount_due: selectedGroup.contribution_amount || parseInt(newContribution.amount),
           payment_method: newContribution.payment_method,
           transaction_ref: newContribution.transaction_ref || undefined,
           period_label: newContribution.period_label,
