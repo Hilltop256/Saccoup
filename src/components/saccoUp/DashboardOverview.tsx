@@ -9,14 +9,6 @@ interface DashboardOverviewProps {
   onNavigate: (page: DashboardPage) => void;
 }
 
-interface RoscaContribution {
-  id: string;
-  member_name: string;
-  member_id: string;
-  amount: number;
-  status: 'pending' | 'paid' | 'defaulted';
-}
-
 interface GroupStats {
   total_savings: number;
   total_loans_outstanding: number;
@@ -110,7 +102,7 @@ const getPaymentLabel = (method: string): string => {
 
 const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => {
   const { user, selectedGroup } = useAppContext();
-  const { getGroupTotals, cycles: roscaCycles } = useRoscaData();
+  const { getGroupTotals } = useRoscaData();
 
   const [stats, setStats] = useState<GroupStats | null>(null);
   const [contributions, setContributions] = useState<ContributionRow[]>([]);
@@ -119,70 +111,8 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [roscaContributions, setRoscaContributions] = useState<RoscaContribution[]>([]);
-  const [savingContribution, setSavingContribution] = useState(false);
 
   const roscaTotals = getGroupTotals();
-  const canEdit = user?.role && ['admin', 'chairperson', 'chairman', 'treasurer', 'secretary'].includes(user.role);
-
-  // Load rosca contributions for current draw
-  const loadRoscaContributions = useCallback(async () => {
-    if (!selectedGroup?.id) return;
-    try {
-      const activeCycle = roscaCycles?.find(c => c.status === 'active' || c.status === 'upcoming');
-      if (activeCycle?._db_id) {
-        const currentDraw = roscaTotals.totalWinners + 1;
-        const result = await ds.listRoscaContributions(activeCycle._db_id, currentDraw);
-        if (result.success) {
-          setRoscaContributions(result.contributions || []);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load rosca contributions:', e);
-    }
-  }, [selectedGroup?.id, roscaTotals.totalWinners, roscaCycles]);
-
-  // Toggle member contribution status (chairman only)
-  const handleToggleContribution = async (memberId: string, memberName: string, currentStatus: string) => {
-    if (!canEdit || !selectedGroup?.id) return;
-    setSavingContribution(true);
-    try {
-      const activeCycle = roscaCycles?.find(c => c.status === 'active' || c.status === 'upcoming');
-if (!activeCycle?._db_id) return;
-      
-      const currentDraw = roscaTotals.totalWinners + 1;
-      const newStatus = currentStatus === 'paid' ? 'defaulted' : currentStatus === 'defaulted' ? 'pending' : 'paid';
-      const amount = selectedGroup.contribution_amount || 0;
-      
-      await ds.saveRoscaContributions({
-        cycle_id: activeCycle._db_id,
-        draw_number: currentDraw,
-        contributions: [{
-          member_id: memberId,
-          member_name: memberName,
-          amount: newStatus === 'paid' ? amount : 0,
-          status: newStatus as 'pending' | 'paid' | 'defaulted',
-          confirmed_by: user?.full_name,
-        }],
-      });
-      await loadRoscaContributions();
-    } catch (e) {
-      console.error('Failed to update contribution:', e);
-    } finally {
-      setSavingContribution(false);
-    }
-  };
-
-  // Confirm winner payout
-  const handleConfirmPayout = async (drawId: string) => {
-    if (!canEdit) return;
-    try {
-      await ds.confirmWinnerPayout(drawId);
-      await loadDashboardData();
-    } catch (e) {
-      console.error('Failed to confirm payout:', e);
-    }
-  };
 
   const loadDashboardData = useCallback(async () => {
     if (!selectedGroup?.id) {
@@ -288,12 +218,6 @@ if (!activeCycle?._db_id) return;
   useEffect(() => {
     loadDashboardData();
   }, [loadDashboardData]);
-
-  useEffect(() => {
-    if (isRoscaType && selectedGroup?.id) {
-      loadRoscaContributions();
-    }
-  }, [isRoscaType, selectedGroup?.id, roscaTotals.totalWinners]);
 
   const userName = user?.full_name?.split(' ')[0] || 'User';
   const groupName = selectedGroup?.name || 'your group';
@@ -486,51 +410,31 @@ if (!activeCycle?._db_id) return;
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Card 1: Contribution Tracker for Current Draw */}
+        {/* ROSCA-focused cards */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">💰 Draw #{roscaTotals.totalWinners + 1} Contributions</h2>
-            <button onClick={() => onNavigate('rosca')} className="text-xs text-purple-600 font-medium hover:underline">Full View</button>
+            <h2 className="text-lg font-bold text-gray-900">🎡 Next Draw</h2>
+            <button onClick={() => onNavigate('rosca')} className="text-xs text-purple-600 font-medium hover:underline">View Cycle</button>
           </div>
-          {totalMembers > 0 ? (
-            <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
-                {members.slice(0, 9).map(m => {
-                  const contrib = roscaContributions.find(c => c.member_name === m.full_name);
-                  const status = contrib?.status || 'pending';
-                  const isPaid = status === 'paid';
-                  return (
-                    <button
-                      key={m.id}
-                      disabled={!canEdit || savingContribution}
-                      onClick={() => handleToggleContribution(m.id, m.full_name, status)}
-                      className={`px-3 py-2 rounded-lg border-2 text-xs font-semibold transition-all ${
-                        isPaid 
-                          ? 'bg-emerald-50 border-emerald-300 text-emerald-700' 
-                          : 'bg-amber-50 border-amber-300 text-amber-700'
-                      } ${canEdit && !savingContribution ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
-                    >
-                      <span className="mr-1">{isPaid ? '✅' : '⏳'}</span>
-                      {m.full_name.split(' ')[0]}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="flex gap-3 text-xs font-bold">
-                <span className="text-emerald-600">✅ {roscaContributions.filter(c => c.status === 'paid').length} paid</span>
-                <span className="text-amber-600">⏳ {roscaContributions.filter(c => c.status === 'pending').length} pending</span>
-                <span className="text-red-600">❌ {roscaContributions.filter(c => c.status === 'defaulted').length} defaulted</span>
-              </div>
-            </>
-          ) : (
-            <p className="text-sm text-gray-400">No members yet</p>
-          )}
+          <div className="text-center p-4 rounded-xl bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100">
+            <p className="text-3xl font-extrabold text-purple-600">{roscaTotals.totalWinners + 1}</p>
+            <p className="text-sm text-gray-500">Draw #</p>
+          </div>
+          <div className="mt-4 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Pot per winner</span>
+              <span className="font-bold text-purple-600">{formatUGX(selectedGroup?.contribution_amount || 0)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Total pot</span>
+              <span className="font-bold text-emerald-600">{formatUGX((selectedGroup?.contribution_amount || 0) * totalMembers)}</span>
+            </div>
+          </div>
         </div>
 
-        {/* Card 2: Current Draw Pot Money Table */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">🎡 Draw #{roscaTotals.totalWinners + 1} Pot</h2>
+            <h2 className="text-lg font-bold text-gray-900">💰 Draw #{roscaTotals.totalWinners + 1} Pot</h2>
             <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-600 rounded-lg">Current</span>
           </div>
           <div className="space-y-2">
@@ -562,47 +466,25 @@ if (!activeCycle?._db_id) return;
           </div>
         </div>
 
-        {/* Card 3: Winners with Payout Confirmation */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900">🏆 Winners</h2>
             <button onClick={() => onNavigate('rosca')} className="text-xs text-[#0066CC] font-medium hover:underline">Full History</button>
           </div>
-          {(loans as any[]).filter(l => l.status === 'won').length > 0 ? (
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {(loans as any[]).filter(l => l.status === 'won').slice(0, 5).map((l: any, idx: number) => (
+          {loans.filter(l => (l as any).status === 'won').length > 0 ? (
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {loans.filter(l => (l as any).status === 'won').slice(0, 5).map((l: any, idx: number) => (
                 <div key={idx} className="flex items-center justify-between p-2 rounded-lg border border-gray-100">
-                  <div className="flex items-center gap-2">
+                  <div>
                     <span className="text-sm font-medium">{l.member_name}</span>
-                    <span className="text-xs text-gray-400">Draw {l.draw_number || idx + 1}</span>
+                    <span className="text-xs text-gray-400 ml-2">Draw {idx + 1}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold">{formatUGX(l.amount)}</span>
-                    {(l as any).payout_received ? (
-                      <span className="px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-600 rounded">✅ Received</span>
-                    ) : canEdit ? (
-                      <button 
-                        onClick={() => (l as any)._db_id && handleConfirmPayout((l as any)._db_id)}
-                        className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-600 rounded hover:bg-red-200"
-                      >
-                        ❌ Not Received
-                      </button>
-                    ) : user?.id === l.member_id ? (
-                      <button 
-                        onClick={() => (l as any)._db_id && handleConfirmPayout((l as any)._db_id)}
-                        className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-600 rounded hover:bg-green-200"
-                      >
-                        Confirm Receipt
-                      </button>
-                    ) : (
-                      <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-600 rounded">❌ Not Received</span>
-                    )}
-                  </div>
+                  <div className="text-xs font-bold text-emerald-600">{formatUGX(l.amount)}</div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-24 text-gray-400">
+            <div className="flex flex-col items-center justify-center h-20 text-gray-400">
               <p className="text-sm font-medium">No winners yet</p>
             </div>
           )}
