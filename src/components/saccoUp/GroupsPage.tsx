@@ -290,7 +290,14 @@ const GroupsPage: React.FC = () => {
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Group Type</label>
                 <select
                   value={newGroup.group_type}
-                  onChange={(e) => setNewGroup({ ...newGroup, group_type: e.target.value as GroupType })}
+                  onChange={(e) => {
+                    const newType = e.target.value as GroupType;
+                    setNewGroup({ 
+                      ...newGroup, 
+                      group_type: newType,
+                      contribution_amount: newType === 'insurance' ? '50000' : newGroup.contribution_amount
+                    });
+                  }}
                   className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0066CC] focus:border-transparent outline-none bg-white"
                 >
                   <option value="savings_club">Savings Club</option>
@@ -298,6 +305,7 @@ const GroupsPage: React.FC = () => {
                   <option value="sacco">SACCO</option>
                   <option value="rosca">ROSCA (Merry-Go-Round)</option>
                   <option value="hybrid">Hybrid Cooperative</option>
+                  <option value="insurance">Insurance (Medical/Death/Holiday)</option>
                 </select>
               </div>
 

@@ -278,6 +278,7 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   // Compute derived values
   const groupType = (selectedGroup?.group_type || '').toLowerCase();
   const isRoscaType = groupType === 'rosca' || groupType === 'hybrid';
+  const isInsuranceType = groupType === 'insurance';
 
   const totalMembers = Math.max(stats?.member_count || 0, members.length);
   const confirmedCount = stats?.confirmed_contributions || 0;

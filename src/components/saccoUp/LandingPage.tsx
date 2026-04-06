@@ -30,6 +30,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onLogin }) => {
     { name: 'ROSCAs', desc: 'Merry-Go-Round rotating savings with automatic payouts each cycle.', icon: (
       <svg className="w-10 h-10 text-[#00CC99]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
     )},
+    { name: 'Insurance', desc: 'Medical, death cover & targeted group savings for holidays, school fees, etc.', icon: (
+      <svg className="w-10 h-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.068 1.593c-1.268.63-2.39.63-3.068 0a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-3.593-1.593c-.63-1.268-.63-2.39 0-3.068a3.745 3.745 0 011.043-3.296 3.745 3.745 0 013.068-1.593c1.268-.63 2.39-.63 3.068 0a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.593 3.593z" /></svg>
+    )},
   ];
 
   const pricingTiers = [

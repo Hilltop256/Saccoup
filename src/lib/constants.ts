@@ -32,7 +32,7 @@ export const COLORS = {
   success: '#10B981',
 };
 
-export type GroupType = 'savings_club' | 'investment_club' | 'sacco' | 'rosca' | 'hybrid';
+export type GroupType = 'savings_club' | 'investment_club' | 'sacco' | 'rosca' | 'hybrid' | 'insurance';
 export type UserRole = 'member' | 'treasurer' | 'chairperson' | 'secretary' | 'admin' | 'super_admin';
 export type PaymentMethod = 'mtn_momo' | 'airtel_money' | 'cash' | 'bank_transfer';
 export type ContributionStatus = 'pending' | 'confirmed' | 'failed' | 'reconciled';
@@ -367,6 +367,7 @@ export const getGroupTypeLabel = (type: GroupType): string => {
     case 'sacco': return 'SACCO';
     case 'rosca': return 'ROSCA';
     case 'hybrid': return 'Hybrid';
+    case 'insurance': return 'Insurance';
   }
 };
 
@@ -377,6 +378,7 @@ export const getGroupTypeColor = (type: GroupType): string => {
     case 'sacco': return 'bg-purple-100 text-purple-700';
     case 'rosca': return 'bg-amber-100 text-amber-700';
     case 'hybrid': return 'bg-cyan-100 text-cyan-700';
+    case 'insurance': return 'bg-red-100 text-red-700';
   }
 };
 
