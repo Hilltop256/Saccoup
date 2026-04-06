@@ -102,8 +102,20 @@ const getPaymentLabel = (method: string): string => {
 
 const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => {
   const { user, selectedGroup } = useAppContext();
-  const { getGroupTotals, cycles: roscaCycles } = useRoscaData();
+  const { getGroupTotals } = useRoscaData();
+
+  const [stats, setStats] = useState<GroupStats | null>(null);
+  const [contributions, setContributions] = useState<ContributionRow[]>([]);
+  const [loans, setLoans] = useState<LoanRow[]>([]);
+  const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
+  const [members, setMembers] = useState<MemberRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const roscaTotals = getGroupTotals();
+  const roscaCycles = useRoscaData().cycles;
+  const currentCycleNum = roscaCycles?.[0]?.cycle_number || 1;
+  const currentDrawNum = roscaTotals.totalWinners + 1;
 
   const loadDashboardData = useCallback(async () => {
     if (!selectedGroup?.id) {
@@ -404,29 +416,21 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
         {/* Card 1: Contribution Tracker */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">📋 C{roscaCycles?.[0]?.cycle_number || 1}D{roscaTotals.totalWinners + 1} Contributions</h2>
+            <h2 className="text-lg font-bold text-gray-900">📋 C{currentCycleNum}D{currentDrawNum} Contributions</h2>
             <button onClick={() => onNavigate('rosca')} className="text-xs text-purple-600 font-medium hover:underline">Full View</button>
           </div>
           {totalMembers > 0 ? (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
-                {members.slice(0, 12).map(m => {
-                  const status = 'pending';
-                  const isPaid = status === 'paid';
-                  return (
-                    <button
-                      key={m.id}
-                      className={`px-2 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
-                        isPaid 
-                          ? 'bg-emerald-50 border-emerald-300 text-emerald-700' 
-                          : 'bg-amber-50 border-amber-300 text-amber-700'
-                      }`}
-                    >
-                      <span className="mr-1">{isPaid ? '✅' : '⏳'}</span>
-                      {m.full_name.split(' ')[0]}
-                    </button>
-                  );
-                })}
+                {members.slice(0, 12).map(m => (
+                  <button
+                    key={m.id}
+                    className="px-2 py-1.5 rounded-lg border text-xs font-semibold bg-amber-50 border-amber-300 text-amber-700"
+                  >
+                    <span className="mr-1">⏳</span>
+                    {m.full_name.split(' ')[0]}
+                  </button>
+                ))}
               </div>
               <div className="flex gap-2 text-xs font-bold">
                 <span className="text-emerald-600">✅ {confirmedCount} paid</span>
@@ -439,59 +443,39 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
           )}
         </div>
 
+        {/* Card 2: Current Draw Pot */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">💰 C{roscaCycles?.[0]?.cycle_number || 1}D{roscaTotals.totalWinners + 1} Pot</h2>
+            <h2 className="text-lg font-bold text-gray-900">💰 C{currentCycleNum}D{currentDrawNum} Pot</h2>
             <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-600 rounded-lg">Current</span>
           </div>
           <div className="space-y-2">
-            <div className="flex justify-between items-center p-3 rounded-lg bg-emerald-50">
-              <div>
-                <span className="text-sm font-medium text-gray-700">✅ Paid</span>
-                <span className="text-xs text-gray-500 ml-2">({confirmedCount} members)</span>
-              </div>
-              <span className="font-bold text-emerald-600">{formatUGX(confirmedCount * (selectedGroup?.contribution_amount || 0))}</span>
+            <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-50">
+              <span className="text-sm text-gray-600">✅ Paid</span>
+              <span className="font-bold text-emerald-600">{confirmedCount}</span>
             </div>
-            <div className="flex justify-between items-center p-3 rounded-lg bg-amber-50">
-              <div>
-                <span className="text-sm font-medium text-gray-700">⏳ Pending</span>
-                <span className="text-xs text-gray-500 ml-2">({pendingCount} members)</span>
-              </div>
-              <span className="font-bold text-amber-600">{formatUGX(pendingCount * (selectedGroup?.contribution_amount || 0))}</span>
+            <div className="flex items-center justify-between p-3 rounded-lg bg-amber-50">
+              <span className="text-sm text-gray-600">⏳ Pending</span>
+              <span className="font-bold text-amber-600">{pendingCount}</span>
             </div>
-            <div className="flex justify-between items-center p-3 rounded-lg bg-red-50">
-              <div>
-                <span className="text-sm font-medium text-gray-700">❌ Defaulted</span>
-                <span className="text-xs text-gray-500 ml-2">({failedCount} members)</span>
-              </div>
-              <span className="font-bold text-red-600">{formatUGX(failedCount * (selectedGroup?.contribution_amount || 0))}</span>
+            <div className="flex items-center justify-between p-3 rounded-lg bg-red-50">
+              <span className="text-sm text-gray-600">❌ Defaulted</span>
+              <span className="font-bold text-red-600">{failedCount}</span>
             </div>
-          </div>
-          <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between">
-            <span className="text-sm font-bold text-gray-700">Total Pot</span>
-            <span className="text-lg font-extrabold text-purple-600">{formatUGX(totalMembers * (selectedGroup?.contribution_amount || 0))}</span>
           </div>
         </div>
 
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">🏆 Winners</h2>
+            <h2 className="text-lg font-bold text-gray-900">🏆 Recent Winners</h2>
             <button onClick={() => onNavigate('rosca')} className="text-xs text-[#0066CC] font-medium hover:underline">Full History</button>
           </div>
-          {loans.filter(l => (l as any).status === 'won').length > 0 ? (
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {loans.filter(l => (l as any).status === 'won').slice(0, 5).map((l: any, idx: number) => (
-                <div key={idx} className="flex items-center justify-between p-2 rounded-lg border border-gray-100">
-                  <div>
-                    <span className="text-sm font-medium">{l.member_name}</span>
-                    <span className="text-xs text-gray-400 ml-2">Draw {idx + 1}</span>
-                  </div>
-                  <div className="text-xs font-bold text-emerald-600">{formatUGX(l.amount)}</div>
-                </div>
-              ))}
+          {roscaTotals.totalWinners > 0 ? (
+            <div className="space-y-2">
+              <div className="p-2 rounded-lg bg-gray-50 text-center text-sm text-gray-400">Winners from past draws</div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-20 text-gray-400">
+            <div className="flex flex-col items-center justify-center h-24 text-gray-400">
               <p className="text-sm font-medium">No winners yet</p>
             </div>
           )}
