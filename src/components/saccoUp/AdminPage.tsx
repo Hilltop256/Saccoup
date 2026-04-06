@@ -297,15 +297,12 @@ const MembersTab: React.FC<MembersTabProps> = ({ onToast, isRoscaType }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>(null);
 
+  // Always load members from Supabase to get financial data
+  // For ROSCA groups, we'll add ROSCA stats on top
   const displayMembers = isRoscaType ? PBS_MEMBERS : members;
-  const isLoadingGroupMembers = !isRoscaType && loading;
 
   const loadMembers = () => {
     if (!selectedGroupId) return;
-    if (isRoscaType) {
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     ds.listMembers(selectedGroupId)
       .then(res => {
@@ -343,10 +340,12 @@ const MembersTab: React.FC<MembersTabProps> = ({ onToast, isRoscaType }) => {
     setEditForm((prev: any) => prev ? { ...prev, [field]: value } : null);
   };
 
-  if (loading || isLoadingGroupMembers) return <div className="text-center py-8 text-gray-500">Loading members...</div>;
+  if (loading) return <div className="text-center py-8 text-gray-500">Loading members...</div>;
 
-  // Compute totals for footer
-  const totals = displayMembers.reduce((acc, member) => {
+  // For ROSCA groups: financial data from Supabase members + ROSCA stats from PBS_MEMBERS
+  // For non-ROSCA groups: all data from Supabase
+  const financialMembers = isRoscaType ? members : displayMembers;
+  const totals = financialMembers.reduce((acc, member) => {
     const rs = getMemberStats(member.full_name);
     return {
       sacco: acc.sacco + (member.savingsBalance || member.totalContributions || 0),

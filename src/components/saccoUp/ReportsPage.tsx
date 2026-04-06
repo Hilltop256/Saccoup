@@ -82,22 +82,7 @@ const ReportsPage: React.FC = () => {
     if (!selectedGroup?.id) { setLoading(false); return; }
     setLoading(true);
 
-    // For ROSCA type groups, use PBS_MEMBERS instead of Supabase members
-    if (isRoscaType) {
-      setMembers(PBS_MEMBERS.map(m => ({
-        id: m.id,
-        full_name: m.full_name,
-        phone: '',
-        role: 'member',
-        total_contributions: 0,
-        savings_balance: 0,
-        loan_balance: 0,
-        net_position: 0,
-      })));
-      setLoading(false);
-      return;
-    }
-
+    // Always load financial data from Supabase (works for all group types)
     try {
       const [statsRes, membersRes, contribRes, loansRes] = await Promise.allSettled([
         ds.getGroupStats(selectedGroup.id),
@@ -121,7 +106,7 @@ const ReportsPage: React.FC = () => {
         });
       }
 
-      // Members
+      // Members - load from Supabase for both ROSCA and non-ROSCA groups
       if (membersRes.status === 'fulfilled' && membersRes.value?.members) {
         // Compute outstanding balance from contributions for savings groups
         const contribsData = contribRes.status === 'fulfilled' ? (contribRes.value?.contributions || []) : [];
@@ -177,7 +162,7 @@ const ReportsPage: React.FC = () => {
     }
 
     setLoading(false);
-  }, [selectedGroup?.id, isRoscaType]);
+  }, [selectedGroup?.id]);
 
   useEffect(() => { loadReportData(); }, [loadReportData]);
 

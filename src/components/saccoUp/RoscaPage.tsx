@@ -341,7 +341,12 @@ const RoscaPage: React.FC = () => {
   const canEdit = ['admin', 'chairperson', 'chairman', 'treasurer', 'secretary'].includes(membershipRole);
   const groupType = (selectedGroup?.group_type || '').toLowerCase();
   const isRoscaType = groupType === 'rosca' || groupType === 'hybrid';
+  
+  // roscaMembers: used for winner dropdown in draw edit - use PBS_MEMBERS for ROSCA groups
   const roscaMembers = isRoscaType ? PBS_MEMBERS : groupMembers;
+  
+  // contributionMembers: always use actual group members for contribution tracking
+  const contributionMembers = groupMembers;
 
   // Load real group members
   useEffect(() => {
@@ -720,11 +725,11 @@ const RoscaPage: React.FC = () => {
             </div>
           </div>
           <div className="p-6">
-            {roscaMembers.length === 0 ? (
+            {contributionMembers.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-8">No group members loaded. Members appear once you join a group.</p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                {roscaMembers.map(m => {
+                {contributionMembers.map(m => {
                   const status = contributionStatuses[m.full_name] || 'pending';
                   const styles = status === 'paid' ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : status === 'defaulted' ? 'bg-red-50 border-red-300 text-red-700' : 'bg-gray-50 border-gray-200 text-gray-600';
                   const icon = status === 'paid' ? '✅' : status === 'defaulted' ? '❌' : '⏳';
@@ -740,10 +745,10 @@ const RoscaPage: React.FC = () => {
                 })}
               </div>
             )}
-            {roscaMembers.length > 0 && (
+            {contributionMembers.length > 0 && (
               <div className="mt-4 flex gap-4 text-xs font-bold text-gray-500">
                 <span>✅ Paid: {Object.values(contributionStatuses).filter(s => s === 'paid').length}</span>
-                <span>⏳ Pending: {roscaMembers.length - Object.values(contributionStatuses).length + Object.values(contributionStatuses).filter(s => s === 'pending').length}</span>
+                <span>⏳ Pending: {contributionMembers.length - Object.values(contributionStatuses).length + Object.values(contributionStatuses).filter(s => s === 'pending').length}</span>
                 <span>❌ Defaulted: {Object.values(contributionStatuses).filter(s => s === 'defaulted').length}</span>
               </div>
             )}
