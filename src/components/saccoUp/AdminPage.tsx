@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   formatUGX,
   type RoscaDraw,
+  PBS_MEMBERS,
 } from '@/lib/constants';
 import { useAppContext } from '@/contexts/AppContext';
 import { useRoscaData } from '@/contexts/RoscaContext';
@@ -64,7 +65,7 @@ const AdminPage: React.FC = () => {
 
       {/* Tab Content */}
       {activeTab === 'rosca' && <RoscaTab onToast={showToast} />}
-      {activeTab === 'members' && <MembersTab onToast={showToast} />}
+      {activeTab === 'members' && <MembersTab onToast={showToast} isRoscaType={isRoscaType} />}
       {activeTab === 'contributions' && <ContributionsTab onToast={showToast} />}
       {activeTab === 'loans' && <LoansTab onToast={showToast} />}
     </div>
@@ -280,7 +281,12 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
 
 // ─── Members Tab ────────────────────────────────────────────────────────────────
 
-const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => {
+interface MembersTabProps {
+  onToast: (msg: string) => void;
+  isRoscaType: boolean;
+}
+
+const MembersTab: React.FC<MembersTabProps> = ({ onToast, isRoscaType }) => {
   const { selectedGroupId, user } = useAppContext();
   const { getMemberStats } = useRoscaData();
   const [members, setMembers] = useState<any[]>([]);
@@ -288,8 +294,15 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>(null);
 
+  const displayMembers = isRoscaType ? PBS_MEMBERS : members;
+  const isLoadingGroupMembers = !isRoscaType && loading;
+
   const loadMembers = () => {
     if (!selectedGroupId) return;
+    if (isRoscaType) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     ds.listMembers(selectedGroupId)
       .then(res => {
@@ -298,7 +311,7 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { loadMembers(); }, [selectedGroupId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadMembers(); }, [selectedGroupId, isRoscaType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEdit = (member: any) => {
     setEditingId(member.id);
@@ -327,10 +340,10 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
     setEditForm((prev: any) => prev ? { ...prev, [field]: value } : null);
   };
 
-  if (loading) return <div className="text-center py-8 text-gray-500">Loading members...</div>;
+  if (loading || isLoadingGroupMembers) return <div className="text-center py-8 text-gray-500">Loading members...</div>;
 
   // Compute totals for footer
-  const totals = members.reduce((acc, member) => {
+  const totals = displayMembers.reduce((acc, member) => {
     const rs = getMemberStats(member.full_name);
     return {
       sacco: acc.sacco + (member.savingsBalance || member.totalContributions || 0),
@@ -381,15 +394,28 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {members.length === 0 ? (
+              {displayMembers.length === 0 ? (
                 <tr><td colSpan={10} className="px-6 py-10 text-center text-sm text-gray-400">No members found.</td></tr>
-              ) : members.map(member => {
+              ) : displayMembers.map(member => {
                 const rs = getMemberStats(member.full_name);
                 const saccoBal = member.savingsBalance || member.totalContributions || 0;
                 const loanBal = member.loanBalance || 0;
                 return (
                 <tr key={member.id} className="hover:bg-purple-50/50">
-                  {editingId === member.id && editForm ? (
+                  {isRoscaType ? (
+                    <>
+                      <td className="px-3 py-3 text-sm font-medium text-gray-800">{member.full_name}</td>
+                      <td className="px-3 py-3 text-sm text-gray-400">—</td>
+                      <td className="px-3 py-3 text-sm text-gray-400">—</td>
+                      <td className="px-3 py-3 text-sm text-blue-600">—</td>
+                      <td className="px-3 py-3 text-sm text-orange-600">—</td>
+                      <td className="px-3 py-3 text-sm text-amber-600">{rs.wins > 0 ? rs.wins : '—'}</td>
+                      <td className="px-3 py-3 text-sm text-emerald-600">{rs.totalWon > 0 ? formatUGX(rs.totalWon) : '—'}</td>
+                      <td className="px-3 py-3 text-sm text-purple-600">{rs.totalSavings > 0 ? formatUGX(rs.totalSavings) : '—'}</td>
+                      <td className="px-3 py-3 text-sm text-red-500">{rs.totalDeductions > 0 ? formatUGX(rs.totalDeductions) : '—'}</td>
+                      <td className="px-3 py-3 text-right">—</td>
+                    </>
+                  ) : editingId === member.id && editForm ? (
                     <>
                       <td className="px-3 py-2 text-sm font-medium text-gray-800">{member.full_name}</td>
                       <td className="px-3 py-2 text-sm text-gray-600">{member.phone}</td>
@@ -454,10 +480,10 @@ const MembersTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) =
               );
               })}
             </tbody>
-            {members.length > 0 && (
+            {displayMembers.length > 0 && (
               <tfoot>
                 <tr className="bg-gray-50 font-bold border-t-2 border-gray-200">
-                  <td className="px-3 py-3 text-xs text-gray-700" colSpan={3}>TOTALS ({members.length} members)</td>
+                  <td className="px-3 py-3 text-xs text-gray-700" colSpan={3}>TOTALS ({displayMembers.length} members)</td>
                   <td className="px-3 py-3 text-xs text-blue-700">{formatUGX(totals.sacco)}</td>
                   <td className="px-3 py-3 text-xs text-orange-700">{formatUGX(totals.loans)}</td>
                   <td className="px-3 py-3 text-xs text-amber-700">—</td>

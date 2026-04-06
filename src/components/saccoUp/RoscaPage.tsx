@@ -4,6 +4,7 @@ import {
   type RoscaDraw,
   type RoscaCycle,
   type DrawStatus,
+  PBS_MEMBERS,
 } from '@/lib/constants';
 import { useAppContext } from '@/contexts/AppContext';
 import { useRoscaData } from '@/contexts/RoscaContext';
@@ -338,6 +339,9 @@ const RoscaPage: React.FC = () => {
   // Permission: admin, chairperson, treasurer, or secretary can edit all cycles
   const membershipRole = (selectedGroup?.user_role || '').toLowerCase();
   const canEdit = ['admin', 'chairperson', 'chairman', 'treasurer', 'secretary'].includes(membershipRole);
+  const groupType = (selectedGroup?.group_type || '').toLowerCase();
+  const isRoscaType = groupType === 'rosca' || groupType === 'hybrid';
+  const roscaMembers = isRoscaType ? PBS_MEMBERS : groupMembers;
 
   // Load real group members
   useEffect(() => {
@@ -610,7 +614,7 @@ const RoscaPage: React.FC = () => {
       {editingDraw && canEdit && (
         <EditDrawModal
           draw={editingDraw}
-          members={groupMembers}
+          members={roscaMembers}
           onSave={handleSaveDraw}
           onClose={() => setEditingDraw(null)}
           cycleNumber={selectedCycleNum}
@@ -621,7 +625,7 @@ const RoscaPage: React.FC = () => {
       {showAddDraw && canEdit && (
         <EditDrawModal
           draw={emptyDraw((selectedCycle?.draws.length || 0) + 1)}
-          members={groupMembers}
+          members={roscaMembers}
           onSave={handleAddDraw}
           onClose={() => setShowAddDraw(false)}
           cycleNumber={selectedCycleNum}
@@ -716,11 +720,11 @@ const RoscaPage: React.FC = () => {
             </div>
           </div>
           <div className="p-6">
-            {groupMembers.length === 0 ? (
+            {roscaMembers.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-8">No group members loaded. Members appear once you join a group.</p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                {groupMembers.map(m => {
+                {roscaMembers.map(m => {
                   const status = contributionStatuses[m.full_name] || 'pending';
                   const styles = status === 'paid' ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : status === 'defaulted' ? 'bg-red-50 border-red-300 text-red-700' : 'bg-gray-50 border-gray-200 text-gray-600';
                   const icon = status === 'paid' ? '✅' : status === 'defaulted' ? '❌' : '⏳';
@@ -736,10 +740,10 @@ const RoscaPage: React.FC = () => {
                 })}
               </div>
             )}
-            {groupMembers.length > 0 && (
+            {roscaMembers.length > 0 && (
               <div className="mt-4 flex gap-4 text-xs font-bold text-gray-500">
                 <span>✅ Paid: {Object.values(contributionStatuses).filter(s => s === 'paid').length}</span>
-                <span>⏳ Pending: {groupMembers.length - Object.values(contributionStatuses).length + Object.values(contributionStatuses).filter(s => s === 'pending').length}</span>
+                <span>⏳ Pending: {roscaMembers.length - Object.values(contributionStatuses).length + Object.values(contributionStatuses).filter(s => s === 'pending').length}</span>
                 <span>❌ Defaulted: {Object.values(contributionStatuses).filter(s => s === 'defaulted').length}</span>
               </div>
             )}

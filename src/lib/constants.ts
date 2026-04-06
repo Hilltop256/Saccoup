@@ -169,6 +169,35 @@ export const MOCK_CHAT: ChatMessage[] = [
 export type DrawStatus = 'won' | 'pending' | 'skipped' | 'forfeited';
 export type CycleStatus = 'completed' | 'active' | 'upcoming';
 
+export interface RoscaMember {
+  id: string;
+  full_name: string;
+}
+
+export const PBS_MEMBERS: RoscaMember[] = [
+  { id: 'pbs-001', full_name: 'Abajai Maurice' },
+  { id: 'pbs-002', full_name: 'Allan Nakede' },
+  { id: 'pbs-003', full_name: 'Balaam Mwaasa' },
+  { id: 'pbs-004', full_name: 'Ben Otede' },
+  { id: 'pbs-005', full_name: 'Daniel Lukyago' },
+  { id: 'pbs-006', full_name: 'Dennis Otim' },
+  { id: 'pbs-007', full_name: 'Ivan Kutosi' },
+  { id: 'pbs-008', full_name: 'Jesse Mwalye' },
+  { id: 'pbs-009', full_name: 'Jonathan Wakoko' },
+  { id: 'pbs-010', full_name: 'Peter Bakashaba' },
+  { id: 'pbs-011', full_name: 'Peter Lwanga' },
+  { id: 'pbs-012', full_name: 'Peter Masaaba' },
+  { id: 'pbs-013', full_name: 'Peter Ogwal' },
+  { id: 'pbs-014', full_name: 'Robert Kyobe' },
+  { id: 'pbs-015', full_name: 'Timothy Halango' },
+  { id: 'pbs-016', full_name: 'William Nakaima' },
+  { id: 'pbs-017', full_name: 'Paul Masaaba' },
+  { id: 'pbs-018', full_name: 'Gerald Nuwahereza' },
+  { id: 'pbs-019', full_name: 'Eric Mabirizi' },
+  { id: 'pbs-020', full_name: 'Eric Bamuwangulide' },
+  { id: 'pbs-021', full_name: 'Peter Lwanjo' },
+];
+
 export interface RoscaDraw {
   draw_number: number;          // 1–N (e.g. D1–D20)
   winner_slot: '1' | '2';       // which winner slot (1st or 2nd winner in the draw)

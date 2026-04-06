@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAppContext } from '@/contexts/AppContext';
 import { useRoscaData } from '@/contexts/RoscaContext';
 import * as ds from '@/lib/dataService';
-import { formatUGX } from '@/lib/constants';
+import { formatUGX, PBS_MEMBERS } from '@/lib/constants';
 
 interface MemberStatement {
   id: string;
@@ -70,6 +70,9 @@ const ReportsPage: React.FC = () => {
   const [exporting, setExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState<string | null>(null);
 
+  const groupType = (selectedGroup?.group_type || '').toLowerCase();
+  const isRoscaType = groupType === 'rosca' || groupType === 'hybrid';
+
   const [stats, setStats] = useState<GroupStatsData | null>(null);
   const [members, setMembers] = useState<MemberStatement[]>([]);
   const [contributions, setContributions] = useState<ContributionRow[]>([]);
@@ -78,6 +81,22 @@ const ReportsPage: React.FC = () => {
   const loadReportData = useCallback(async () => {
     if (!selectedGroup?.id) { setLoading(false); return; }
     setLoading(true);
+
+    // For ROSCA type groups, use PBS_MEMBERS instead of Supabase members
+    if (isRoscaType) {
+      setMembers(PBS_MEMBERS.map(m => ({
+        id: m.id,
+        full_name: m.full_name,
+        phone: '',
+        role: 'member',
+        total_contributions: 0,
+        savings_balance: 0,
+        loan_balance: 0,
+        net_position: 0,
+      })));
+      setLoading(false);
+      return;
+    }
 
     try {
       const [statsRes, membersRes, contribRes, loansRes] = await Promise.allSettled([
@@ -158,7 +177,7 @@ const ReportsPage: React.FC = () => {
     }
 
     setLoading(false);
-  }, [selectedGroup?.id]);
+  }, [selectedGroup?.id, isRoscaType]);
 
   useEffect(() => { loadReportData(); }, [loadReportData]);
 
@@ -468,9 +487,6 @@ const ReportsPage: React.FC = () => {
       combined_net: (m.savings_balance - m.loan_balance) + rs.totalBalance,
     };
   });
-
-  const groupType = (selectedGroup?.group_type || '').toLowerCase();
-  const isRoscaType = groupType === 'rosca' || groupType === 'hybrid';
 
   const allReports = [
     { id: 'overview', label: 'Group Overview', icon: 'M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5' },
