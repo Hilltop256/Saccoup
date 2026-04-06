@@ -410,100 +410,61 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Savings Growth Chart (placeholder based on real data) */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-bold text-gray-900">Group Financial Summary</h2>
-            <button onClick={() => onNavigate('reports')} className="text-xs text-[#0066CC] font-medium hover:underline">Full Report</button>
+        {/* ROSCA-focused cards */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900">🎡 Next Draw</h2>
+            <button onClick={() => onNavigate('rosca')} className="text-xs text-purple-600 font-medium hover:underline">View Cycle</button>
           </div>
-          {loading ? (
-            <div className="h-48 flex items-center justify-center">
-              <svg className="w-8 h-8 animate-spin text-[#0066CC]" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
+          <div className="text-center p-4 rounded-xl bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100">
+            <p className="text-3xl font-extrabold text-purple-600">{roscaTotals.totalWinners + 1}</p>
+            <p className="text-sm text-gray-500">Draw #</p>
+          </div>
+          <div className="mt-4 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Pot per winner</span>
+              <span className="font-bold text-purple-600">{formatUGX(selectedGroup?.contribution_amount || 0)}</span>
             </div>
-          ) : (stats && (stats.total_savings > 0 || stats.total_contributions > 0 || stats.total_loans_outstanding > 0)) || roscaTotals.totalPaidOut > 0 ? (
-            <>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                <div className="text-center p-3 rounded-xl bg-[#0066CC]/5">
-                  <p className="text-xs text-gray-500 mb-1">SACCO Savings</p>
-                  <p className="text-base font-bold text-[#0066CC]">{formatUGX(stats?.total_savings || 0)}</p>
-                </div>
-                <div className="text-center p-3 rounded-xl bg-purple-50">
-                  <p className="text-xs text-gray-500 mb-1">ROSCA Savings</p>
-                  <p className="text-base font-bold text-purple-600">{formatUGX(roscaTotals.totalSavings)}</p>
-                </div>
-                <div className="text-center p-3 rounded-xl bg-emerald-50">
-                  <p className="text-xs text-gray-500 mb-1">ROSCA Paid Out</p>
-                  <p className="text-base font-bold text-emerald-600">{formatUGX(roscaTotals.totalPaidOut)}</p>
-                </div>
-                <div className="text-center p-3 rounded-xl bg-amber-50">
-                  <p className="text-xs text-gray-500 mb-1">Outstanding Loans</p>
-                  <p className="text-base font-bold text-amber-600">{formatUGX(stats?.total_loans_outstanding || 0)}</p>
-                </div>
-              </div>
-              {/* Visual bar representation */}
-              <div className="space-y-3">
-                <div>
-                  <div className="flex justify-between text-xs text-gray-500 mb-1">
-                    <span>SACCO Savings vs Loans Ratio</span>
-                    <span>{(stats?.total_savings || 0) > 0 ? Math.round((((stats?.total_savings || 0) - (stats?.total_loans_outstanding || 0)) / (stats?.total_savings || 1)) * 100) : 0}% net positive</span>
-                  </div>
-                  <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-                    <div className="h-3 rounded-full bg-gradient-to-r from-[#0066CC] to-[#0088FF] transition-all duration-700"
-                      style={{ width: `${(stats?.total_savings || 0) > 0 ? Math.min(100, ((stats?.total_savings || 0) / ((stats?.total_savings || 0) + (stats?.total_loans_outstanding || 0))) * 100) : 0}%` }}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-xs text-gray-500 mb-1">
-                    <span>ROSCA Cycle Progress ({roscaTotals.totalWinners} winners)</span>
-                    <span>{formatUGX(roscaTotals.totalPaidOut)} paid out</span>
-                  </div>
-                  <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-                    <div className="h-3 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-700"
-                      style={{ width: `${roscaTotals.totalWinners > 0 ? Math.min(100, (roscaTotals.totalWinners / 60) * 100) : 0}%` }}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-xs text-gray-500 mb-1">
-                    <span>Collection Rate</span>
-                    <span>{Math.round(collectionRate)}%</span>
-                  </div>
-                  <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-                    <div className="h-3 rounded-full bg-gradient-to-r from-[#00CC99] to-[#00E6AD] transition-all duration-700"
-                      style={{ width: `${collectionRate}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-gray-100">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-sm bg-[#0066CC]" />
-                  <span className="text-xs text-gray-500">SACCO Savings</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-sm bg-purple-500" />
-                  <span className="text-xs text-gray-500">ROSCA Progress</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-sm bg-[#00CC99]" />
-                  <span className="text-xs text-gray-500">Collection Rate</span>
-                </div>
-              </div>
-            </>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Total pot</span>
+              <span className="font-bold text-emerald-600">{formatUGX((selectedGroup?.contribution_amount || 0) * totalMembers)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900">💰 Current Draw</h2>
+            <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-600 rounded-lg">#{roscaTotals.totalWinners + 1}</span>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-50">
+              <span className="text-sm text-gray-600">✅ Paid</span>
+              <span className="font-bold text-emerald-600">{confirmedCount}</span>
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-lg bg-amber-50">
+              <span className="text-sm text-gray-600">⏳ Pending</span>
+              <span className="font-bold text-amber-600">{pendingCount}</span>
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-lg bg-red-50">
+              <span className="text-sm text-gray-600">❌ Defaulted</span>
+              <span className="font-bold text-red-600">{failedCount}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900">🏆 Recent Winners</h2>
+            <button onClick={() => onNavigate('rosca')} className="text-xs text-[#0066CC] font-medium hover:underline">Full History</button>
+          </div>
+          {roscaTotals.totalWinners > 0 ? (
+            <div className="space-y-2">
+              <div className="p-2 rounded-lg bg-gray-50 text-center text-sm text-gray-400">Winners from past draws</div>
+            </div>
           ) : (
-            <div className="h-48 flex flex-col items-center justify-center text-gray-400">
-              <svg className="w-12 h-12 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-              </svg>
-              <p className="text-sm font-medium">No financial data yet</p>
-              <p className="text-xs mt-1">Start recording contributions to see your group's growth</p>
-              <button onClick={() => onNavigate('contributions')} className="mt-3 px-4 py-1.5 text-xs font-medium text-[#0066CC] bg-[#0066CC]/10 rounded-lg hover:bg-[#0066CC]/20">
-                Record First Contribution
-              </button>
+            <div className="flex flex-col items-center justify-center h-24 text-gray-400">
+              <p className="text-sm font-medium">No winners yet</p>
             </div>
           )}
         </div>
