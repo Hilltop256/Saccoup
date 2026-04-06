@@ -179,13 +179,16 @@ const RoscaTab: React.FC<{ onToast: (msg: string) => void }> = ({ onToast }) => 
                         />
                       </td>
                       <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          value={editForm.winner_name}
+                        <select
+                          value={PBS_MEMBERS.some(m => m.full_name === editForm.winner_name) ? editForm.winner_name : ''}
                           onChange={e => updateField('winner_name', e.target.value)}
                           className="w-full px-2 py-1 text-sm border border-purple-200 rounded focus:ring-2 focus:ring-purple-400 outline-none"
-                          placeholder="Winner name"
-                        />
+                        >
+                          <option value="">— Select member —</option>
+                          {PBS_MEMBERS.map(m => (
+                            <option key={m.id} value={m.full_name}>{m.full_name}</option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-3 py-2">
                         <input

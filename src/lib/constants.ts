@@ -165,6 +165,8 @@ export const MOCK_CHAT: ChatMessage[] = [
 ];
 
 // ── ROSCA / PBS Merry-Go-Round types ────────────────────────────────────────
+// FIXED member list for ROSCA groups - use this for winner selection dropdown.
+// Update these names to match your actual group members.
 
 export type DrawStatus = 'won' | 'pending' | 'skipped' | 'forfeited';
 export type CycleStatus = 'completed' | 'active' | 'upcoming';
