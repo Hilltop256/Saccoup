@@ -102,16 +102,7 @@ const getPaymentLabel = (method: string): string => {
 
 const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => {
   const { user, selectedGroup } = useAppContext();
-  const { getGroupTotals } = useRoscaData();
-
-  const [stats, setStats] = useState<GroupStats | null>(null);
-  const [contributions, setContributions] = useState<ContributionRow[]>([]);
-  const [loans, setLoans] = useState<LoanRow[]>([]);
-  const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
-  const [members, setMembers] = useState<MemberRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
+  const { getGroupTotals, cycles: roscaCycles } = useRoscaData();
   const roscaTotals = getGroupTotals();
 
   const loadDashboardData = useCallback(async () => {
