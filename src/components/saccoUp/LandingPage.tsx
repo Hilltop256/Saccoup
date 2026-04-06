@@ -36,9 +36,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onLogin }) => {
   ];
 
   const pricingTiers = [
-    { name: 'Free', price: 0, members: 20, groups: 1, features: ['Basic contributions', 'Cash recording', 'Member management', 'Group chat'] },
-    { name: 'Starter', price: null, members: 50, groups: 3, features: ['Mobile Money integration', 'Loan management', 'SMS reminders', 'Basic reports', 'USSD access'] },
-    { name: 'Growth', price: null, members: 200, groups: 10, features: ['Advanced reporting', 'Investment tracking', 'ROSCA module', 'PDF/Excel export', 'Priority support'] },
+    { name: 'Free', price: 0, members: null, groups: 1, features: ['Basic contributions', 'Cash recording', 'Member management', 'Group chat'] },
+    { name: 'Starter', price: null, members: null, groups: null, features: ['Mobile Money integration', 'Loan management', 'SMS reminders', 'Basic reports', 'USSD access'] },
+    { name: 'Growth', price: null, members: null, groups: null, features: ['Advanced reporting', 'Investment tracking', 'ROSCA module', 'PDF/Excel export', 'Priority support'] },
     { name: 'Enterprise', price: null, members: null, groups: null, features: ['Unlimited everything', 'Custom branding', 'API access', 'UMRA compliance', 'Dedicated support', 'Custom integrations'] },
   ];
 
@@ -268,13 +268,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onLogin }) => {
                 <h3 className="text-lg font-bold text-gray-900">{tier.name}</h3>
                 <div className="mt-4 mb-6">
                   {tier.price !== null ? (
-                    <><span className="text-3xl font-bold text-gray-900">{tier.price === 0 ? 'Free' : formatUGX(tier.price)}</span>{tier.price > 0 && <span className="text-sm text-gray-500">/month</span>}</>
+                    <><span className="text-3xl font-bold text-gray-900">{tier.price === 0 ? 'Free' : formatUGX(tier.price)}</span><span className="text-sm text-gray-500">/month</span>{tier.price === 0 && <p className="text-xs text-green-600 mt-1">Free for first 3 months</p>}</>
                   ) : (
                     <><span className="text-3xl font-bold text-gray-900">TBC</span><span className="text-sm text-gray-500">/month</span></>
                   )}
                 </div>
                 <p className="text-sm text-gray-500 mb-6">
-                  {tier.members ? `Up to ${tier.members} members, ${tier.groups} group${tier.groups! > 1 ? 's' : ''}` : 'Unlimited members & groups'}
+                  {tier.members !== null ? `Up to ${tier.members} members, ${tier.groups} group${tier.groups! > 1 ? 's' : ''}` : tier.price !== null ? 'Unlimited members & groups' : 'TBC'}
                 </p>
                 <ul className="space-y-3 mb-8">
                   {tier.features.map((f, j) => (
