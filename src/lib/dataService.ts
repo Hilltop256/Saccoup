@@ -768,6 +768,9 @@ export interface RoscaDrawRow {
   balance: number | null;
   status: 'pending' | 'won' | 'skipped' | 'forfeited';
   notes: string | null;
+  payout_received: boolean;
+  confirmed_by_member: boolean;
+  confirmed_at: string | null;
 }
 
 export async function listRoscaCycles(group_id: string) {
@@ -975,6 +978,20 @@ export async function saveRoscaContributions(params: {
   const { error } = await supabase
     .from('rosca_contributions')
     .upsert(toUpsert, { onConflict: 'cycle_id,draw_number,member_id' });
+
+  if (error) throw new Error(error.message);
+  return { success: true };
+}
+
+export async function confirmWinnerPayout(draw_id: string, confirmed_by_member: boolean = true) {
+  const { error } = await supabase
+    .from('rosca_draws')
+    .update({
+      payout_received: true,
+      confirmed_by_member,
+      confirmed_at: new Date().toISOString(),
+    })
+    .eq('id', draw_id);
 
   if (error) throw new Error(error.message);
   return { success: true };

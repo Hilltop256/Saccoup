@@ -380,6 +380,9 @@ CREATE TABLE IF NOT EXISTS rosca_draws (
   balance           NUMERIC(15,2),
   status            TEXT NOT NULL DEFAULT 'pending',
   notes             TEXT,
+  payout_received   BOOLEAN DEFAULT FALSE,
+  confirmed_by_member BOOLEAN DEFAULT FALSE,
+  confirmed_at      TIMESTAMPTZ,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(cycle_id, draw_number, winner_slot)
