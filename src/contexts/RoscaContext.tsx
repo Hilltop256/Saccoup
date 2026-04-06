@@ -277,13 +277,19 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
   }, [selectedGroupId, cycles, loadCycles]);
 
   // ── Aggregate helpers ─────────────────────────────────────────────────────
+  const normalizeName = (name: string): string => {
+    return name.toLowerCase().trim().replace(/\s+/g, ' ');
+  };
+
   const getMemberStats = useCallback((memberName: string) => {
     let totalWon = 0, totalSavings = 0, totalDeductions = 0,
         totalPaidOut = 0, totalBalance = 0, wins = 0;
 
+    const normalizedInput = normalizeName(memberName);
+
     cycles.forEach(cycle => {
       cycle.draws.forEach(draw => {
-        if (draw.winner_name === memberName) {
+        if (draw.winner_name && normalizeName(draw.winner_name) === normalizedInput) {
           wins++;
           totalWon       += draw.amount_received;
           totalSavings   += draw.savings    || 0;
@@ -301,7 +307,7 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
 
     cycles.forEach(cycle => {
       cycle.draws.forEach(draw => {
-        if (draw.winner_name) {
+        if (draw.winner_name && draw.winner_name.trim()) {
           totalWinners++;
           totalPaidOut    += draw.amount_received;
           totalSavings    += draw.savings    || 0;
