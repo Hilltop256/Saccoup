@@ -410,31 +410,47 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* ROSCA-focused cards */}
+        {/* Card 1: Contribution Tracker */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">🎡 Next Draw</h2>
-            <button onClick={() => onNavigate('rosca')} className="text-xs text-purple-600 font-medium hover:underline">View Cycle</button>
+            <h2 className="text-lg font-bold text-gray-900">📋 C{roscaCycles?.[0]?.cycle_number || 1}D{roscaTotals.totalWinners + 1} Contributions</h2>
+            <button onClick={() => onNavigate('rosca')} className="text-xs text-purple-600 font-medium hover:underline">Full View</button>
           </div>
-          <div className="text-center p-4 rounded-xl bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100">
-            <p className="text-3xl font-extrabold text-purple-600">{roscaTotals.totalWinners + 1}</p>
-            <p className="text-sm text-gray-500">Draw #</p>
-          </div>
-          <div className="mt-4 space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Pot per winner</span>
-              <span className="font-bold text-purple-600">{formatUGX(selectedGroup?.contribution_amount || 0)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Total pot</span>
-              <span className="font-bold text-emerald-600">{formatUGX((selectedGroup?.contribution_amount || 0) * totalMembers)}</span>
-            </div>
-          </div>
+          {totalMembers > 0 ? (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+                {members.slice(0, 12).map(m => {
+                  const status = 'pending';
+                  const isPaid = status === 'paid';
+                  return (
+                    <button
+                      key={m.id}
+                      className={`px-2 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                        isPaid 
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-700' 
+                          : 'bg-amber-50 border-amber-300 text-amber-700'
+                      }`}
+                    >
+                      <span className="mr-1">{isPaid ? '✅' : '⏳'}</span>
+                      {m.full_name.split(' ')[0]}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex gap-2 text-xs font-bold">
+                <span className="text-emerald-600">✅ {confirmedCount} paid</span>
+                <span className="text-amber-600">⏳ {pendingCount} pending</span>
+                <span className="text-red-600">❌ {failedCount} defaulted</span>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-gray-400">No members</p>
+          )}
         </div>
 
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">💰 Draw #{roscaTotals.totalWinners + 1} Pot</h2>
+            <h2 className="text-lg font-bold text-gray-900">💰 C{roscaCycles?.[0]?.cycle_number || 1}D{roscaTotals.totalWinners + 1} Pot</h2>
             <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-600 rounded-lg">Current</span>
           </div>
           <div className="space-y-2">
