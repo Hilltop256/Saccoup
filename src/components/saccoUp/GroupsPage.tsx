@@ -3,7 +3,7 @@ import { useAppContext } from '@/contexts/AppContext';
 import { formatUGX, getGroupTypeLabel, getGroupTypeColor, type GroupType } from '@/lib/constants';
 import * as ds from '@/lib/dataService';
 
-type ModalMode = 'create' | 'join' | null;
+type ModalMode = 'create' | 'join' | 'invite' | null;
 
 const GroupsPage: React.FC = () => {
   const { user, groups, refreshGroups, setSelectedGroupId, isChairman } = useAppContext();
@@ -11,6 +11,10 @@ const GroupsPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const role = (groups.find(g => g.id === selectedGroupId || groups[0]?.id === g.id)?.user_role || '').toLowerCase();
+  const isAdmin = ['admin', 'super_admin', 'chairperson', 'chairman', 'secretary'].includes(role);
+  const isElevated = isChairman || isAdmin;
 
   const [newGroup, setNewGroup] = useState({
     name: '',
@@ -118,6 +122,17 @@ const GroupsPage: React.FC = () => {
           <p className="text-sm text-gray-500">Manage your savings groups and cooperatives</p>
         </div>
         <div className="flex gap-2">
+          {groups.length > 0 && isElevated && (
+            <button
+              onClick={() => setModalMode('invite')}
+              className="px-4 py-2 text-sm font-medium text-[#0066CC] bg-[#0066CC]/10 rounded-lg hover:bg-[#0066CC]/20 transition-colors flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+              </svg>
+              Invite Members
+            </button>
+          )}
           <button
             onClick={() => setModalMode('join')}
             className="px-4 py-2 text-sm font-medium text-[#0066CC] bg-[#0066CC]/10 rounded-lg hover:bg-[#0066CC]/20 transition-colors flex items-center gap-2"
@@ -478,6 +493,85 @@ const GroupsPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Invite Members Modal */}
+      {modalMode === 'invite' && selectedGroupId && (
+        (() => {
+          const group = groups.find(g => g.id === selectedGroupId) || groups[0];
+          if (!group) return null;
+          return (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={closeModal}>
+              <div className="bg-white rounded-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900">Invite Members</h2>
+                    <p className="text-sm text-gray-500">{group.name}</p>
+                  </div>
+                  <button onClick={closeModal} className="p-1 text-gray-400 hover:text-gray-600">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="bg-gradient-to-r from-[#0066CC]/10 to-[#00CC99]/10 rounded-xl p-4 mb-6">
+                  <p className="text-sm text-gray-600 mb-4">Share this invite code with people you want to join your group. They can use it when registering for the app.</p>
+                  
+                  <div className="bg-white rounded-lg p-4 border border-gray-200">
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Invite Code</label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-2xl font-mono font-bold text-[#0066CC] tracking-wider">{group.invite_code}</span>
+                      <button
+                        onClick={() => navigator.clipboard?.writeText(group.invite_code || '')}
+                        className="p-2 text-gray-500 hover:text-[#0066CC] hover:bg-gray-100 rounded-lg transition-colors"
+                        title="Copy code"
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Share Link</label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <input
+                        type="text"
+                        readOnly
+                        value={`${typeof window !== 'undefined' ? window.location.origin : ''}/join?code=${group.invite_code}`}
+                        className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-600"
+                      />
+                      <button
+                        onClick={() => handleCopyLink(group.invite_code || '')}
+                        className="px-3 py-2 text-sm font-medium text-[#0066CC] bg-[#0066CC]/10 rounded-lg hover:bg-[#0066CC]/20 transition-colors"
+                      >
+                        {copiedCode === group.invite_code ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {isChairman && (
+                  <div className="border-t border-gray-100 pt-4 mt-4">
+                    <button
+                      onClick={() => handleRegenerate(group.id)}
+                      disabled={regeneratingId === group.id}
+                      className="w-full py-2.5 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      {regeneratingId === group.id ? 'Generating...' : 'Generate New Code'}
+                    </button>
+                    <p className="text-xs text-gray-500 mt-2 text-center">Generating a new code will invalidate the old one.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()
       )}
     </div>
   );
