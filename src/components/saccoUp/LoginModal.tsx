@@ -151,8 +151,14 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
       if (!nationalId.trim()) { setError('Please enter your National ID (NIN)'); return; }
       if (!email.trim()) { setError('Please enter your email address'); return; }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError('Please enter a valid email address'); return; }
-      if (!dateOfBirth) { setError('Please enter your date of birth'); return; }
-      if (!inviteCode.trim()) { setError('Invite code is required. Ask your group chairman for the code.'); return; }
+      if (!dateOfBirth) { setError('Please enter your date of birth (DD/MM/YYYY)'); return; }
+      if (!/^\d{2}\/\d{2}\/\d{4}$/.test(dateOfBirth)) { setError('Enter date as DD/MM/YYYY (e.g. 15/06/1990)'); return; }
+      const parts = dateOfBirth.split('/');
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10);
+      if (month < 1 || month > 12) { setError('Invalid month in date'); return; }
+      if (day < 1 || day > 31) { setError('Invalid day in date'); return; }
+      if (!inviteCode.trim()) { setError('Enter your group invite code. If your group doesn\'t exist yet, create a group first.'); return; }
     }
 
     setLoading(true);
@@ -392,10 +398,12 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
                 <div>
                   <label className="text-sm font-bold text-gray-700 mb-1 block">Date of Birth *</label>
                   <input
-                    type="date"
+                    type="text"
                     value={dateOfBirth}
                     onChange={(e) => setDateOfBirth(e.target.value)}
                     className="w-full px-3 py-2.5 text-sm border-2 border-purple-100 rounded-xl focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none"
+                    placeholder="DD/MM/YYYY (e.g. 15/06/1990)"
+                    maxLength={10}
                   />
                 </div>
                 <div>
@@ -408,7 +416,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
                     placeholder="e.g. PBS2026A"
                     maxLength={10}
                   />
-                  <p className="text-xs text-gray-400 mt-1 font-semibold">Ask your group chairman for the invite code</p>
+                  <p className="text-xs text-gray-400 mt-1 font-semibold">Ask your group chairman for the code, or create a group first</p>
                 </div>
               </>
             )}

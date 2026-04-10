@@ -276,13 +276,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (existing) return { success: false, error: 'Phone already registered. Please sign in.' };
     // Validate invite code
     const { data: grp } = await supabase.from('groups').select('id, name').eq('invite_code', inviteCode.toUpperCase()).maybeSingle();
-    if (!grp) return { success: false, error: 'Invalid invite code. Please check with your group chairman.' };
+    if (!grp) return { success: false, error: 'No group found with that code. Ask your chairman for a valid code, or create a new group first.' };
+
+    // Parse date of birth from DD/MM/YYYY to YYYY-MM-DD
+    let dob: string | null = null;
+    if (dateOfBirth) {
+      const parts = dateOfBirth.split('/');
+      if (parts.length === 3) {
+        dob = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+    }
     const { data: member, error: memErr } = await supabase.from('members').insert({
       full_name: fullName,
       phone: normalizedPhone,
       email: email || null,
       national_id: nationalId || null,
-      date_of_birth: dateOfBirth || null,
+      date_of_birth: dob,
       kyc_verified: false,
       is_active: true,
       photo_url: photoDataUrl || null,
