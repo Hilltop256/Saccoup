@@ -274,9 +274,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: 'Database not set up. Run supabase_schema.sql in your Supabase SQL Editor first.' };
     }
     if (existing) return { success: false, error: 'Phone already registered. Please sign in.' };
-    // Validate invite code
-    const { data: grp } = await supabase.from('groups').select('id, name').eq('invite_code', inviteCode.toUpperCase()).maybeSingle();
+    // Validate invite code - trim whitespace and normalize case
+    const normalizedCode = inviteCode.trim().toUpperCase();
+    // Look for group with this invite code (include inactive groups for better error message)
+    const { data: grp, error: grpErr } = await supabase.from('groups').select('id, name, is_active').eq('invite_code', normalizedCode).maybeSingle();
+    if (grpErr) return { success: false, error: 'Error checking invite code. Please try again.' };
     if (!grp) return { success: false, error: 'No group found with that code. Ask your chairman for a valid code, or create a new group first.' };
+    if (!grp.is_active) return { success: false, error: 'This group is no longer active. Contact your chairman.' };
 
     // Parse date of birth from DD/MM/YYYY to YYYY-MM-DD
     let dob: string | null = null;
