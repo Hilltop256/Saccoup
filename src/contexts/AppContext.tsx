@@ -282,6 +282,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       phone: normalizedPhone,
       email: email || null,
       national_id: nationalId || null,
+      date_of_birth: dateOfBirth || null,
       kyc_verified: false,
       is_active: true,
       photo_url: photoDataUrl || null,
