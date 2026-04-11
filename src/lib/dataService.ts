@@ -30,6 +30,10 @@ export async function createGroup(params: {
     .substring(0, 3)
     .padEnd(3, 'X') + Math.random().toString(36).toUpperCase().substring(2, 7);
 
+  // Invite code expires in 7 days
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7);
+
   const { data: group, error } = await supabase
     .from('groups')
     .insert({
@@ -39,6 +43,7 @@ export async function createGroup(params: {
       contribution_schedule: params.contribution_schedule || 'monthly',
       description: params.description,
       invite_code: inviteCode,
+      invite_code_expires_at: expiresAt.toISOString(),
       interest_rate: params.interest_rate || 5,
       late_fee: params.late_fee || 0,
       grace_period_days: params.grace_period_days || 3,
@@ -69,14 +74,16 @@ export async function createGroup(params: {
 
 export async function regenerateInviteCode(group_id: string) {
   const newCode = Math.random().toString(36).substring(2, 7).toUpperCase() + Math.random().toString(36).substring(2, 5).toUpperCase();
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7);
   const { data, error } = await supabase
     .from('groups')
-    .update({ invite_code: newCode, updated_at: new Date().toISOString() })
+    .update({ invite_code: newCode, invite_code_expires_at: expiresAt.toISOString(), updated_at: new Date().toISOString() })
     .eq('id', group_id)
-    .select('invite_code')
+    .select('invite_code, invite_code_expires_at')
     .single();
   if (error) throw new Error(error.message);
-  return { success: true, invite_code: data.invite_code };
+  return { success: true, invite_code: data.invite_code, invite_code_expires_at: data.invite_code_expires_at };
 }
 
 export async function listGroups(member_id: string) {
