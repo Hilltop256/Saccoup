@@ -277,10 +277,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Validate invite code - trim whitespace and normalize case
     const normalizedCode = inviteCode.trim().toUpperCase();
     // Look for group with this invite code (include inactive groups for better error message)
-    const { data: grp, error: grpErr } = await supabase.from('groups').select('id, name, is_active').eq('invite_code', normalizedCode).maybeSingle();
+    const { data: grp, error: grpErr } = await supabase.from('groups').select('id, name, is_active, invite_code_expires_at').eq('invite_code', normalizedCode).maybeSingle();
     if (grpErr) return { success: false, error: 'Error checking invite code. Please try again.' };
     if (!grp) return { success: false, error: 'No group found with that code. Ask your chairman for a valid code, or create a new group first.' };
     if (!grp.is_active) return { success: false, error: 'This group is no longer active. Contact your chairman.' };
+    // Check if invite code has expired (default to valid if column doesn't exist yet)
+    if (grp.invite_code_expires_at && new Date(grp.invite_code_expires_at) < new Date()) {
+      return { success: false, error: 'Invite code has expired. Ask your chairman for a new code.' };
+    }
 
     // Parse date of birth from DD/MM/YYYY to YYYY-MM-DD
     let dob: string | null = null;
