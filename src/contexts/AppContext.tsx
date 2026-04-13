@@ -344,9 +344,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!acc) return { success: false, error: 'Account not found. Please register first.' };
     if (!acc.is_active) return { success: false, error: 'Account deactivated. Contact support.' };
     if (acc.pin_hash !== pinHash) return { success: false, error: 'Invalid PIN. Please try again.' };
+    
+    // Mark any existing OTPs as used - search both formats
     await supabase.from('otp_codes').update({ is_used: true }).eq('phone', normalizedPhone).eq('is_used', false);
+    await supabase.from('otp_codes').update({ is_used: true }).eq('phone', phoneWithoutPlus).eq('is_used', false);
     const otp = String(Math.floor(100000 + Math.random() * 900000));
-    await supabase.from('otp_codes').insert({ phone: normalizedPhone, code: otp, purpose: 'login', expires_at: new Date(Date.now() + 600000).toISOString() });
+    // Insert OTP using original input so verifyOtp can find it
+    await supabase.from('otp_codes').insert({ phone: phone, code: otp, purpose: 'login', expires_at: new Date(Date.now() + 600000).toISOString() });
     return { success: true, phone: normalizedPhone, demoOtp: otp };
   };
 
@@ -356,7 +360,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const normalizedPhone = normPhone(phone);
     const phoneWithoutPlus = normalizedPhone.startsWith('+') ? normalizedPhone.substring(1) : normalizedPhone;
     
-    const { data: otpRec } = await supabase.from('otp_codes').select('id, code, expires_at').eq('phone', normalizedPhone).eq('is_used', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    // Try to find OTP with original input, normalized, and without +
+    let { data: otpRec } = await supabase.from('otp_codes').select('id, code, expires_at').eq('phone', phone).eq('is_used', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (!otpRec) {
+      otpRec = await supabase.from('otp_codes').select('id, code, expires_at').eq('phone', normalizedPhone).eq('is_used', false).order('created_at', { ascending: false }).limit(1).maybeSingle() as any;
+    }
+    if (!otpRec) {
+      otpRec = await supabase.from('otp_codes').select('id, code, expires_at').eq('phone', phoneWithoutPlus).eq('is_used', false).order('created_at', { ascending: false }).limit(1).maybeSingle() as any;
+    }
     if (!otpRec) return { success: false, error: 'No pending OTP. Please request a new one.' };
     if (new Date(otpRec.expires_at) < new Date()) {
       await supabase.from('otp_codes').update({ is_used: true }).eq('id', otpRec.id);
