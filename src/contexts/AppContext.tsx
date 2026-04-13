@@ -321,13 +321,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const pinHash = await hashPin(pin);
     
     // Try both with and without + prefix
-    const phoneWithPlus = normalizedPhone;
     const phoneWithoutPlus = normalizedPhone.startsWith('+') ? normalizedPhone.substring(1) : normalizedPhone;
     
     let { data: acc, error: accErr } = await supabase
       .from('user_accounts')
       .select('id, member_id, pin_hash, is_active')
-      .eq('phone', phoneWithPlus)
+      .eq('phone', normalizedPhone)
       .maybeSingle();
     
     // If not found, try without + prefix
@@ -345,12 +344,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!acc.is_active) return { success: false, error: 'Account deactivated. Contact support.' };
     if (acc.pin_hash !== pinHash) return { success: false, error: 'Invalid PIN. Please try again.' };
     
-    // Mark any existing OTPs as used - search both formats
+    // Mark any existing OTPs as used
     await supabase.from('otp_codes').update({ is_used: true }).eq('phone', normalizedPhone).eq('is_used', false);
     await supabase.from('otp_codes').update({ is_used: true }).eq('phone', phoneWithoutPlus).eq('is_used', false);
     const otp = String(Math.floor(100000 + Math.random() * 900000));
-    // Insert OTP using original input so verifyOtp can find it
-    await supabase.from('otp_codes').insert({ phone: phone, code: otp, purpose: 'login', expires_at: new Date(Date.now() + 600000).toISOString() });
+    // Insert OTP using normalized format (with +256)
+    await supabase.from('otp_codes').insert({ phone: normalizedPhone, code: otp, purpose: 'login', expires_at: new Date(Date.now() + 600000).toISOString() });
     return { success: true, phone: normalizedPhone, demoOtp: otp };
   };
 
@@ -360,12 +359,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const normalizedPhone = normPhone(phone);
     const phoneWithoutPlus = normalizedPhone.startsWith('+') ? normalizedPhone.substring(1) : normalizedPhone;
     
-    // Try to find OTP with original input, normalized, and without +
-    let { data: otpRec } = await supabase.from('otp_codes').select('id, code, expires_at').eq('phone', phone).eq('is_used', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    // Try to find OTP with normalized format first
+    let { data: otpRec } = await supabase.from('otp_codes').select('id, code, expires_at').eq('phone', normalizedPhone).eq('is_used', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
     if (!otpRec) {
-      otpRec = await supabase.from('otp_codes').select('id, code, expires_at').eq('phone', normalizedPhone).eq('is_used', false).order('created_at', { ascending: false }).limit(1).maybeSingle() as any;
-    }
-    if (!otpRec) {
+      // Try without +
       otpRec = await supabase.from('otp_codes').select('id, code, expires_at').eq('phone', phoneWithoutPlus).eq('is_used', false).order('created_at', { ascending: false }).limit(1).maybeSingle() as any;
     }
     if (!otpRec) return { success: false, error: 'No pending OTP. Please request a new one.' };
@@ -373,18 +370,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await supabase.from('otp_codes').update({ is_used: true }).eq('id', otpRec.id);
       return { success: false, error: 'OTP expired. Please request a new one.' };
     }
-    if (otpRec.code !== otpCode) return { success: false, error: 'Invalid OTP code.' };
+if (otpRec.code !== otpCode) return { success: false, error: 'Invalid OTP code.' };
     await supabase.from('otp_codes').update({ is_used: true }).eq('id', otpRec.id);
     const { data: acc } = await supabase.from('user_accounts').select('id, member_id').eq('phone', normalizedPhone).maybeSingle();
     // Try without + if not found
     const acc2 = !acc ? await supabase.from('user_accounts').select('id, member_id').eq('phone', phoneWithoutPlus).maybeSingle() : null;
     const finalAcc = acc || acc2?.data;
     if (!finalAcc) return { success: false, error: 'Account not found.' };
-    await supabase.from('user_accounts').update({ last_login_at: new Date().toISOString() }).eq('id', acc.id);
-    const { data: mem } = await supabase.from('members').select('*').eq('id', acc.member_id).single();
+    await supabase.from('user_accounts').update({ last_login_at: new Date().toISOString() }).eq('id', finalAcc.id);
+    const { data: mem } = await supabase.from('members').select('*').eq('id', finalAcc.member_id).single();
     if (!mem) return { success: false, error: 'Member profile not found.' };
     const authUser: AuthUser = {
-      id: acc.id, member_id: acc.member_id, phone: normalizedPhone,
+      id: finalAcc.id, member_id: finalAcc.member_id, phone: normalizedPhone,
       full_name: mem.full_name, email: mem.email, national_id: mem.national_id,
       photo_url: mem.photo_url, kyc_verified: mem.kyc_verified, created_at: mem.created_at,
     };
