@@ -358,7 +358,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     const { data: otpRec } = await supabase.from('otp_codes').select('id, code, expires_at').eq('phone', normalizedPhone).eq('is_used', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
     if (!otpRec) return { success: false, error: 'No pending OTP. Please request a new one.' };
-    if (new Date(otpRec.expires_at) < new Date()) { await supabase.from('otp_codes').update({ is_used: true }).eq('id', otpRec.id}); return { success: false, error: 'OTP expired. Please request a new one.'; }
+    if (new Date(otpRec.expires_at) < new Date()) {
+      await supabase.from('otp_codes').update({ is_used: true }).eq('id', otpRec.id);
+      return { success: false, error: 'OTP expired. Please request a new one.' };
+    }
     if (otpRec.code !== otpCode) return { success: false, error: 'Invalid OTP code.' };
     await supabase.from('otp_codes').update({ is_used: true }).eq('id', otpRec.id);
     const { data: acc } = await supabase.from('user_accounts').select('id, member_id').eq('phone', normalizedPhone).maybeSingle();
