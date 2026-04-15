@@ -236,6 +236,21 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
             <button disabled={loading} className="w-full bg-purple-600 text-white p-2 rounded">
               {loading ? 'Loading...' : mode === 'login' ? 'Login' : 'Register'}
             </button>
+            <div className="text-center">
+  <button
+    type="button"
+    onClick={() => {
+      setMode(mode === 'login' ? 'register' : 'login');
+      setError('');
+      setPhotoDataUrl(null);
+    }}
+    className="text-sm font-bold text-[#7c3aed] hover:underline"
+  >
+    {mode === 'login'
+      ? "Don't have an account? Register 🎊"
+      : 'Already have an account? Sign In'}
+  </button>
+</div>
           </form>
         ) : (
           <form onSubmit={handleOtpVerify} className="p-6 space-y-4">
