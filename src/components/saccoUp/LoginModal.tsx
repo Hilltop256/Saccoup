@@ -403,7 +403,6 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
                     placeholder="DD/MM/YYYY (e.g. 15/06/1990)"
                     maxLength={10}
                   />
-                  <p style={{ color: 'red' }}>TEST MARKER</p>
                 </div>
               </>
             )}
