@@ -39,7 +39,15 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
       return;
     }
 
-    let isMounted = true;
+    const mountedRef = useRef(true);
+
+useEffect(() => {
+  mountedRef.current = true;
+  return () => {
+    mountedRef.current = false;
+  };
+}, []);
+    if (!mountedRef.current) return;
     setLoading(true);
     setError(null);
 
