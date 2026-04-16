@@ -153,8 +153,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .select('id')
       .single();
 
-    if (memErr || !member) {
-      return { success: false, error: 'Failed to create member' };
+  if (memErr || !member) {
+  console.error('MEMBER INSERT ERROR:', memErr);
+  return { success: false, error: memErr?.message || 'Failed to create member' };
+}
     }
 
     const pinHash = await hashPin(pin);
