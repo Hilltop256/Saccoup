@@ -84,30 +84,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const selectedGroup =
     groups.find(g => g.id === selectedGroupId) || null;
 
-  const refreshGroups = useCallback(async () => {
-    if (!user?.member_id) return;
+ const refreshGroups = useCallback(async () => {
+  if (!user?.member_id) return;
 
-    const { data, error } = await supabase
-      .from('group_members')
-      .select(
-        `
-        role,
-        groups (
-          id,
-          name,
-          group_type,
-          contribution_amount,
-          contribution_schedule,
-          invite_code
-        )
-      `
+  const { data, error } = await supabase
+    .from('group_members')
+    .select(`
+      role,
+      groups (
+        id,
+        name,
+        group_type,
+        contribution_amount,
+        contribution_schedule,
+        invite_code
       )
-      .eq('member_id', user.member_id);
+    `)
+    .eq('member_id', user.member_id);
 
-    if (error) {
-      console.error(error);
-      return;
-    }
+  if (error) {
+    console.error('refreshGroups error:', error);
+    return;
+  }
+
+  const formatted: Group[] = (data || [])
+    .filter((item: any) => item.groups) // ✅ IMPORTANT SAFETY FIX
+    .map((item: any) => ({
+      id: item.groups.id,
+      name: item.groups.name,
+      group_type: item.groups.group_type,
+      contribution_amount: item.groups.contribution_amount,
+      contribution_schedule: item.groups.contribution_schedule,
+      invite_code: item.groups.invite_code,
+      members_count: 0,
+      total_savings: 0,
+      user_role: item.role,
+    }));
+
+  setGroups(formatted);
+
+  // ✅ FIX: always ensure selectedGroup is valid
+  setSelectedGroupId(prev => {
+    if (formatted.length === 0) return null;
+
+    const stillExists = formatted.find(g => g.id === prev);
+    return stillExists ? prev : formatted[0].id;
+  });
+}, [user]);
+
+  useEffect(() => {
+  if (!user) return;
+
+  refreshGroups();
+}, [user]);
+
+await supabase.from('group_members').insert(...)
+await refreshGroups();
+}
+
+
 
     const formatted: Group[] = (data || []).map((item: any) => ({
       id: item.groups.id,
