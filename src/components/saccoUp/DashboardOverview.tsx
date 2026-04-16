@@ -102,9 +102,8 @@ const getPaymentLabel = (method: string): string => {
 
 const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => {
   const { user, selectedGroup } = useAppContext();
-  const { getGroupTotals, cycles } = useRoscaData();
-  const roscaCycles = cycles || [];
-  
+  const { getGroupTotals } = useRoscaData();
+
   const [stats, setStats] = useState<GroupStats | null>(null);
   const [contributions, setContributions] = useState<ContributionRow[]>([]);
   const [loans, setLoans] = useState<LoanRow[]>([]);
@@ -114,6 +113,7 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   const [error, setError] = useState<string | null>(null);
 
   const roscaTotals = getGroupTotals();
+  const roscaCycles = useRoscaData().cycles;
   // Get current active/upcoming cycle, or default to cycle 4 if just completed cycle 3
   const activeCycle = roscaCycles?.find(c => c.status === 'active' || c.status === 'upcoming');
   const currentCycleNum = activeCycle?.cycle_number || 4;
@@ -647,5 +647,5 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
     </div>
   );
 };
- //check
+
 export default DashboardOverview;
