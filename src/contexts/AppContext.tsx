@@ -7,12 +7,6 @@ interface AuthResult {
   error?: string;
 }
 
-import { AppProvider } from '@/contexts/AppContext';
-
-<AppProvider>
-  <App />
-</AppProvider>
-
 interface AppContextType {
   login: (phone: string, pin: string) => Promise<AuthResult>;
   register: (...args: any[]) => Promise<AuthResult>;
