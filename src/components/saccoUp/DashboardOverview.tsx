@@ -102,7 +102,9 @@ const getPaymentLabel = (method: string): string => {
 
 const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => {
   const { user, selectedGroup } = useAppContext();
-  const { getGroupTotals, cycles: roscaCycles } = useRoscaData();
+//  const { getGroupTotals, cycles: roscaCycles } = useRoscaData();
+const roscaTotals = { totalPaidOut: 0, totalSavings: 0, totalDeductions: 0, totalWinners: 0 };
+const roscaCycles: any[] = [];
 
   const [stats, setStats] = useState<GroupStats | null>(null);
   const [contributions, setContributions] = useState<ContributionRow[]>([]);
