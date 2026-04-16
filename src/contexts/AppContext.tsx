@@ -153,8 +153,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .select('id')
       .single();
 
-  if (memErr || !member) {
+ if (memErr || !member) {
   console.error('MEMBER INSERT ERROR:', memErr);
+
+  // Handle duplicate phone error nicely
+  if (memErr?.message?.includes('members_phone_key')) {
+    return { success: false, error: 'Phone number already exists' };
+  }
+
   return { success: false, error: memErr?.message || 'Failed to create member' };
 }
 
