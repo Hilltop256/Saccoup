@@ -8,7 +8,9 @@ import { RoscaProvider } from '@/contexts/RoscaContext';
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <AppProvider>
-      <App />
+      <RoscaProvider>
+        <App />
+      </RoscaProvider>
     </AppProvider>
   </React.StrictMode>
 );
