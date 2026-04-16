@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAppContext } from '@/contexts/AppContext';
 import { useRoscaData } from '@/contexts/RoscaContext';
 import * as ds from '@/lib/dataService';
-import { formatUGX, getStatusColor, IMAGES } from '@/lib/constants';
+import { formatUGX } from '@/lib/constants';
 import type { DashboardPage } from './Sidebar';
 
 interface DashboardOverviewProps {
@@ -13,13 +13,22 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   const { user, selectedGroup } = useAppContext();
   const { getGroupTotals, cycles } = useRoscaData();
 
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<any>({});
   const [contributions, setContributions] = useState<any[]>([]);
   const [loans, setLoans] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const roscaTotals = getGroupTotals();
 
@@ -30,24 +39,13 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   const currentCycleNum = activeCycle?.cycle_number ?? 1;
 
   const currentDrawNum = useMemo(() => {
-    return (activeCycle?.draws?.filter(d => d.winner_name).length ?? 0) + 1;
+    return (activeCycle?.draws?.filter(d => d.winner_name)?.length ?? 0) + 1;
   }, [activeCycle]);
 
   const loadDashboardData = useCallback(async () => {
-    if (!selectedGroup?.id) {
-      setLoading(false);
-      return;
-    }
+    const groupId = selectedGroup?.id;
+    if (!groupId) return;
 
-    const mountedRef = useRef(true);
-
-useEffect(() => {
-  mountedRef.current = true;
-  return () => {
-    mountedRef.current = false;
-  };
-}, []);
-    if (!mountedRef.current) return;
     setLoading(true);
     setError(null);
 
@@ -59,66 +57,64 @@ useEffect(() => {
         announcementsRes,
         membersRes,
       ] = await Promise.allSettled([
-        ds.getGroupStats(selectedGroup.id),
-        ds.listContributions(selectedGroup.id, { limit: 10 }),
-        ds.listLoans(selectedGroup.id),
-        ds.listAnnouncements(selectedGroup.id),
-        ds.listMembers(selectedGroup.id),
+        ds.getGroupStats(groupId),
+        ds.listContributions(groupId, { limit: 10 }),
+        ds.listLoans(groupId),
+        ds.listAnnouncements(groupId),
+        ds.listMembers(groupId),
       ]);
 
-      if (!isMounted) return;
+      if (!mountedRef.current) return;
 
-      // Stats
-      if (statsRes.status === 'fulfilled' && statsRes.value?.stats) {
-        setStats(statsRes.value.stats);
-      } else {
-        setStats({
-          total_savings: 0,
-          total_loans_outstanding: 0,
-          member_count: 0,
-          total_contributions: 0,
-          confirmed_contributions: 0,
-          pending_contributions: 0,
-          failed_contributions: 0,
-          pending_loans: 0,
-          collection_rate: 0,
-        });
-      }
+      // STATS
+      setStats(
+        statsRes.status === 'fulfilled'
+          ? statsRes.value?.stats ?? {}
+          : {}
+      );
 
-      // Contributions
-      if (contribRes.status === 'fulfilled') {
-        setContributions(contribRes.value?.contributions ?? []);
-      }
+      // CONTRIBUTIONS
+      setContributions(
+        contribRes.status === 'fulfilled'
+          ? contribRes.value?.contributions ?? []
+          : []
+      );
 
-      // Loans
-      if (loansRes.status === 'fulfilled') {
-        setLoans(loansRes.value?.loans ?? []);
-      }
+      // LOANS
+      setLoans(
+        loansRes.status === 'fulfilled'
+          ? loansRes.value?.loans ?? []
+          : []
+      );
 
-      // Announcements
-      if (announcementsRes.status === 'fulfilled') {
-        setAnnouncements((announcementsRes.value?.announcements ?? []).slice(0, 3));
-      }
+      // ANNOUNCEMENTS
+      setAnnouncements(
+        announcementsRes.status === 'fulfilled'
+          ? (announcementsRes.value?.announcements ?? []).slice(0, 3)
+          : []
+      );
 
-      // Members
-      if (membersRes.status === 'fulfilled') {
-        setMembers(membersRes.value?.members ?? []);
-      }
+      // MEMBERS
+      setMembers(
+        membersRes.status === 'fulfilled'
+          ? membersRes.value?.members ?? []
+          : []
+      );
 
     } catch (e: any) {
-      if (!isMounted) return;
+      if (!mountedRef.current) return;
       setError(e?.message || 'Failed to load dashboard data');
+    } finally {
+      if (mountedRef.current) setLoading(false);
     }
-
-    if (isMounted) setLoading(false);
-
-    return () => {
-      isMounted = false;
-    };
   }, [selectedGroup?.id]);
 
   useEffect(() => {
-    if (selectedGroup?.id) loadDashboardData();
+    if (selectedGroup?.id) {
+      loadDashboardData();
+    } else {
+      setLoading(false);
+    }
   }, [selectedGroup?.id, loadDashboardData]);
 
   const userName = useMemo(
@@ -131,71 +127,56 @@ useEffect(() => {
     [selectedGroup]
   );
 
-  const isRoscaType = groupType === 'rosca' || groupType === 'hybrid';
-
-  const totalMembers = useMemo(
-    () => Math.max(stats?.member_count || 0, members.length),
-    [stats, members]
-  );
+  const totalMembers = members.length;
 
   const confirmedCount = stats?.confirmed_contributions || 0;
   const pendingCount = stats?.pending_contributions || 0;
   const failedCount = stats?.failed_contributions || 0;
 
   const pendingLoansCount = useMemo(
-    () =>
-      loans.filter(l =>
-        ['pending', 'treasurer_approved'].includes(l.status)
-      ).length,
+    () => (loans ?? []).filter(l =>
+      ['pending', 'treasurer_approved'].includes(l.status)
+    ).length,
     [loans]
   );
 
   const activeLoansList = useMemo(
-    () =>
-      loans.filter(l =>
-        ['pending', 'approved', 'treasurer_approved'].includes(l.status)
-      ),
+    () => (loans ?? []).filter(l =>
+      ['pending', 'approved', 'treasurer_approved'].includes(l.status)
+    ),
     [loans]
   );
 
-  const statCards = useMemo(() => {
-    if (!stats) return [];
+  const memberMap = useMemo(() => {
+    const map = new Map();
+    (members ?? []).forEach(m => map.set(m.id, m));
+    return map;
+  }, [members]);
 
-    const base = [
+  const statCards = useMemo(() => {
+    return [
       {
         label: 'Total Savings',
-        value: formatUGX(stats.total_savings),
-        change: `${stats.collection_rate}% collection rate`,
-        color: 'from-[#0066CC] to-[#0088FF]',
+        value: formatUGX(stats?.total_savings || 0),
+        change: `${stats?.collection_rate || 0}% collection rate`,
       },
       {
         label: 'Total Contributions',
-        value: formatUGX(stats.total_contributions),
+        value: formatUGX(stats?.total_contributions || 0),
         change: `${confirmedCount} confirmed`,
-        color: 'from-emerald-500 to-emerald-400',
       },
       {
         label: 'Active Members',
         value: String(totalMembers),
         change: `${confirmedCount} contributed`,
-        color: 'from-[#00CC99] to-[#00E6AD]',
       },
       {
         label: 'Outstanding Loans',
-        value: formatUGX(stats.total_loans_outstanding),
+        value: formatUGX(stats?.total_loans_outstanding || 0),
         change: `${pendingLoansCount} pending`,
-        color: 'from-amber-500 to-amber-400',
       },
     ];
-
-    return base;
   }, [stats, confirmedCount, totalMembers, pendingLoansCount]);
-
-  const memberMap = useMemo(() => {
-    const map = new Map();
-    members.forEach(m => map.set(m.id, m));
-    return map;
-  }, [members]);
 
   if (!selectedGroup) {
     return (
@@ -208,7 +189,7 @@ useEffect(() => {
   return (
     <div className="space-y-6">
 
-      {/* Welcome */}
+      {/* Header */}
       <div className="bg-gradient-to-r from-[#0066CC] to-[#004C99] rounded-2xl p-6 text-white">
         <h1 className="text-2xl font-bold">
           Welcome back, {userName}!
@@ -231,11 +212,11 @@ useEffect(() => {
           ? Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="h-20 bg-gray-100 animate-pulse rounded-xl" />
             ))
-          : statCards.map((card, i) => (
+          : statCards.map((c, i) => (
               <div key={i} className="bg-white p-4 rounded-xl border">
-                <p className="text-sm text-gray-500">{card.label}</p>
-                <p className="text-xl font-bold">{card.value}</p>
-                <p className="text-xs text-gray-400">{card.change}</p>
+                <p className="text-sm text-gray-500">{c.label}</p>
+                <p className="text-xl font-bold">{c.value}</p>
+                <p className="text-xs text-gray-400">{c.change}</p>
               </div>
             ))}
       </div>
@@ -263,23 +244,27 @@ useEffect(() => {
       <div className="bg-white p-4 rounded-xl border">
         <h2 className="font-bold mb-3">Loan Applications</h2>
 
-        {activeLoansList.slice(0, 4).map(l => {
-          const member = memberMap.get(l.member_id);
+        {activeLoansList.length === 0 ? (
+          <p className="text-xs text-gray-400">No loan applications</p>
+        ) : (
+          activeLoansList.slice(0, 4).map(l => {
+            const member = memberMap.get(l.member_id);
 
-          return (
-            <div key={l.id} className="flex justify-between py-2 border-b">
-              <div>
-                <p className="text-sm font-medium">
-                  {member?.full_name || l.member_name}
-                </p>
-                <p className="text-xs text-gray-500">{l.purpose}</p>
+            return (
+              <div key={l.id} className="flex justify-between py-2 border-b">
+                <div>
+                  <p className="text-sm font-medium">
+                    {member?.full_name || l.member_name}
+                  </p>
+                  <p className="text-xs text-gray-500">{l.purpose}</p>
+                </div>
+                <div className="text-sm">
+                  {formatUGX(l.amount)}
+                </div>
               </div>
-              <div className="text-right text-sm">
-                {formatUGX(l.amount)}
-              </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
     </div>
   );
