@@ -92,7 +92,6 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
     setPin('');
     setName('');
     setConfirmPin('');
-    setInviteCode('');
     setNationalId('');
     setEmail('');
     setDateOfBirth('');
