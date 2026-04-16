@@ -113,7 +113,6 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   const [error, setError] = useState<string | null>(null);
 
   const roscaTotals = getGroupTotals();
-  const roscaCycles = useRoscaData().cycles;
   // Get current active/upcoming cycle, or default to cycle 4 if just completed cycle 3
   const activeCycle = roscaCycles?.find(c => c.status === 'active' || c.status === 'upcoming');
   const currentCycleNum = activeCycle?.cycle_number || 4;
