@@ -34,6 +34,72 @@ interface AppContextType {
   logout: () => void;
 }
 
+const [groups, setGroups] = useState<Group[]>([]);
+const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+
+export interface Group {
+  id: string;
+  name: string;
+  group_type: string;
+  contribution_amount: number;
+  contribution_schedule: string;
+  invite_code: string;
+  members_count?: number;
+  total_savings?: number;
+  user_role?: string;
+}
+
+const refreshGroups = useCallback(async () => {
+  if (!user?.member_id) return;
+
+  const { data, error } = await supabase
+    .from('group_members')
+    .select(`
+      role,
+      groups (
+        id,
+        name,
+        group_type,
+        contribution_amount,
+        contribution_schedule,
+        invite_code
+      )
+    `)
+    .eq('member_id', user.member_id);
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  const formatted: Group[] = (data || []).map((item: any) => ({
+    id: item.groups.id,
+    name: item.groups.name,
+    group_type: item.groups.group_type,
+    contribution_amount: item.groups.contribution_amount,
+    contribution_schedule: item.groups.contribution_schedule,
+    invite_code: item.groups.invite_code,
+    members_count: 0,
+    total_savings: 0,
+    user_role: item.role,
+  }));
+
+  setGroups(formatted);
+
+  // auto-select first group (VERY IMPORTANT FIX)
+  if (formatted.length > 0 && !selectedGroupId) {
+    setSelectedGroupId(formatted[0].id);
+  }
+}, [user, selectedGroupId]);
+
+useEffect(() => {
+  if (user) refreshGroups();
+}, [user, refreshGroups]);
+
+
+const selectedGroup =
+  groups.find(g => g.id === selectedGroupId) || null;
+
 const AppContext = createContext<AppContextType>({} as AppContextType);
 export const useAppContext = () => useContext(AppContext);
 
@@ -299,17 +365,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   return (
-    <AppContext.Provider
-      value={{
-        user,
-        isAuthenticated: !!user,
-        isAuthLoading,
-        register,
-        login,
-        verifyOtp,
-        resendOtp,
-        logout,
-      }}
+   value={{
+  user,
+  isAuthenticated: !!user,
+  isAuthLoading,
+
+  groups,
+  refreshGroups,
+
+  selectedGroupId,
+  setSelectedGroupId,
+  selectedGroup,
+
+  register,
+  login,
+  verifyOtp,
+  resendOtp,
+  logout,
+}}
     >
       {children}
     </AppContext.Provider>
