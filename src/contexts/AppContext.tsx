@@ -1,5 +1,15 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback
+} from 'react';
 import { supabase } from '@/lib/supabase';
+
+/* =========================
+   TYPES
+========================= */
 
 export interface AuthUser {
   id: string;
@@ -13,10 +23,28 @@ export interface AuthUser {
   created_at?: string;
 }
 
+export interface Group {
+  id: string;
+  name: string;
+  group_type: string;
+  contribution_amount: number;
+  contribution_schedule: string;
+  invite_code: string;
+  members_count?: number;
+  total_savings?: number;
+  user_role?: string;
+}
+
 interface AppContextType {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isAuthLoading: boolean;
+
+  groups: Group[];
+  refreshGroups: () => Promise<void>;
+
+  selectedGroupId: string | null;
+  setSelectedGroupId: (id: string | null) => void;
 
   register: (
     phone: string,
@@ -28,16 +56,35 @@ interface AppContextType {
     dateOfBirth: string
   ) => Promise<{ success: boolean; phone?: string; demoOtp?: string; error?: string }>;
 
-  login: (phone: string, pin: string) => Promise<{ success: boolean; phone?: string; demoOtp?: string; error?: string }>;
-  verifyOtp: (phone: string, otpCode: string) => Promise<{ success: boolean; error?: string }>;
+  login: (
+    phone: string,
+    pin: string
+  ) => Promise<{ success: boolean; phone?: string; demoOtp?: string; error?: string }>;
+
+  verifyOtp: (
+    phone: string,
+    otpCode: string
+  ) => Promise<{ success: boolean; error?: string }>;
+
   resendOtp: (phone: string) => Promise<{ success: boolean; demoOtp?: string }>;
+
   logout: () => void;
+
+  isChairman?: boolean;
 }
 
 const AppContext = createContext<AppContextType>({} as AppContextType);
 export const useAppContext = () => useContext(AppContext);
 
+/* =========================
+   CONSTANTS
+========================= */
+
 const SESSION_KEY = 'saccoup_session';
+
+/* =========================
+   HELPERS
+========================= */
 
 function normPhone(ph: string): string {
   let c = ph.replace(/[\s\-()]/g, '');
@@ -50,18 +97,33 @@ function normPhone(ph: string): string {
 async function hashPin(pin: string): Promise<string> {
   const data = new TextEncoder().encode(pin + 'saccoup2026');
   const buf = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return Array.from(new Uint8Array(buf))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
 }
+
+/* =========================
+   PROVIDER
+========================= */
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-  // Restore session
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+
+  /* =========================
+     SESSION RESTORE
+  ========================= */
+
   useEffect(() => {
     const restore = async () => {
       const stored = localStorage.getItem(SESSION_KEY);
-      if (!stored) return setIsAuthLoading(false);
+      if (!stored) {
+        setIsAuthLoading(false);
+        return;
+      }
 
       try {
         const session = JSON.parse(stored);
@@ -72,7 +134,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .eq('id', session.user_account_id)
           .maybeSingle();
 
-        if (!acc) return setIsAuthLoading(false);
+        if (!acc) {
+          setIsAuthLoading(false);
+          return;
+        }
 
         const { data: mem } = await supabase
           .from('members')
@@ -80,7 +145,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .eq('id', acc.member_id)
           .single();
 
-        if (!mem) return setIsAuthLoading(false);
+        if (!mem) {
+          setIsAuthLoading(false);
+          return;
+        }
 
         setUser({
           id: acc.id,
@@ -92,7 +160,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           photo_url: mem.photo_url,
           kyc_verified: mem.kyc_verified,
         });
-      } catch {
+      } catch (err) {
+        console.error('SESSION RESTORE ERROR:', err);
         localStorage.removeItem(SESSION_KEY);
       }
 
@@ -102,7 +171,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     restore();
   }, []);
 
-  // ✅ REGISTER (NO INVITE CODE)
+  /* =========================
+     LOAD GROUPS
+  ========================= */
+
+  const refreshGroups = useCallback(async () => {
+    if (!user?.member_id) {
+      setGroups([]);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('group_members')
+        .select(`
+          role,
+          groups (
+            id,
+            name,
+            group_type,
+            contribution_amount,
+            contribution_schedule,
+            invite_code
+          )
+        `)
+        .eq('member_id', user.member_id);
+
+      if (error) {
+        console.error('GROUP FETCH ERROR:', error);
+        return;
+      }
+
+      const formatted: Group[] = (data || []).map((item: any) => ({
+        id: item.groups.id,
+        name: item.groups.name,
+        group_type: item.groups.group_type,
+        contribution_amount: item.groups.contribution_amount,
+        contribution_schedule: item.groups.contribution_schedule,
+        invite_code: item.groups.invite_code,
+        user_role: item.role,
+        members_count: 0,
+        total_savings: 0,
+      }));
+
+      setGroups(formatted);
+    } catch (err) {
+      console.error('GROUP FETCH FAILED:', err);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      refreshGroups();
+    }
+  }, [user, refreshGroups]);
+
+  /* =========================
+     REGISTER
+  ========================= */
+
   const register = async (
     phone: string,
     pin: string,
@@ -118,7 +245,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: 'PIN must be at least 4 digits' };
     }
 
-    // ✅ Prevent duplicates
     const { data: existing } = await supabase
       .from('user_accounts')
       .select('id')
@@ -129,7 +255,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: 'Phone already registered' };
     }
 
-    // Convert DOB
     let dob: string | null = null;
     if (dateOfBirth) {
       const parts = dateOfBirth.split('/');
@@ -153,16 +278,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .select('id')
       .single();
 
- if (memErr || !member) {
-  console.error('MEMBER INSERT ERROR:', memErr);
+    if (memErr || !member) {
+      if (memErr?.message?.includes('members_phone_key')) {
+        return { success: false, error: 'Phone number already exists' };
+      }
 
-  // Handle duplicate phone error nicely
-  if (memErr?.message?.includes('members_phone_key')) {
-    return { success: false, error: 'Phone number already exists' };
-  }
-
-  return { success: false, error: memErr?.message || 'Failed to create member' };
-}
+      console.error('MEMBER INSERT ERROR:', memErr);
+      return { success: false, error: memErr?.message || 'Failed to create member' };
+    }
 
     const pinHash = await hashPin(pin);
 
@@ -189,7 +312,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, phone: normalizedPhone, demoOtp: otp };
   };
 
-  // LOGIN
+  /* =========================
+     LOGIN
+  ========================= */
+
   const login = async (phone: string, pin: string) => {
     const normalizedPhone = normPhone(phone);
     const pinHash = await hashPin(pin);
@@ -215,7 +341,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, phone: normalizedPhone, demoOtp: otp };
   };
 
-  // VERIFY OTP (FIXED)
+  /* =========================
+     OTP VERIFY
+  ========================= */
+
   const verifyOtp = async (phone: string, otpCode: string) => {
     const normalizedPhone = normPhone(phone);
 
@@ -229,14 +358,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .maybeSingle();
 
     if (!otpRec) return { success: false, error: 'No OTP found' };
-
-    if (new Date(otpRec.expires_at) < new Date()) {
-      return { success: false, error: 'OTP expired' };
-    }
-
-    if (otpRec.code !== otpCode) {
-      return { success: false, error: 'Invalid OTP' };
-    }
+    if (new Date(otpRec.expires_at) < new Date()) return { success: false, error: 'OTP expired' };
+    if (otpRec.code !== otpCode) return { success: false, error: 'Invalid OTP' };
 
     await supabase.from('otp_codes').update({ is_used: true }).eq('id', otpRec.id);
 
@@ -278,6 +401,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true };
   };
 
+  /* =========================
+     RESEND OTP
+  ========================= */
+
   const resendOtp = async (phone: string) => {
     const normalizedPhone = normPhone(phone);
 
@@ -293,10 +420,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, demoOtp: otp };
   };
 
+  /* =========================
+     LOGOUT
+  ========================= */
+
   const logout = () => {
     setUser(null);
+    setGroups([]);
+    setSelectedGroupId(null);
     localStorage.removeItem(SESSION_KEY);
   };
+
+  /* =========================
+     PROVIDER
+  ========================= */
 
   return (
     <AppContext.Provider
@@ -304,11 +441,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         user,
         isAuthenticated: !!user,
         isAuthLoading,
+
+        groups,
+        refreshGroups,
+        selectedGroupId,
+        setSelectedGroupId,
+
         register,
         login,
         verifyOtp,
         resendOtp,
         logout,
+
+        isChairman: true,
       }}
     >
       {children}
