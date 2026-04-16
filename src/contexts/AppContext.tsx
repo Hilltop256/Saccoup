@@ -73,6 +73,28 @@ interface AppContextType {
   isChairman?: boolean;
 }
 
+const selectedGroup = groups.find(g => g.id === selectedGroupId) || null;
+value={{
+  user,
+  isAuthenticated: !!user,
+  isAuthLoading,
+
+  groups,
+  refreshGroups,
+
+  selectedGroupId,
+  setSelectedGroupId,
+
+  selectedGroup, // 👈 ADD THIS
+
+  register,
+  login,
+  verifyOtp,
+  resendOtp,
+  logout,
+  isChairman: true,
+}}
+
 const AppContext = createContext<AppContextType>({} as AppContextType);
 export const useAppContext = () => useContext(AppContext);
 
