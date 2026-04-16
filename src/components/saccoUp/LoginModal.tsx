@@ -158,7 +158,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
       const month = parseInt(parts[1], 10);
       if (month < 1 || month > 12) { setError('Invalid month in date'); return; }
       if (day < 1 || day > 31) { setError('Invalid day in date'); return; }
-      
+    }
     setLoading(true);
     try {
       const result = mode === 'register'
