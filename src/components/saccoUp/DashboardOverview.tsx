@@ -9,6 +9,11 @@ interface DashboardOverviewProps {
   onNavigate: (page: DashboardPage) => void;
 }
 
+useEffect(() => {
+  console.log("USER:", user);
+  console.log("SELECTED GROUP:", selectedGroup);
+}, [user, selectedGroup]);
+
 interface GroupStats {
   total_savings: number;
   total_loans_outstanding: number;
