@@ -121,7 +121,7 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   const currentDrawNum = activeCycle ? (activeCycle.draws?.filter(d => d.winner_name).length || 0) + 1 : 1;
 
   const loadDashboardData = useCallback(async () => {
-    if (!selectedGroup?.id) {
+    if (!selectedGroup || groups.length === 0) {
       setLoading(false);
       return;
     }
@@ -221,9 +221,11 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
     setLoading(false);
   }, [selectedGroup?.id]);
 
-  useEffect(() => {
+ useEffect(() => {
+  if (selectedGroup?.id) {
     loadDashboardData();
-  }, [loadDashboardData]);
+  }
+}, [selectedGroup?.id, loadDashboardData]);
 
   const userName = user?.full_name?.split(' ')[0] || 'User';
   const groupName = selectedGroup?.name || 'your group';
