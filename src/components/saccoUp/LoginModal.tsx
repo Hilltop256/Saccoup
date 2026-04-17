@@ -158,11 +158,13 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
       const month = parseInt(parts[1], 10);
       if (month < 1 || month > 12) { setError('Invalid month in date'); return; }
       if (day < 1 || day > 31) { setError('Invalid day in date'); return; }
+      if (!inviteCode.trim()) { setError('Enter your group invite code. If your group doesn\'t exist yet, create a group first.'); return; }
     }
+
     setLoading(true);
     try {
       const result = mode === 'register'
-        ? await register(phone, pin, name.trim(), photoDataUrl || '', nationalId.trim(), email.trim(), dateOfBirth)
+        ? await register(phone, pin, name.trim(), inviteCode.trim(), photoDataUrl || '', nationalId.trim(), email.trim(), dateOfBirth)
         : await login(phone, pin);
 
       if (result.success && result.phone) {
@@ -403,6 +405,18 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
                     placeholder="DD/MM/YYYY (e.g. 15/06/1990)"
                     maxLength={10}
                   />
+                </div>
+                <div>
+                  <label className="text-sm font-bold text-gray-700 mb-1 block">Invite Code *</label>
+                  <input
+                    type="text"
+                    value={inviteCode}
+                    onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                    className="w-full px-3 py-2.5 text-sm border-2 border-purple-100 rounded-xl focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none font-mono uppercase tracking-widest"
+                    placeholder="e.g. PBS2026A"
+                    maxLength={10}
+                  />
+                  <p className="text-xs text-gray-400 mt-1 font-semibold">Ask your group chairman for the code, or create a group first</p>
                 </div>
               </>
             )}
