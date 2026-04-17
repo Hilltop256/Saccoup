@@ -69,6 +69,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
   const [pin, setPin] = useState('');
   const [name, setName] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [nationalId, setNationalId] = useState('');
   const [email, setEmail] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
@@ -92,6 +93,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
     setPin('');
     setName('');
     setConfirmPin('');
+    setInviteCode('');
     setNationalId('');
     setEmail('');
     setDateOfBirth('');
