@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
 interface AuthResult {
   success: boolean;
@@ -7,7 +7,15 @@ interface AuthResult {
   error?: string;
 }
 
+interface User {
+  id: string;
+  phone: string;
+  full_name?: string;
+}
+
 interface AppContextType {
+  user: User | null;
+  setUser: (user: User | null) => void;
   login: (phone: string, pin: string) => Promise<AuthResult>;
   register: (...args: any[]) => Promise<AuthResult>;
   verifyOtp: (phone: string, otp: string) => Promise<{ success: boolean; error?: string }>;
@@ -18,15 +26,33 @@ const AppContext = createContext<AppContextType | null>(null);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
+  const [user, setUser] = useState<User | null>(null);
+
+  // ✅ Restore user on refresh
+  useEffect(() => {
+    const storedUser = localStorage.getItem('demoUser');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+  }, []);
+
+  // ✅ Persist user
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('demoUser', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('demoUser');
+    }
+  }, [user]);
+
   const login = async (phone: string, pin: string): Promise<AuthResult> => {
     try {
-      // 🔥 your real login logic here (Supabase)
       console.log('LOGIN:', phone, pin);
 
       return {
         success: true,
         phone,
-        demoOtp: '123456', // test OTP
+        demoOtp: '123456', // demo OTP
       };
     } catch (err: any) {
       return { success: false, error: err.message };
@@ -47,10 +73,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // 🔥 FIXED: This is what logs the user into the app
   const verifyOtp = async (phone: string, otp: string) => {
     if (otp === '123456') {
+      const mockUser: User = {
+        id: 'demo-user-id',
+        phone,
+        full_name: 'Demo User',
+      };
+
+      setUser(mockUser); // ✅ THIS FIXES YOUR WHITE SCREEN
+
       return { success: true };
     }
+
     return { success: false, error: 'Invalid OTP' };
   };
 
@@ -62,7 +98,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   return (
-    <AppContext.Provider value={{ login, register, verifyOtp, resendOtp }}>
+    <AppContext.Provider value={{ user, setUser, login, register, verifyOtp, resendOtp }}>
       {children}
     </AppContext.Provider>
   );
