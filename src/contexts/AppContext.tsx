@@ -304,7 +304,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       is_active: true,
       photo_url: photoDataUrl || null,
     }).select('id').single();
-    if (memErr || !member) return { success: false, error: memErr?.message || 'Failed to create account. Please try again.' };
+    if (memErr || !member) {
+      // Check for duplicate phone constraint violation
+      if (memErr?.code === '23505' || memErr?.message?.includes('members_phone_key')) {
+        return { success: false, error: 'Phone Number already Registered with other User Account' };
+      }
+      return { success: false, error: memErr?.message || 'Failed to create account. Please try again.' };
+    }
     const pinHash = await hashPin(pin);
     const { error: accErr } = await supabase.from('user_accounts').insert({ member_id: member.id, phone: normalizedPhone, pin_hash: pinHash });
     if (accErr) { await supabase.from('members').delete().eq('id', member.id); return { success: false, error: 'Failed to create account.' }; }
@@ -353,7 +359,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, phone: normalizedPhone, demoOtp: otp };
   };
 
-// Verify OTP
+  // Verify OTP
   const verifyOtp = async (phone: string, otpCode: string) => {
     setAuthError(null);
     const normalizedPhone = normPhone(phone);
@@ -363,14 +369,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let { data: otpRec } = await supabase.from('otp_codes').select('id, code, expires_at').eq('phone', normalizedPhone).eq('is_used', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
     if (!otpRec) {
       // Try without +
-      otpRec = await supabase.from('otp_codes').select('id, code, expires_at').eq('phone', phoneWithoutPlus).eq('is_used', false).order('created_at', { ascending: false }).limit(1).maybeSingle() as any;
+      const result = await supabase.from('otp_codes').select('id, code, expires_at').eq('phone', phoneWithoutPlus).eq('is_used', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      otpRec = result.data;
     }
     if (!otpRec) return { success: false, error: 'No pending OTP. Please request a new one.' };
     if (new Date(otpRec.expires_at) < new Date()) {
       await supabase.from('otp_codes').update({ is_used: true }).eq('id', otpRec.id);
       return { success: false, error: 'OTP expired. Please request a new one.' };
     }
-if (otpRec.code !== otpCode) return { success: false, error: 'Invalid OTP code.' };
+    if (otpRec.code !== otpCode) return { success: false, error: 'Invalid OTP code.' };
     await supabase.from('otp_codes').update({ is_used: true }).eq('id', otpRec.id);
     const { data: acc } = await supabase.from('user_accounts').select('id, member_id').eq('phone', normalizedPhone).maybeSingle();
     // Try without + if not found
@@ -386,9 +393,9 @@ if (otpRec.code !== otpCode) return { success: false, error: 'Invalid OTP code.'
       photo_url: mem.photo_url, kyc_verified: mem.kyc_verified, created_at: mem.created_at,
     };
     setUser(authUser);
-    await loadMemberships(acc.member_id);
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ user_account_id: acc.id, member_id: acc.member_id, expires_at: new Date(Date.now() + 7 * 24 * 3600000).toISOString() }));
-    await supabase.from('audit_logs').insert({ actor_id: acc.member_id, action: 'user_login', entity_type: 'auth_session', details: { phone: normalizedPhone } });
+    await loadMemberships(finalAcc.member_id);
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ user_account_id: finalAcc.id, member_id: finalAcc.member_id, expires_at: new Date(Date.now() + 7 * 24 * 3600000).toISOString() }));
+    await supabase.from('audit_logs').insert({ actor_id: finalAcc.member_id, action: 'user_login', entity_type: 'auth_session', details: { phone: normalizedPhone } });
     return { success: true };
   };
 
