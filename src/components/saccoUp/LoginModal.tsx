@@ -81,7 +81,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [showPhotoMenu, setShowPhotoMenu] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setMode(initialMode);
@@ -99,6 +101,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
     setDateOfBirth('');
     setPhotoDataUrl(null);
     setPhotoError('');
+    setShowPhotoMenu(false);
   }, [initialMode, isOpen]);
 
   useEffect(() => {
@@ -116,6 +119,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
     const file = e.target.files?.[0];
     if (!file) return;
     setPhotoError('');
+    setShowPhotoMenu(false);
     if (!file.type.startsWith('image/')) {
       setPhotoError('Please choose an image file.');
       return;
@@ -239,28 +243,50 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
 
           {/* Profile photo preview (register only, credentials step) */}
           {mode === 'register' && step === 'credentials' ? (
-            <div className="flex flex-col items-center mb-3">
+            <div className="flex flex-col items-center mb-3 relative">
               <div
-                className="w-20 h-20 rounded-full overflow-hidden border-4 border-white/50 bg-white/20 flex items-center justify-center cursor-pointer hover:ring-4 hover:ring-white/40 transition-all mb-2 shadow-lg"
-                onClick={() => fileInputRef.current?.click()}
+                className="w-20 h-20 rounded-full overflow-hidden border-4 border-white/50 bg-white/20 flex items-center justify-center cursor-pointer hover:ring-4 hover:ring-white/40 transition-all"
+                onClick={() => setShowPhotoMenu(!showPhotoMenu)}
                 title="Click to choose photo"
               >
                 {photoDataUrl ? (
                   <img src={photoDataUrl} alt="Your photo" className="w-full h-full object-cover" />
                 ) : (
                   <svg className="w-9 h-9 text-white/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h12A2.25 2.25 0 0021 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 00-1.64-1.055m0 0a48.002 48.002 0 00-5.674 0m0 0A3 3 0 1012 3c-1.657 0-3-1.343-3-3s1.343-3 3-3m15 3c0 1.657-1.343 3-3 3m-9-6h.008v.008H9V3z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
                   </svg>
                 )}
               </div>
+              
+              {/* Photo Source Menu */}
+              {showPhotoMenu && (
+                <div className="absolute top-24 bg-white rounded-2xl shadow-lg border-2 border-purple-100 z-10">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-purple-50 rounded-t-xl transition-colors text-left border-b border-purple-100"
+                  >
+                    📷 Take a Photo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="w-full px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-purple-50 rounded-b-xl transition-colors text-left"
+                  >
+                    🖼️ Choose from Gallery
+                  </button>
+                </div>
+              )}
+
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="text-xs font-bold text-white/80 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full transition-colors"
+                onClick={() => setShowPhotoMenu(!showPhotoMenu)}
+                className="text-xs font-bold text-white/80 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full transition-colors mt-2"
               >
                 {photoDataUrl ? 'Change Photo' : '📷 Add Your Photo *'}
               </button>
+              
               <input
                 ref={fileInputRef}
                 type="file"
@@ -269,17 +295,25 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
                 className="hidden"
                 onChange={handlePhotoChange}
               />
+              <input
+                ref={galleryInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoChange}
+              />
+              
               {photoError && <p className="text-xs text-yellow-200 mt-1">{photoError}</p>}
             </div>
           ) : (
             <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center mx-auto mb-4">
               {step === 'credentials' ? (
                 <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-5.519 0-10-4.481-10-10S6.481 1 12 1s10 4.481 10 10z" />
                 </svg>
               ) : (
                 <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 8.25h3m-3 3h3m-6 3.75h.008v.008H7.5v-.008zm3 0h.008v.008H10.5v-.008zm3 0h.008v.008H13.5v-.008z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25z" />
                 </svg>
               )}
             </div>
@@ -412,7 +446,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
                     type="text"
                     value={inviteCode}
                     onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                    className="w-full px-3 py-2.5 text-sm border-2 border-purple-100 rounded-xl focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none font-mono uppercase tracking-widest"
+                    className="w-full px-3 py-2.5 text-sm border-2 border-purple-100 rounded-xl focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none font-mono uppercase"
                     placeholder="e.g. PBS2026A"
                     maxLength={10}
                   />
@@ -433,7 +467,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 text-sm font-extrabold text-white bg-gradient-to-r from-[#7c3aed] to-[#ec4899] rounded-xl hover:opacity-90 transition-opacity disabled:opacity-70 flex items-center justify-center gap-2 shadow-lg shadow-purple-300/40"
+              className="w-full py-3 text-sm font-extrabold text-white bg-gradient-to-r from-[#7c3aed] to-[#ec4899] rounded-xl hover:opacity-90 transition-opacity disabled:opacity-70 flex items-center justify-center gap-2"
             >
               {loading ? <><Spinner />Processing...</> : mode === 'login' ? '🔑 Sign In' : '🚀 Create Account'}
             </button>
@@ -461,7 +495,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
               <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 text-center">
                 <div className="flex items-center justify-center gap-1.5 mb-2">
                   <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-.217-3.374 1.948-3.374h14.71c1.73 0 2.813 1.874 1.948 3.374l-11.313 19.246c-.866 1.5-3.217 1.5-4.083 0L2.25 3.75z" />
                   </svg>
                   <p className="text-xs font-extrabold text-amber-700">Demo Mode — Your OTP:</p>
                 </div>
@@ -500,7 +534,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
             <button
               type="submit"
               disabled={loading || otpCode.length < 6}
-              className="w-full py-3 text-sm font-extrabold text-white bg-gradient-to-r from-[#7c3aed] to-[#ec4899] rounded-xl hover:opacity-90 transition-opacity disabled:opacity-70 flex items-center justify-center gap-2 shadow-lg shadow-purple-300/40"
+              className="w-full py-3 text-sm font-extrabold text-white bg-gradient-to-r from-[#7c3aed] to-[#ec4899] rounded-xl hover:opacity-90 transition-opacity disabled:opacity-70 flex items-center justify-center gap-2"
             >
               {loading ? <><Spinner />Verifying...</> : '✅ Verify & Continue'}
             </button>
