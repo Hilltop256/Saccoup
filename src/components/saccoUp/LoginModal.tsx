@@ -472,16 +472,6 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, mode:
               {loading ? <><Spinner />Processing...</> : mode === 'login' ? '🔑 Sign In' : '🚀 Create Account'}
             </button>
 
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setPhotoDataUrl(null); }}
-                className="text-sm font-bold text-[#7c3aed] hover:underline"
-              >
-                {mode === 'login' ? "Don't have an account? Register 🎊" : 'Already have an account? Sign In'}
-              </button>
-            </div>
-
             <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
               <div className="flex-1 h-px bg-gray-100" />
               <p className="text-xs text-gray-400 whitespace-nowrap font-semibold">USSD: Dial *123# on feature phones</p>
