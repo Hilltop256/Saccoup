@@ -94,14 +94,17 @@ const MembersPage: React.FC = () => {
     setError(null);
     try {
       const result = await ds.addMemberToGroup({
-        group_id: selectedGroup.id,
-        full_name: newMember.full_name,
-        phone: newMember.phone,
-        email: newMember.email || undefined,
-        national_id: newMember.national_id || undefined,
-        role: newMember.role,
-        added_by: user?.member_id,
-      });
+  group_id: selectedGroup.id,
+  full_name: newMember.full_name,
+  phone: newMember.phone,
+  email: newMember.email || undefined,
+  national_id: newMember.national_id || undefined,
+  role: newMember.role,
+  added_by: user?.member_id,
+
+  // ✅ DEFAULT PIN FOR NEW MEMBERS
+  pin: '0000',
+});
       if (result.success) {
         const code = result.invite_code || '';
         const link = `${window.location.origin}/join?code=${code}`;
