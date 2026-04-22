@@ -352,13 +352,44 @@ const MembersPage: React.FC = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); openMemberDetail(m); }}
-                        className="p-1.5 text-gray-400 hover:text-purple-600 transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" /></svg>
-                      </button>
-                    </td>
+  <div className="flex items-center justify-end gap-2">
+
+    {/* View button */}
+    <button
+      onClick={(e) => { e.stopPropagation(); openMemberDetail(m); }}
+      className="p-1.5 text-gray-400 hover:text-purple-600 transition-colors"
+      title="View details"
+    >
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+      </svg>
+    </button>
+
+    {/* Delete button (ONLY for chairman/admin) */}
+    {isChairman && m.id !== user?.member_id && (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+
+          const confirmDelete = window.confirm(
+            `Remove ${m.full_name} from this group? This action cannot be undone.`
+          );
+
+          if (confirmDelete) {
+            handleRemoveMember(m.id);
+          }
+        }}
+        className="p-1.5 text-red-400 hover:text-red-600 transition-colors"
+        title="Remove member"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 7h12M9 7v10m6-10v10M10 3h4m-7 4h10l-1 14H8L7 7z" />
+        </svg>
+      </button>
+    )}
+
+  </div>
+</td>
                   </tr>
                 ))}
               </tbody>
