@@ -7,7 +7,6 @@ type ModalMode = 'create' | 'join' | null;
 
 const GroupsPage: React.FC = () => {
   const { user, groups, refreshGroups, setSelectedGroupId, isChairman } = useAppContext();
-  const isAdmin = user?.role === 'admin';
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -128,7 +127,7 @@ const GroupsPage: React.FC = () => {
             </svg>
             Join Group
           </button>
-          {isAdmin && (
+        {isAdmin && (
   <button
     onClick={() => setModalMode('create')}
     className="px-4 py-2 text-sm font-medium text-white bg-[#0066CC] rounded-lg hover:bg-[#004C99] transition-colors flex items-center gap-2"
@@ -165,7 +164,7 @@ const GroupsPage: React.FC = () => {
           <h3 className="text-lg font-bold text-gray-900 mb-2">No Groups Yet</h3>
           <p className="text-sm text-gray-500 mb-6">Create your first savings group or join one with an invite code.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          {isAdmin && (
+            {isAdmin && (
   <button
     onClick={() => setModalMode('create')}
     className="px-6 py-2.5 text-sm font-medium text-white bg-[#0066CC] rounded-lg hover:bg-[#004C99] transition-colors"
@@ -244,7 +243,7 @@ const GroupsPage: React.FC = () => {
                       >
                         {copiedCode === g.invite_code ? 'Copied!' : 'Copy Link'}
                       </button>
-                      {isAdmin &&  (
+                      {isAdmin && (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleRegenerate(g.id); }}
                           disabled={regeneratingId === g.id}
