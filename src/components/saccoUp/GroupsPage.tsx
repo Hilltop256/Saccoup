@@ -6,7 +6,7 @@ import * as ds from '@/lib/dataService';
 type ModalMode = 'create' | 'join' | null;
 
 const GroupsPage: React.FC = () => {
-  const { user, groups, refreshGroups, setSelectedGroupId, isChairman } = useAppContext();
+  const { user, groups, refreshGroups, setSelectedGroupId, isChairman, isAdmin } = useAppContext();
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
