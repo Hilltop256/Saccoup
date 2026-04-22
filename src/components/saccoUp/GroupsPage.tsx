@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAppContext } from '@/contexts/AppContext';
 import { formatUGX, getGroupTypeLabel, getGroupTypeColor, type GroupType } from '@/lib/constants';
 import * as ds from '@/lib/dataService';
-
+ 
 type ModalMode = 'create' | 'join' | null;
 
 const GroupsPage: React.FC = () => {
