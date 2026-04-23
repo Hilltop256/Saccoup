@@ -52,7 +52,7 @@ const MembersPage: React.FC = () => {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   const role = (selectedGroup?.user_role || '').toLowerCase();
-  const isAdmin = ['admin', 'super_admin', 'chairperson', 'chairman', 'secretary'].includes(role);
+  const isAdmin = ['admin', 'super_admin', 'chairperson', 'chairman', 'secretary', 'treasurer'].includes(role);
   const isChairman = ['chairperson', 'chairman'].includes(role);
 
   const loadMembers = useCallback(async () => {
