@@ -44,7 +44,7 @@ const MembersPage: React.FC = () => {
   const [pendingRole, setPendingRole] = useState<UserRole | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [newMember, setNewMember] = useState({ full_name: '', phone: '', email: '', national_id: '', role: 'member' as UserRole });
+  const [newMember, setNewMember] = useState({ full_name: '', phone: '', role: 'member' as UserRole });
   const [inviteInfo, setInviteInfo] = useState<{ code: string; name: string; group: string; link: string } | null>(null);
   const [copiedInvite, setCopiedInvite] = useState(false);
   const [editingMember, setEditingMember] = useState(false);
@@ -98,8 +98,6 @@ const MembersPage: React.FC = () => {
       group_id: selectedGroup.id,
       full_name: newMember.full_name,
       phone: newMember.phone,
-      email: newMember.email || undefined,
-      national_id: newMember.national_id || undefined,
       role: newMember.role,
       added_by: user?.member_id,
       pin: '0000', // ✅ DEFAULT PIN FOR NEW MEMBERS
@@ -108,7 +106,7 @@ const MembersPage: React.FC = () => {
       const code = result.invite_code || '';
       const link = `${window.location.origin}/join?code=${code}`;
       setInviteInfo({ code, name: result.member_name || newMember.full_name, group: result.group_name || '', link });
-      setNewMember({ full_name: '', phone: '', email: '', national_id: '', role: 'member' });
+      setNewMember({ full_name: '', phone: '', role: 'member' });
       setShowAddModal(false);
       await loadMembers();
     }
@@ -426,14 +424,6 @@ const MembersPage: React.FC = () => {
               <div>
                 <label className="text-sm font-bold text-gray-700 mb-1 block">Phone Number *</label>
                 <input type="tel" value={newMember.phone} onChange={(e) => setNewMember({...newMember, phone: e.target.value})} className="w-full px-3 py-2.5 text-sm border-2 border-purple-100 rounded-xl focus:ring-2 focus:ring-purple-400 outline-none" placeholder="+256 7XX XXX XXX" />
-              </div>
-              <div>
-                <label className="text-sm font-bold text-gray-700 mb-1 block">Email <span className="text-gray-400 font-normal">(optional)</span></label>
-                <input type="email" value={newMember.email} onChange={(e) => setNewMember({...newMember, email: e.target.value})} className="w-full px-3 py-2.5 text-sm border-2 border-purple-100 rounded-xl focus:ring-2 focus:ring-purple-400 outline-none" placeholder="email@example.com" />
-              </div>
-              <div>
-                <label className="text-sm font-bold text-gray-700 mb-1 block">National ID <span className="text-gray-400 font-normal">(optional)</span></label>
-                <input type="text" value={newMember.national_id} onChange={(e) => setNewMember({...newMember, national_id: e.target.value})} className="w-full px-3 py-2.5 text-sm border-2 border-purple-100 rounded-xl focus:ring-2 focus:ring-purple-400 outline-none" placeholder="CM12345678" />
               </div>
               <div>
                 <label className="text-sm font-bold text-gray-700 mb-1 block">Role</label>
