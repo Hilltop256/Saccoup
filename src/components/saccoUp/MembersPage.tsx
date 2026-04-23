@@ -90,35 +90,33 @@ const MembersPage: React.FC = () => {
   });
 
   const handleAddMember = async () => {
-    if (!newMember.full_name || !newMember.phone || !selectedGroup?.id) return;
-    setIsAdding(true);
-    setError(null);
-    try {
-      const result = await ds.addMemberToGroup({
-  group_id: selectedGroup.id,
-  full_name: newMember.full_name,
-  phone: newMember.phone,
-  email: newMember.email || undefined,
-  national_id: newMember.national_id || undefined,
-  role: newMember.role,
-  added_by: user?.member_id,
-
-  // ✅ DEFAULT PIN FOR NEW MEMBERS
-  pin: '0000',
-});
-      if (result.success) {
-        const code = result.invite_code || '';
-        const link = `${window.location.origin}/join?code=${code}`;
-        setInviteInfo({ code, name: result.member_name || newMember.full_name, group: result.group_name || '', link });
-        setNewMember({ full_name: '', phone: '', email: '', national_id: '', role: 'member' });
-        setShowAddModal(false);
-        await loadMembers();
-      }
-    } catch (e: any) {
-      setError(e.message || 'Failed to add member');
+  if (!newMember.full_name || !newMember.phone || !selectedGroup?.id) return;
+  setIsAdding(true);
+  setError(null);
+  try {
+    const result = await ds.addMemberToGroup({
+      group_id: selectedGroup.id,
+      full_name: newMember.full_name,
+      phone: newMember.phone,
+      email: newMember.email || undefined,
+      national_id: newMember.national_id || undefined,
+      role: newMember.role,
+      added_by: user?.member_id,
+      pin: '0000', // ✅ DEFAULT PIN FOR NEW MEMBERS
+    });
+    if (result.success) {
+      const code = result.invite_code || '';
+      const link = `${window.location.origin}/join?code=${code}`;
+      setInviteInfo({ code, name: result.member_name || newMember.full_name, group: result.group_name || '', link });
+      setNewMember({ full_name: '', phone: '', email: '', national_id: '', role: 'member' });
+      setShowAddModal(false);
+      await loadMembers();
     }
-    setIsAdding(false);
-  };
+  } catch (e: any) {
+    setError(e.message || 'Failed to add member');
+  }
+  setIsAdding(false);
+};
 
   const handleChangeRole = async () => {
     if (!selectedMember || !pendingRole || !selectedGroup?.id) return;
