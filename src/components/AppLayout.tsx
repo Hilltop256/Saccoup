@@ -19,6 +19,12 @@ import MigrationPage from './saccoUp/MigrationPage';
 import SavingsDashboard from './saccoUp/SavingsDashboard';
 import SpreadsheetPage from './saccoUp/SpreadsheetPage';
 
+import KycModal from './KycModal';
+
+const { needsKyc } = useAppContext();
+
+{needsKyc && <KycModal />}
+
 type AppView = 'loading' | 'landing' | 'dashboard';
 
 const AppLayout: React.FC = () => {
