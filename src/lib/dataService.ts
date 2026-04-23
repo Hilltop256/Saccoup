@@ -193,6 +193,7 @@ export async function addMemberToGroup(params: {
   national_id?: string;
   role?: string;
   added_by?: string;
+  pin?: string; //added
 }) {
   const normalizedPhone = normalizePhone(params.phone);
 
@@ -240,6 +241,24 @@ export async function addMemberToGroup(params: {
       is_active: true,
     });
     if (error) throw new Error(error.message);
+  }
+
+  // ✅ CREATE OR UPDATE USER ACCOUNT WITH DEFAULT PIN
+  if (params.pin) {
+    // In production, hash the PIN; for now store as-is
+    const { error: accountError } = await supabase
+      .from('user_accounts')
+      .upsert({
+        member_id: member!.id,
+        phone: normalizedPhone,
+        pin_hash: params.pin, // TODO: Hash this in production
+        is_active: true,
+      }, { onConflict: 'phone' });
+    
+    if (accountError) {
+      console.error('Failed to create user account:', accountError);
+      // Don't fail the entire operation if account creation fails
+    }
   }
 
   if (params.added_by) {
