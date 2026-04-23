@@ -10,6 +10,14 @@ async function checkTable(table: string): Promise<string | null> {
   return null;
 }
 
+// ===== PIN HASHING =====
+// Hash PIN with salt for security (same as AppContext.tsx)
+async function hashPin(pin: string): Promise<string> {
+  const data = new TextEncoder().encode(pin + 'saccoup2026');
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 // ===== GROUP OPERATIONS =====
 
 export async function createGroup(params: {
@@ -193,7 +201,7 @@ export async function addMemberToGroup(params: {
   national_id?: string;
   role?: string;
   added_by?: string;
-  pin?: string; //added
+  pin?: string;
 }) {
   const normalizedPhone = normalizePhone(params.phone);
 
@@ -243,15 +251,15 @@ export async function addMemberToGroup(params: {
     if (error) throw new Error(error.message);
   }
 
-  // ✅ CREATE OR UPDATE USER ACCOUNT WITH DEFAULT PIN
+  // ✅ CREATE OR UPDATE USER ACCOUNT WITH HASHED PIN
   if (params.pin) {
-    // In production, hash the PIN; for now store as-is
+    const hashedPin = await hashPin(params.pin); // ✅ HASH THE PIN!
     const { error: accountError } = await supabase
       .from('user_accounts')
       .upsert({
         member_id: member!.id,
         phone: normalizedPhone,
-        pin_hash: params.pin, // TODO: Hash this in production
+        pin_hash: hashedPin, // ✅ Store hashed PIN
         is_active: true,
       }, { onConflict: 'phone' });
     
