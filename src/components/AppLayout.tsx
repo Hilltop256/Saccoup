@@ -19,7 +19,7 @@ import MigrationPage from './saccoUp/MigrationPage';
 import SavingsDashboard from './saccoUp/SavingsDashboard';
 import SpreadsheetPage from './saccoUp/SpreadsheetPage';
 
-import KycModal from './KycModal';
+import KycModal from './saccoUp/KycModal';
 
 const { needsKyc } = useAppContext();
 
