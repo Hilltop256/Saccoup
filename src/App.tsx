@@ -8,21 +8,6 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
- 
-// Inside App.tsx
-const MainLayout = () => {
-  const { needsSetup } = useAppContext();
-
-  return (
-    <>
-      {needsSetup && <KycModal />}
-      <Routes>
-        <Route path="/" element={<Index />} />
-        {/* ... other routes */}
-      </Routes>
-    </>
-  );
-};
 
 const App = () => (
   <ThemeProvider defaultTheme="light">
