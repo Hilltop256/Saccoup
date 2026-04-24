@@ -66,6 +66,7 @@ interface AppContextType {
   isTreasurer: boolean;
   isAdmin: boolean;
   isElevated: boolean; // chairman, treasurer, or admin
+  needsKyc: boolean; //kyc require
   // Auth actions
   register: (phone: string, pin: string, fullName: string, inviteCode: string, photoDataUrl: string, nationalId: string, email: string, dateOfBirth: string) => Promise<{ success: boolean; phone?: string; demoOtp?: string; error?: string }>;
   login: (phone: string, pin: string) => Promise<{ success: boolean; phone?: string; demoOtp?: string; error?: string }>;
@@ -98,6 +99,7 @@ async function hashPin(pin: string): Promise<string> {
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const needsKyc = !!user && (!user.kyc_verified); //kyc 
   const [memberships, setMemberships] = useState<GroupMembership[]>([]);
   const [groups, setGroups] = useState<GroupData[]>([]);
   const [selectedGroupId, setSelectedGroupIdState] = useState<string | null>(null);
@@ -362,15 +364,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.removeItem('saccoup_selected_group');
   };
 
-  return (
-    <AppContext.Provider value={{
-      sidebarOpen, toggleSidebar,
-      user, needsSetup, memberships, isAuthenticated: !!user, isAuthLoading, authError,
-      groups, selectedGroupId, selectedGroup, setSelectedGroupId, refreshGroups,
-      isChairman, isTreasurer, isAdmin, isElevated,
-      register, login, verifyOtp, resendOtp, logout, clearAuthError,
-    }}>
-      {children}
-    </AppContext.Provider>
-  );
+return (
+  <AppContext.Provider value={{
+    sidebarOpen, toggleSidebar,
+    user, memberships, isAuthenticated: !!user, isAuthLoading, authError,
+    groups, selectedGroupId, selectedGroup, setSelectedGroupId, refreshGroups,
+    isChairman, isTreasurer, isAdmin, isElevated,
+    needsKyc, // Add this here
+    register, login, verifyOtp, resendOtp, logout, clearAuthError,
+  }}>
+    {children}
+  </AppContext.Provider>
+);
 };
