@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
- 
+
 export interface AuthUser {
   id: string;
   member_id: string;
