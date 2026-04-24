@@ -24,7 +24,6 @@ import KycModal from './saccoUp/KycModal';
 type AppView = 'loading' | 'landing' | 'dashboard';
 
 const AppLayout: React.FC = () => {
-  const { user, isAuthLoading, selectedGroup, logout } = useAppContext();
   const { user, isAuthLoading, selectedGroup, logout, needsKyc } = useAppContext(); //kyc promt
   const [appView, setAppView] = useState<AppView>('loading');
   const [showLoginModal, setShowLoginModal] = useState(false);
