@@ -83,7 +83,10 @@ const KycModal = () => {
         })
         .eq('id', user.member_id);
 
-      if (memberError) throw memberError;
+    if (memberError) {
+  console.error("MEMBER_UPDATE_FAIL:", memberError); // Check this in Browser Console
+  throw new Error(`Member Update: ${memberError.message}`);
+}
 
       // 4️⃣ Update user_accounts table (Using user.id which is account ID)
       const { error: accountError } = await supabase
