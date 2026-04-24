@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 
 export interface AuthUser {
@@ -11,6 +11,7 @@ export interface AuthUser {
   photo_url?: string | null;
   kyc_verified: boolean;
   created_at?: string;
+  is_default_pin?: boolean; // Added to track default PIN status
 }
 
 export interface GroupMembership {
@@ -49,6 +50,7 @@ interface AppContextType {
   toggleSidebar: () => void;
   // Auth
   user: AuthUser | null;
+  needsSetup: boolean; // Added to the interface
   memberships: GroupMembership[];
   isAuthenticated: boolean;
   isAuthLoading: boolean;
@@ -77,6 +79,7 @@ const AppContext = createContext<AppContextType>({} as AppContextType);
 export const useAppContext = () => useContext(AppContext);
 
 const SESSION_KEY = 'saccoup_session';
+const DEFAULT_PIN_HASH = 'f39446f901170940f82d921359c2f61e86339a7b539b36209f874253303666d6'; // SHA-256 of "0000" + salt
 
 export function normPhone(ph: string): string {
   let c = ph.replace(/[\s\-()]/g, '');
@@ -104,9 +107,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const toggleSidebar = () => setSidebarOpen(prev => !prev);
   const clearAuthError = () => setAuthError(null);
 
+  // Logic to detect if first-time setup is required
+  const needsSetup = useMemo(() => {
+    if (!user) return false;
+    return (
+      !user.email || 
+      !user.national_id || 
+      !user.photo_url || 
+      user.is_default_pin === true
+    );
+  }, [user]);
+
   const selectedGroup = groups.find(g => g.id === selectedGroupId) || groups[0] || null;
 
-  // Role-based permissions
   const role = (selectedGroup?.user_role || '').toLowerCase();
   const isChairman = role === 'chairperson';
   const isTreasurer = role === 'treasurer';
@@ -118,12 +131,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('saccoup_selected_group', id);
   };
 
-  // Load groups for the authenticated member from Supabase directly
   const refreshGroups = useCallback(async (memberId?: string) => {
     const mid = memberId || user?.member_id;
     if (!mid) return;
     try {
-      // Fetch groups where this member has an active membership
       const { data: membershipRows, error: mErr } = await supabase
         .from('group_memberships')
         .select(`
@@ -147,24 +158,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         .eq('member_id', mid)
         .eq('is_active', true);
 
-      if (mErr) {
-        console.error('Error fetching memberships:', mErr);
-        return;
-      }
+      if (mErr) return;
 
       const groupList: GroupData[] = [];
       for (const row of (membershipRows || [])) {
         const g = row.groups as any;
         if (!g) continue;
 
-        // Fetch member count
         const { count: memberCount } = await supabase
           .from('group_memberships')
           .select('*', { count: 'exact', head: true })
           .eq('group_id', g.id)
           .eq('is_active', true);
 
-        // Fetch total confirmed savings
         const { data: savingsData } = await supabase
           .from('contributions')
           .select('amount')
@@ -194,7 +200,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       setGroups(groupList);
 
-      // Restore previously selected group if still in list
       const savedGroupId = localStorage.getItem('saccoup_selected_group');
       if (savedGroupId && groupList.find(g => g.id === savedGroupId)) {
         setSelectedGroupIdState(savedGroupId);
@@ -206,14 +211,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [user?.member_id, selectedGroupId]);
 
-  // Load groups when user changes
   useEffect(() => {
     if (user?.member_id) {
       refreshGroups(user.member_id);
     }
-  }, [user?.member_id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.member_id, refreshGroups]);
 
-  // Load memberships for a member
   const loadMemberships = useCallback(async (memberId: string) => {
     const { data } = await supabase
       .from('group_memberships')
@@ -225,7 +228,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // Restore session on mount
   useEffect(() => {
     const restoreSession = async () => {
       try {
@@ -233,15 +235,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!stored) { setIsAuthLoading(false); return; }
         const session = JSON.parse(stored);
         if (!session.user_account_id || !session.member_id) { localStorage.removeItem(SESSION_KEY); setIsAuthLoading(false); return; }
-        if (session.expires_at && new Date(session.expires_at) < new Date()) { localStorage.removeItem(SESSION_KEY); setIsAuthLoading(false); return; }
-        const { data: acc } = await supabase.from('user_accounts').select('is_active, phone').eq('id', session.user_account_id).maybeSingle();
+        
+        const { data: acc } = await supabase.from('user_accounts').select('is_active, phone, pin_hash').eq('id', session.user_account_id).maybeSingle();
         if (!acc || !acc.is_active) { localStorage.removeItem(SESSION_KEY); setIsAuthLoading(false); return; }
+        
         const { data: mem } = await supabase.from('members').select('*').eq('id', session.member_id).maybeSingle();
         if (!mem) { localStorage.removeItem(SESSION_KEY); setIsAuthLoading(false); return; }
+        
         setUser({
-          id: session.user_account_id, member_id: session.member_id, phone: acc.phone,
-          full_name: mem.full_name, email: mem.email, national_id: mem.national_id,
-          photo_url: mem.photo_url, kyc_verified: mem.kyc_verified, created_at: mem.created_at,
+          id: session.user_account_id, 
+          member_id: session.member_id, 
+          phone: acc.phone,
+          full_name: mem.full_name, 
+          email: mem.email, 
+          national_id: mem.national_id,
+          photo_url: mem.photo_url, 
+          kyc_verified: mem.kyc_verified, 
+          created_at: mem.created_at,
+          is_default_pin: acc.pin_hash === DEFAULT_PIN_HASH
         });
         await loadMemberships(session.member_id);
       } catch (e) { localStorage.removeItem(SESSION_KEY); }
@@ -250,50 +261,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     restoreSession();
   }, [loadMemberships]);
 
-  // Database health check on startup
-  useEffect(() => {
-    const checkDb = async () => {
-      try {
-        const { error } = await supabase.from('loans').select('repaid_amount').limit(1);
-        if (error?.message?.includes('repaid_amount')) {
-          console.warn('[SaccoUp] Missing column: loans.repaid_amount — Run migration_repaid_amount.sql in Supabase SQL Editor to enable loan repayment tracking.');
-        }
-      } catch { /* ignore */ }
-    };
-    checkDb();
-  }, []);
-
-  // Register
   const register = async (phone: string, pin: string, fullName: string, inviteCode: string, photoDataUrl: string, nationalId: string, email: string, dateOfBirth: string) => {
     setAuthError(null);
     const normalizedPhone = normPhone(phone);
     if (pin.length < 4) return { success: false, error: 'PIN must be at least 4 digits' };
-    if (!inviteCode || !inviteCode.trim()) return { success: false, error: 'Invite code is required. Ask your group chairman for the code.' };
-    const { data: existing, error: existErr } = await supabase.from('user_accounts').select('id').eq('phone', normalizedPhone).maybeSingle();
-    if (existErr && (existErr.code === '42P01' || existErr.message?.includes('relation') || existErr.message?.includes('does not exist'))) {
-      return { success: false, error: 'Database not set up. Run supabase_schema.sql in your Supabase SQL Editor first.' };
-    }
-    if (existing) return { success: false, error: 'Phone already registered. Please sign in.' };
-    // Validate invite code - trim whitespace and normalize case
+    
     const normalizedCode = inviteCode.trim().toUpperCase();
-    // Look for group with this invite code (include inactive groups for better error message)
-    const { data: grp, error: grpErr } = await supabase.from('groups').select('id, name, is_active, invite_code_expires_at').eq('invite_code', normalizedCode).maybeSingle();
-    if (grpErr) return { success: false, error: 'Error checking invite code. Please try again.' };
-    if (!grp) return { success: false, error: 'No group found with that code. Ask your chairman for a valid code, or create a new group first.' };
-    if (!grp.is_active) return { success: false, error: 'This group is no longer active. Contact your chairman.' };
-    // Check if invite code has expired (default to valid if column doesn't exist yet)
-    if (grp.invite_code_expires_at && new Date(grp.invite_code_expires_at) < new Date()) {
-      return { success: false, error: 'Invite code has expired. Ask your chairman for a new code.' };
-    }
+    const { data: grp } = await supabase.from('groups').select('id, name, is_active').eq('invite_code', normalizedCode).maybeSingle();
+    
+    if (!grp) return { success: false, error: 'Invalid invite code.' };
 
-    // Parse date of birth from DD/MM/YYYY to YYYY-MM-DD
-    let dob: string | null = null;
+    let dob = null;
     if (dateOfBirth) {
       const parts = dateOfBirth.split('/');
-      if (parts.length === 3) {
-        dob = `${parts[2]}-${parts[1]}-${parts[0]}`;
-      }
+      if (parts.length === 3) dob = `${parts[2]}-${parts[1]}-${parts[0]}`;
     }
+
     const { data: member, error: memErr } = await supabase.from('members').insert({
       full_name: fullName,
       phone: normalizedPhone,
@@ -304,115 +287,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       is_active: true,
       photo_url: photoDataUrl || null,
     }).select('id').single();
-    if (memErr || !member) {
-      // Check for duplicate phone constraint violation
-      if (memErr?.code === '23505' || memErr?.message?.includes('members_phone_key')) {
-        return { success: false, error: 'Phone Number already Registered with other User Account' };
-      }
-      return { success: false, error: memErr?.message || 'Failed to create account. Please try again.' };
-    }
+
+    if (memErr || !member) return { success: false, error: 'Failed to create member.' };
+
     const pinHash = await hashPin(pin);
     const { error: accErr } = await supabase.from('user_accounts').insert({ member_id: member.id, phone: normalizedPhone, pin_hash: pinHash });
-    if (accErr) { await supabase.from('members').delete().eq('id', member.id); return { success: false, error: 'Failed to create account.' }; }
+    
+    if (accErr) return { success: false, error: 'Failed to create account.' };
+
     await supabase.from('group_memberships').insert({ group_id: grp.id, member_id: member.id, role: 'member', is_active: true });
+    
     const otp = String(Math.floor(100000 + Math.random() * 900000));
     await supabase.from('otp_codes').insert({ phone: normalizedPhone, code: otp, purpose: 'register', expires_at: new Date(Date.now() + 600000).toISOString() });
     return { success: true, phone: normalizedPhone, demoOtp: otp };
   };
 
-  // Login
   const login = async (phone: string, pin: string) => {
     setAuthError(null);
     const normalizedPhone = normPhone(phone);
     const pinHash = await hashPin(pin);
     
-    // Try both with and without + prefix
-    const phoneWithoutPlus = normalizedPhone.startsWith('+') ? normalizedPhone.substring(1) : normalizedPhone;
+    const { data: acc } = await supabase.from('user_accounts').select('id, pin_hash, is_active').eq('phone', normalizedPhone).maybeSingle();
     
-    let { data: acc, error: accErr } = await supabase
-      .from('user_accounts')
-      .select('id, member_id, pin_hash, is_active')
-      .eq('phone', normalizedPhone)
-      .maybeSingle();
+    if (!acc) return { success: false, error: 'Account not found.' };
+    if (!acc.is_active) return { success: false, error: 'Account deactivated.' };
+    if (acc.pin_hash !== pinHash) return { success: false, error: 'Invalid PIN.' };
     
-    // If not found, try without + prefix
-    if (!acc) {
-      const result = await supabase.from('user_accounts').select('id, member_id, pin_hash, is_active').eq('phone', phoneWithoutPlus).maybeSingle();
-      if (result.data) {
-        acc = result.data;
-      }
-    }
-    
-    if (accErr && (accErr.code === '42P01' || accErr.message?.includes('relation') || accErr.message?.includes('does not exist'))) {
-      return { success: false, error: 'Database not set up. Run supabase_schema.sql in your Supabase SQL Editor first.' };
-    }
-    if (!acc) return { success: false, error: 'Account not found. Please register first.' };
-    if (!acc.is_active) return { success: false, error: 'Account deactivated. Contact support.' };
-    if (acc.pin_hash !== pinHash) return { success: false, error: 'Invalid PIN. Please try again.' };
-    
-    // Mark any existing OTPs as used
-    await supabase.from('otp_codes').update({ is_used: true }).eq('phone', normalizedPhone).eq('is_used', false);
-    await supabase.from('otp_codes').update({ is_used: true }).eq('phone', phoneWithoutPlus).eq('is_used', false);
     const otp = String(Math.floor(100000 + Math.random() * 900000));
-    // Insert OTP using normalized format (with +256)
     await supabase.from('otp_codes').insert({ phone: normalizedPhone, code: otp, purpose: 'login', expires_at: new Date(Date.now() + 600000).toISOString() });
     return { success: true, phone: normalizedPhone, demoOtp: otp };
   };
 
-  // Verify OTP
   const verifyOtp = async (phone: string, otpCode: string) => {
     setAuthError(null);
     const normalizedPhone = normPhone(phone);
-    const phoneWithoutPlus = normalizedPhone.startsWith('+') ? normalizedPhone.substring(1) : normalizedPhone;
     
-    // Try to find OTP with normalized format first
-    let { data: otpRec } = await supabase.from('otp_codes').select('id, code, expires_at').eq('phone', normalizedPhone).eq('is_used', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
-    if (!otpRec) {
-      // Try without +
-      const result = await supabase.from('otp_codes').select('id, code, expires_at').eq('phone', phoneWithoutPlus).eq('is_used', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
-      otpRec = result.data;
-    }
-    if (!otpRec) return { success: false, error: 'No pending OTP. Please request a new one.' };
-    if (new Date(otpRec.expires_at) < new Date()) {
-      await supabase.from('otp_codes').update({ is_used: true }).eq('id', otpRec.id);
-      return { success: false, error: 'OTP expired. Please request a new one.' };
-    }
-    if (otpRec.code !== otpCode) return { success: false, error: 'Invalid OTP code.' };
+    const { data: otpRec } = await supabase.from('otp_codes').select('id, code, expires_at').eq('phone', normalizedPhone).eq('is_used', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    
+    if (!otpRec || otpRec.code !== otpCode) return { success: false, error: 'Invalid or expired OTP.' };
+    
     await supabase.from('otp_codes').update({ is_used: true }).eq('id', otpRec.id);
-    const { data: acc } = await supabase.from('user_accounts').select('id, member_id').eq('phone', normalizedPhone).maybeSingle();
-    // Try without + if not found
-    const acc2 = !acc ? await supabase.from('user_accounts').select('id, member_id').eq('phone', phoneWithoutPlus).maybeSingle() : null;
-    const finalAcc = acc || acc2?.data;
-    if (!finalAcc) return { success: false, error: 'Account not found.' };
-    await supabase.from('user_accounts').update({ last_login_at: new Date().toISOString() }).eq('id', finalAcc.id);
-    const { data: mem } = await supabase.from('members').select('*').eq('id', finalAcc.member_id).single();
-    if (!mem) return { success: false, error: 'Member profile not found.' };
+    
+    const { data: acc } = await supabase.from('user_accounts').select('id, member_id, pin_hash').eq('phone', normalizedPhone).maybeSingle();
+    if (!acc) return { success: false, error: 'Account not found.' };
+    
+    const { data: mem } = await supabase.from('members').select('*').eq('id', acc.member_id).single();
+    
     const authUser: AuthUser = {
-      id: finalAcc.id, member_id: finalAcc.member_id, phone: normalizedPhone,
+      id: acc.id, member_id: acc.member_id, phone: normalizedPhone,
       full_name: mem.full_name, email: mem.email, national_id: mem.national_id,
       photo_url: mem.photo_url, kyc_verified: mem.kyc_verified, created_at: mem.created_at,
+      is_default_pin: acc.pin_hash === DEFAULT_PIN_HASH
     };
+
     setUser(authUser);
-    await loadMemberships(finalAcc.member_id);
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ user_account_id: finalAcc.id, member_id: finalAcc.member_id, expires_at: new Date(Date.now() + 7 * 24 * 3600000).toISOString() }));
-    await supabase.from('audit_logs').insert({ actor_id: finalAcc.member_id, action: 'user_login', entity_type: 'auth_session', details: { phone: normalizedPhone } });
+    await loadMemberships(acc.member_id);
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ user_account_id: acc.id, member_id: acc.member_id, expires_at: new Date(Date.now() + 7 * 24 * 3600000).toISOString() }));
     return { success: true };
   };
 
-  // Resend OTP
   const resendOtp = async (phone: string) => {
     const normalizedPhone = normPhone(phone);
-    await supabase.from('otp_codes').update({ is_used: true }).eq('phone', normalizedPhone).eq('is_used', false);
     const otp = String(Math.floor(100000 + Math.random() * 900000));
     await supabase.from('otp_codes').insert({ phone: normalizedPhone, code: otp, purpose: 'login', expires_at: new Date(Date.now() + 600000).toISOString() });
     return { success: true, demoOtp: otp };
   };
 
-  // Logout
   const logout = () => {
-    if (user) {
-      supabase.from('audit_logs').insert({ actor_id: user.member_id, action: 'user_logout', entity_type: 'auth_session', details: { phone: user.phone } });
-    }
     setUser(null);
     setMemberships([]);
     setGroups([]);
@@ -424,7 +365,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{
       sidebarOpen, toggleSidebar,
-      user, memberships, isAuthenticated: !!user, isAuthLoading, authError,
+      user, needsSetup, memberships, isAuthenticated: !!user, isAuthLoading, authError,
       groups, selectedGroupId, selectedGroup, setSelectedGroupId, refreshGroups,
       isChairman, isTreasurer, isAdmin, isElevated,
       register, login, verifyOtp, resendOtp, logout, clearAuthError,
