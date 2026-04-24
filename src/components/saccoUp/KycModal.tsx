@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAppContext } from '@/contexts/AppContext';
-
+ 
 const KycModal = () => {
   const { user, refreshGroups, logout } = useAppContext();
 
