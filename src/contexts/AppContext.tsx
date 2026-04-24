@@ -59,7 +59,7 @@ interface AppContextType {
   selectedGroupId: string | null;
   selectedGroup: GroupData | null;
   setSelectedGroupId: (id: string) => void;
-  refreshGroups: () => Promise<void>;
+  refreshGroups: (memberId?: string) => Promise<void>;
   isChairman: boolean;
   isTreasurer: boolean;
   isAdmin: boolean;
@@ -77,7 +77,7 @@ const AppContext = createContext<AppContextType>({} as AppContextType);
 export const useAppContext = () => useContext(AppContext);
 
 const SESSION_KEY = 'saccoup_session';
-const DEFAULT_PIN_HASH = 'f39446f901170940f82d921359c2f61e86339a7b539b36209f874253303666d6'; // SHA-256 of "0000" + salt
+const DEFAULT_PIN_HASH = 'f39446f901170940f82d921359c2f61e86339a7b539b36209f874253303666d6'; 
 
 export function normPhone(ph: string): string {
   let c = ph.replace(/[\s\-()]/g, '');
@@ -98,7 +98,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [user, setUser] = useState<AuthUser | null>(null);
   const [memberships, setMemberships] = useState<GroupMembership[]>([]);
   const [groups, setGroups] = useState<GroupData[]>([]);
-  const [selectedGroupId, setSelectedGroupIdState] = useState<string | null>(null);
+  const [selectedGroupId, setSelectedGroupIdState] = useState<string | null>(localStorage.getItem('saccoup_selected_group'));
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -117,7 +117,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   }, [user]);
 
-  const selectedGroup = groups.find(g => g.id === selectedGroupId) || groups[0] || null;
+  // Derived state for the selected group
+  const selectedGroup = useMemo(() => {
+    if (selectedGroupId) {
+      const found = groups.find(g => g.id === selectedGroupId);
+      if (found) return found;
+    }
+    return groups[0] || null;
+  }, [selectedGroupId, groups]);
 
   const role = (selectedGroup?.user_role || '').toLowerCase();
   const isChairman = role === 'chairperson';
@@ -147,11 +154,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const { data: membershipRows } = await supabase
         .from('group_memberships')
-        .select(`
-          group_id,
-          role,
-          groups (*)
-        `)
+        .select(`group_id, role, groups (*)`)
         .eq('member_id', mid)
         .eq('is_active', true);
 
@@ -182,6 +185,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       }
       setGroups(groupList);
+      
+      // Auto-select first group if none selected
+      if (groupList.length > 0 && !localStorage.getItem('saccoup_selected_group')) {
+        setSelectedGroupId(groupList[0].id);
+      }
     } catch (e) {
       console.error('Failed to load groups:', e);
     }
@@ -194,14 +202,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!stored) { setIsAuthLoading(false); return; }
         const session = JSON.parse(stored);
         
-        // Fetch current Supabase Auth User to get auth_id
         const { data: { user: supabaseAuthUser } } = await supabase.auth.getUser();
-
         const { data: acc } = await supabase.from('user_accounts').select('*').eq('id', session.user_account_id).maybeSingle();
-        if (!acc || !acc.is_active) { localStorage.removeItem(SESSION_KEY); setIsAuthLoading(false); return; }
+        
+        if (!acc || !acc.is_active) { 
+          localStorage.removeItem(SESSION_KEY); 
+          setIsAuthLoading(false); 
+          return; 
+        }
         
         const { data: mem } = await supabase.from('members').select('*').eq('id', session.member_id).maybeSingle();
-        if (!mem) { localStorage.removeItem(SESSION_KEY); setIsAuthLoading(false); return; }
+        if (!mem) { 
+          localStorage.removeItem(SESSION_KEY); 
+          setIsAuthLoading(false); 
+          return; 
+        }
         
         setUser({
           auth_id: supabaseAuthUser?.id || '',
@@ -216,8 +231,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           created_at: mem.created_at,
           is_default_pin: acc.pin_hash === DEFAULT_PIN_HASH
         });
+
+        // CRITICAL FIX: Load data on restoration
         await loadMemberships(session.member_id);
-        await refreshGroups(session.member_id)
+        await refreshGroups(session.member_id);
+
       } catch (e) { 
         localStorage.removeItem(SESSION_KEY); 
       }
@@ -265,12 +283,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setUser(authUser);
     localStorage.setItem(SESSION_KEY, JSON.stringify({ user_account_id: acc.id, member_id: acc.member_id }));
+    
+    // CRITICAL FIX: Load data immediately after OTP success
+    await loadMemberships(acc.member_id);
+    await refreshGroups(acc.member_id);
+
     return { success: true };
   };
 
   const logout = () => {
     setUser(null);
+    setGroups([]);
+    setMemberships([]);
     localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem('saccoup_selected_group');
     window.location.href = '/';
   };
 
@@ -281,7 +307,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       groups, selectedGroupId, selectedGroup, setSelectedGroupId, refreshGroups,
       isChairman, isTreasurer, isAdmin, isElevated,
       needsKyc, needsSetup,
-      register: async () => ({ success: false, error: 'Register not implemented in this snippet' }),
+      register: async () => ({ success: false, error: 'Register not implemented' }),
       login, verifyOtp, resendOtp: async () => ({ success: true }),
       logout, clearAuthError,
     }}>
