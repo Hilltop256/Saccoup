@@ -3,34 +3,31 @@ import { supabase } from '@/lib/supabase';
 import { useAppContext } from '@/contexts/AppContext';
 
 const KycModal = () => {
-  const { user, logout, needsKyc } = useAppContext();
-  if (!user || !needsKyc) return null;
+  const { user, logout, needsSetup } = useAppContext();
+  
   const [email, setEmail] = useState('');
   const [nationalId, setNationalId] = useState('');
   const [pin, setPin] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // If there is no user, we don't show the modal
-  if (!user) return null;
+  // If there is no user or they don't need setup, don't show the modal
+  if (!user || !needsSetup) return null;
 
-  // 🔐 Hash PIN - Updated to match AppContext logic with salt
+  // 🔐 Hash PIN - Must match AppContext salt
   const hashPin = async (pin: string) => {
     const encoder = new TextEncoder();
-    const data = encoder.encode(pin + 'saccoup2026'); // Added salt for consistency
+    const data = encoder.encode(pin + 'saccoup2026'); 
     const hash = await crypto.subtle.digest('SHA-256', data);
     return Array.from(new Uint8Array(hash))
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
   };
 
-  // 📸 Upload Image
+  // 📸 Upload Image to Supabase Storage
   const uploadPhoto = async (file: File) => {
-    // Using user.member_id for the file path to keep it unique per member
     const filePath = `profiles/${user.member_id}_${Date.now()}`;
-
     const { error: uploadError } = await supabase.storage
       .from('profile-photos')
       .upload(filePath, file);
@@ -47,7 +44,7 @@ const KycModal = () => {
   const handleSubmit = async () => {
     setError('');
 
-    // Strict validation
+    // 1. Validation
     if (!email || !nationalId || !pin || !photo) {
       setError('All fields (Email, National ID, PIN, and Photo) are required.');
       return;
@@ -66,35 +63,28 @@ const KycModal = () => {
     try {
       setLoading(true);
 
-      // 1️⃣ Upload photo
+      // 2. Upload photo
       const photoUrl = await uploadPhoto(photo);
 
-      // 2️⃣ Hash PIN
+      // 3. Hash PIN
       const pinHash = await hashPin(pin);
 
-    // 3️⃣ Update members table 
-// FIX: We target the row where the ID matches the Authenticated User ID
-const { error: memberError } = await supabase
-  .from('members')
-  .update({
-    email,
-    national_id: nationalId,
-    photo_url: photoUrl,
-    kyc_verified: true,
-  })
-  .eq('id', user.id); // Changed from user.member_id to user.id
+      // 4. Update Members Table
+      // This uses the UUID that identifies the person
+      const { error: memberError } = await supabase
+        .from('members')
+        .update({
+          email,
+          national_id: nationalId,
+          photo_url: photoUrl,
+          kyc_verified: true,
+        })
+        .eq('id', user.member_id); 
 
-if (memberError) {
-  console.error("MEMBER_UPDATE_FAIL:", memberError); 
-  throw new Error(`Member Update: ${memberError.message}`);
-}
+      if (memberError) throw memberError;
 
-    if (memberError) {
-  console.error("MEMBER_UPDATE_FAIL:", memberError); // Check this in Browser Console
-  throw new Error(`Member Update: ${memberError.message}`);
-}
-
-      // 4️⃣ Update user_accounts table (Using user.id which is account ID)
+      // 5. Update User Accounts Table
+      // This uses the UUID that identifies the login credentials
       const { error: accountError } = await supabase
         .from('user_accounts')
         .update({
@@ -104,12 +94,11 @@ if (memberError) {
 
       if (accountError) throw accountError;
 
-      // 5️⃣ Finalize: Refresh app state
-      // We force a page reload or a logout/login to ensure all context state (like needsSetup) 
-      // is recalculated with the new database values.
+      // 6. Refresh the app to clear the modal and show dashboard
       window.location.reload(); 
 
     } catch (err: any) {
+      console.error("KYC_ERROR:", err);
       setError(err.message || 'Something went wrong while saving your profile.');
     } finally {
       setLoading(false);
@@ -139,7 +128,7 @@ if (memberError) {
               <input
                 type="email"
                 placeholder="e.g. name@example.com"
-                className="w-full border-gray-200 border rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                className="w-full border-gray-200 border rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
@@ -150,7 +139,7 @@ if (memberError) {
               <input
                 type="text"
                 placeholder="Enter NIN"
-                className="w-full border-gray-200 border rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                className="w-full border-gray-200 border rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 value={nationalId}
                 onChange={(e) => setNationalId(e.target.value)}
               />
@@ -162,7 +151,7 @@ if (memberError) {
                 type="password"
                 maxLength={6}
                 placeholder="Set a new 4-6 digit PIN"
-                className="w-full border-gray-200 border rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                className="w-full border-gray-200 border rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 value={pin}
                 onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
               />
@@ -170,22 +159,20 @@ if (memberError) {
 
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 ml-1">Profile Photo</label>
-              <div className="mt-1 flex items-center justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-xl hover:border-blue-400 transition-colors">
+              <div className="mt-1 flex items-center justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-xl hover:border-blue-400 transition-colors cursor-pointer relative">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  onChange={(e) => setPhoto(e.target.files?.[0] || null)}
+                />
                 <div className="space-y-1 text-center">
                   <svg className="mx-auto h-10 w-10 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
                     <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  <div className="flex text-sm text-gray-600">
-                    <label className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
-                      <span>{photo ? photo.name : "Upload a photo"}</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="sr-only"
-                        onChange={(e) => setPhoto(e.target.files?.[0] || null)}
-                      />
-                    </label>
-                  </div>
+                  <p className="text-sm text-blue-600 font-medium">
+                    {photo ? photo.name : "Click to upload photo"}
+                  </p>
                   <p className="text-xs text-gray-500">PNG, JPG up to 5MB</p>
                 </div>
               </div>
@@ -197,15 +184,7 @@ if (memberError) {
             disabled={loading}
             className="w-full mt-2 bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 active:transform active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-200"
           >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Saving Details...
-              </span>
-            ) : 'Secure My Account'}
+            {loading ? "Saving Details..." : 'Secure My Account'}
           </button>
           
           <button 
