@@ -25,7 +25,7 @@ type AppView = 'loading' | 'landing' | 'dashboard';
 
 const AppLayout: React.FC = () => {
   const { user, isAuthLoading, selectedGroup, logout } = useAppContext();
-  const { needsKyc } = useAppContext(); //////////////////////////////////////////////////////here
+  const { user, isAuthLoading, selectedGroup, logout, needsKyc } = useAppContext(); //kyc promt
   const [appView, setAppView] = useState<AppView>('loading');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginMode, setLoginMode] = useState<'login' | 'register'>('login');
