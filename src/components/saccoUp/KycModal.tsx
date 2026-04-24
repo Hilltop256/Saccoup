@@ -72,16 +72,22 @@ const KycModal = () => {
       // 2️⃣ Hash PIN
       const pinHash = await hashPin(pin);
 
-      // 3️⃣ Update members table (Using member_id)
-      const { error: memberError } = await supabase
-        .from('members')
-        .update({
-          email,
-          national_id: nationalId,
-          photo_url: photoUrl,
-          kyc_verified: true,
-        })
-        .eq('id', user.member_id);
+    // 3️⃣ Update members table 
+// FIX: We target the row where the ID matches the Authenticated User ID
+const { error: memberError } = await supabase
+  .from('members')
+  .update({
+    email,
+    national_id: nationalId,
+    photo_url: photoUrl,
+    kyc_verified: true,
+  })
+  .eq('id', user.id); // Changed from user.member_id to user.id
+
+if (memberError) {
+  console.error("MEMBER_UPDATE_FAIL:", memberError); 
+  throw new Error(`Member Update: ${memberError.message}`);
+}
 
     if (memberError) {
   console.error("MEMBER_UPDATE_FAIL:", memberError); // Check this in Browser Console
