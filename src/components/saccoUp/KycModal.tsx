@@ -69,6 +69,9 @@ const KycModal = () => {
       // 3. Hash PIN
       const pinHash = await hashPin(pin);
 
+      const { data: { user: sbUser } } = await supabase.auth.getUser();
+      console.log("AUTH USER:", sbUser);
+
       // 4. Update Members Table
       // This uses the UUID that identifies the person
       const { error: memberError } = await supabase
