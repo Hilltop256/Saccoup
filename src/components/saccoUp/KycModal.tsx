@@ -3,8 +3,8 @@ import { supabase } from '@/lib/supabase';
 import { useAppContext } from '@/contexts/AppContext';
 
 const KycModal = () => {
-  const { user, refreshGroups, logout } = useAppContext();
-
+  const { user, logout, needsKyc } = useAppContext();
+  if (!user || !needsKyc) return null;
   const [email, setEmail] = useState('');
   const [nationalId, setNationalId] = useState('');
   const [pin, setPin] = useState('');
