@@ -217,13 +217,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           is_default_pin: acc.pin_hash === DEFAULT_PIN_HASH
         });
         await loadMemberships(session.member_id);
+        await refreshGroups(session.member_id)
       } catch (e) { 
         localStorage.removeItem(SESSION_KEY); 
       }
       setIsAuthLoading(false);
     };
     restoreSession();
-  }, [loadMemberships]);
+  }, [loadMemberships, refreshGroups]);
 
   const login = async (phone: string, pin: string) => {
     setAuthError(null);
