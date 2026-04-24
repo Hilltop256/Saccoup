@@ -21,15 +21,11 @@ import SpreadsheetPage from './saccoUp/SpreadsheetPage';
 
 import KycModal from './saccoUp/KycModal';
 
-const { needsKyc } = useAppContext();
-
-{needsKyc && <KycModal />}
-
 type AppView = 'loading' | 'landing' | 'dashboard';
 
 const AppLayout: React.FC = () => {
   const { user, isAuthLoading, selectedGroup, logout } = useAppContext();
-
+  const { needsKyc } = useAppContext(); //////////////////////////////////////////////////////here
   const [appView, setAppView] = useState<AppView>('loading');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginMode, setLoginMode] = useState<'login' | 'register'>('login');
@@ -130,6 +126,7 @@ const AppLayout: React.FC = () => {
   if (appView === 'landing') {
     return (
       <>
+        {needsKyc && <KycModal />}
         <LandingPage onGetStarted={handleGetStarted} onLogin={handleLogin} />
         <LoginModal
           isOpen={showLoginModal}
@@ -144,6 +141,7 @@ const AppLayout: React.FC = () => {
   // Dashboard View
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50/60 via-pink-50/40 to-cyan-50/60">
+      {needsKyc && <KycModal />}
       <Sidebar
         currentPage={currentPage}
         onNavigate={setCurrentPage}
