@@ -501,18 +501,48 @@ const SettingsPage: React.FC = () => {
                 placeholder="CM12345678"
               />
             </div>
-            <div className="sm:col-span-2">
-  <label className="text-sm font-medium text-gray-700 mb-1 block">Profile Picture</label>
+      <div className="sm:col-span-2">
+  <label className="text-sm font-medium text-gray-700 mb-2 block">Profile Picture</label>
+
+  <div className="flex gap-3">
+    {/* Upload from gallery */}
+    <label
+      htmlFor="fileUpload"
+      className="cursor-pointer px-4 py-2 text-sm bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200"
+    >
+      Upload Image
+    </label>
+
+    {/* Take photo */}
+    <label
+      htmlFor="cameraCapture"
+      className="cursor-pointer px-4 py-2 text-sm bg-[#0066CC] text-white rounded-lg hover:bg-[#004C99]"
+    >
+      Take Photo
+    </label>
+  </div>
+
+  {/* Hidden inputs */}
   <input
-  type="file"
-  accept="image/*"
-  capture="environment"
-  onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
-  className="w-full text-sm"
-/>
-<p className="text-xs text-gray-500 mt-1">
-  You can upload or take a photo using your camera
-</p>
+    id="fileUpload"
+    type="file"
+    accept="image/*"
+    onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
+    className="hidden"
+  />
+
+  <input
+    id="cameraCapture"
+    type="file"
+    accept="image/*"
+    capture="environment"
+    onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
+    className="hidden"
+  />
+
+  <p className="text-xs text-gray-500 mt-2">
+    Choose an image from your device or take a new photo
+  </p>
 </div>
           </div>
           <div className="bg-gray-50 rounded-lg p-4 flex items-start gap-3">
