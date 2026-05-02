@@ -28,6 +28,8 @@ const SettingsPage: React.FC = () => {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [nationalId, setNationalId] = useState('');
+  const [phone, setPhone] = useState('');
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
 
   // Notification toggles (local-only until backend webhook/SMS is integrated)
   const [smsReminders, setSmsReminders] = useState(true);
@@ -51,10 +53,11 @@ const SettingsPage: React.FC = () => {
       setGracePeriod(String(selectedGroup.grace_period_days || 3));
     }
     if (user) {
-      setFullName(user.full_name || '');
-      setEmail(user.email || '');
-      setNationalId(user.national_id || '');
-    }
+  setFullName(user.full_name || '');
+  setEmail(user.email || '');
+  setNationalId(user.national_id || '');
+  setPhone(user.phone || '');
+}
     setLoading(false);
   }, [selectedGroup, user]);
 
@@ -114,23 +117,64 @@ const SettingsPage: React.FC = () => {
   };
 
   const handleSaveProfile = async () => {
-    if (!user?.member_id) return;
-    setSaving(true);
-    const { error } = await supabase
+  if (!user?.member_id) return;
+
+  setSaving(true);
+
+  try {
+    let photoUrl = user.photo_url;
+
+    // ✅ Upload photo if selected
+    if (photoFile) {
+      const fileExt = photoFile.name.split('.').pop();
+      const fileName = `${user.member_id}_${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('profile-photos')
+        .upload(`profiles/${fileName}`, photoFile, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage
+        .from('profile-photos')
+        .getPublicUrl(`profiles/${fileName}`);
+
+      photoUrl = data.publicUrl;
+    }
+
+    // ✅ Normalize phone (reuse your AppContext logic)
+    const normalizedPhone = phone.replace(/\s/g, '');
+
+    // 1. Update members table
+    const { error: memberError } = await supabase
       .from('members')
       .update({
         full_name: fullName.trim(),
         email: email.trim() || null,
         national_id: nationalId.trim() || null,
+        phone: normalizedPhone,
+        photo_url: photoUrl
       })
       .eq('id', user.member_id);
-    if (error) {
-      showFeedback('error', 'Failed to save: ' + error.message);
-    } else {
-      showFeedback('success', 'Profile updated!');
-    }
-    setSaving(false);
-  };
+
+    if (memberError) throw memberError;
+
+    // 2. Update user_accounts table (CRITICAL)
+    const { error: accountError } = await supabase
+      .from('user_accounts')
+      .update({ phone: normalizedPhone })
+      .eq('id', user.id);
+
+    if (accountError) throw accountError;
+
+    showFeedback('success', 'Profile updated successfully!');
+
+  } catch (error: any) {
+    showFeedback('error', 'Failed to save: ' + error.message);
+  }
+
+  setSaving(false);
+};
 
   const isAdmin = selectedGroup?.user_role === 'admin' || selectedGroup?.user_role === 'chairperson';
 
@@ -430,12 +474,12 @@ const SettingsPage: React.FC = () => {
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Phone</label>
               <input
-                type="text"
-                value={user?.phone || ''}
-                disabled
-                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 text-gray-500"
-              />
-              <p className="text-xs text-gray-400 mt-1">Phone number cannot be changed</p>
+  type="text"
+  value={phone}
+  onChange={(e) => setPhone(e.target.value)}
+  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0066CC] focus:border-transparent outline-none"
+/>
+              <p className="text-xs text-gray-400 mt-1">Your Phone Number is Your Login</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Email Address</label>
@@ -457,6 +501,15 @@ const SettingsPage: React.FC = () => {
                 placeholder="CM12345678"
               />
             </div>
+            <div className="sm:col-span-2">
+  <label className="text-sm font-medium text-gray-700 mb-1 block">Profile Picture</label>
+  <input
+    type="file"
+    accept="image/*"
+    onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
+    className="w-full text-sm"
+  />
+</div>
           </div>
           <div className="bg-gray-50 rounded-lg p-4 flex items-start gap-3">
             <svg className="w-5 h-5 text-[#0066CC] mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
