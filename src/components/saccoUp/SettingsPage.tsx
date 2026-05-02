@@ -504,11 +504,15 @@ const SettingsPage: React.FC = () => {
             <div className="sm:col-span-2">
   <label className="text-sm font-medium text-gray-700 mb-1 block">Profile Picture</label>
   <input
-    type="file"
-    accept="image/*"
-    onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
-    className="w-full text-sm"
-  />
+  type="file"
+  accept="image/*"
+  capture="environment"
+  onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
+  className="w-full text-sm"
+/>
+<p className="text-xs text-gray-500 mt-1">
+  You can upload or take a photo using your camera
+</p>
 </div>
           </div>
           <div className="bg-gray-50 rounded-lg p-4 flex items-start gap-3">
