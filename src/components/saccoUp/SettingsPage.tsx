@@ -169,6 +169,11 @@ const SettingsPage: React.FC = () => {
 
     showFeedback('success', 'Profile updated successfully!');
 
+    // 🔁 Force refresh after a short delay (so user sees message)
+setTimeout(() => {
+  window.location.reload();
+}, 1500);
+
   } catch (error: any) {
     showFeedback('error', 'Failed to save: ' + error.message);
   }
