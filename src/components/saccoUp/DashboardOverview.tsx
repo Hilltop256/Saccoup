@@ -63,6 +63,8 @@ interface MemberRow {
   loan_balance: number;
 }
 
+const [drawContributions, setDrawContributions] = useState<any[]>([]); ///////////////////////////////Rosca mapping
+
 const SkeletonCard: React.FC = () => (
   <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm animate-pulse">
     <div className="flex items-start justify-between">
@@ -142,6 +144,20 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
         ds.listMembers(selectedGroup.id),
       ]);
 
+      // 🔥 NEW: Load ROSCA draw contributions
+if (activeCycle?._db_id) {
+  const currentDraw = activeCycle.draws?.find(
+    d => d.draw_number === currentDrawNum && d.winner_slot === '1'
+  );
+
+  const currentDrawId = currentDraw?._db_id;
+
+  if (currentDrawId) {
+    const res = await ds.listDrawContributions(currentDrawId);
+    setDrawContributions(res.data || []);
+  }
+}
+      
       // Process stats
       if (statsRes.status === 'fulfilled' && statsRes.value?.stats) {
         const s = statsRes.value.stats;
@@ -440,17 +456,14 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
 {/* 🔥 NEW: Map member statuses */}
       {(() => {
         const currentCycleKey = `C${currentCycleNum}D${currentDrawNum}`;
+         const memberContributionMap = members.reduce((acc, member) => {
+  const record = drawContributions.find(
+    r => r.member_id === member.id
+  );
 
-        const memberContributionMap = members.reduce((acc, member) => {
-          const memberContrib = contributions.find(
-            c =>
-              c.member_id === member.id &&
-              c.period_label === currentCycleKey
-          );
-
-          acc[member.id] = memberContrib?.status || 'pending';
-          return acc;
-        }, {} as Record<string, string>);
+  acc[member.id] = record?.status || 'pending';
+  return acc;
+}, {} as Record<string, string>);
 
         const getContributionUI = (status: string) => {
           switch (status) {
