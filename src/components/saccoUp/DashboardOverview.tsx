@@ -63,8 +63,6 @@ interface MemberRow {
   loan_balance: number;
 }
 
-const [drawContributions, setDrawContributions] = useState<any[]>([]); ///////////////////////////////Rosca mapping
-
 const SkeletonCard: React.FC = () => (
   <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm animate-pulse">
     <div className="flex items-start justify-between">
@@ -105,12 +103,12 @@ const getPaymentLabel = (method: string): string => {
 const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => {
   const { user, selectedGroup } = useAppContext();
   const { getGroupTotals } = useRoscaData();
-
   const [stats, setStats] = useState<GroupStats | null>(null);
   const [contributions, setContributions] = useState<ContributionRow[]>([]);
   const [loans, setLoans] = useState<LoanRow[]>([]);
   const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
   const [members, setMembers] = useState<MemberRow[]>([]);
+  const [drawContributions, setDrawContributions] = useState<any[]>([]); ////////////Rosca mapping
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -239,7 +237,7 @@ if (activeCycle?._db_id) {
     }
 
     setLoading(false);
-  }, [selectedGroup?.id]);
+  }, [selectedGroup?.id, activeCycle, currentDrawNum]);
 
   useEffect(() => {
     loadDashboardData();
@@ -457,7 +455,7 @@ if (activeCycle?._db_id) {
       {(() => {
         const currentCycleKey = `C${currentCycleNum}D${currentDrawNum}`;
          const memberContributionMap = members.reduce((acc, member) => {
-  const record = drawContributions.find(
+  const record = drawContributions?.find(
     r => r.member_id === member.id
   );
 
