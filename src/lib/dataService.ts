@@ -348,6 +348,17 @@ export async function listMembers(group_id: string) {
   return { success: true, members };
 }
 
+//////////////////////////////////////////ROSCA Mapping
+export async function listDrawContributions(drawId: string) {
+  const { data, error } = await supabase
+    .from('rosca_draw_contributions')
+    .select('*')
+    .eq('draw_id', drawId);
+
+  if (error) throw error;
+  return { data };
+}
+
 export async function removeMember(group_id: string, member_id: string, removed_by?: string) {
   const { error } = await supabase
     .from('group_memberships')
