@@ -514,17 +514,6 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
     <p className="text-sm text-gray-400">No members</p>
   )}
 </div>
-              <div className="flex gap-2 text-xs font-bold">
-                <span className="text-emerald-600">✅ {confirmedCount} paid</span>
-                <span className="text-amber-600">⏳ {pendingCount} pending</span>
-                <span className="text-red-600">❌ {failedCount} defaulted</span>
-              </div>
-            </>
-          ) : (
-            <p className="text-sm text-gray-400">No members</p>
-          )}
-        </div>
-
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900">🏆 Recent Winners</h2>
