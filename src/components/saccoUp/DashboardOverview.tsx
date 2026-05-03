@@ -119,6 +119,10 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   const currentCycleNum = activeCycle?.cycle_number || 4;
   // Get the draw number for current cycle (count wins in this cycle + 1 for next)
   const currentDrawNum = activeCycle ? (activeCycle.draws?.filter(d => d.winner_name).length || 0) + 1 : 1;
+  const currentDraw = activeCycle?.draws?.find(
+  d => d.draw_number === currentDrawNum && d.winner_slot === '1'
+);
+  const currentDrawId = currentDraw?._db_id;
 
   const loadDashboardData = useCallback(async () => {
     if (!selectedGroup?.id) {
