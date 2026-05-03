@@ -103,12 +103,12 @@ const getPaymentLabel = (method: string): string => {
 const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => {
   const { user, selectedGroup } = useAppContext();
   const { getGroupTotals } = useRoscaData();
+
   const [stats, setStats] = useState<GroupStats | null>(null);
   const [contributions, setContributions] = useState<ContributionRow[]>([]);
   const [loans, setLoans] = useState<LoanRow[]>([]);
   const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
   const [members, setMembers] = useState<MemberRow[]>([]);
-  const [drawContributions, setDrawContributions] = useState<any[]>([]); ////////////Rosca mapping
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -119,10 +119,6 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   const currentCycleNum = activeCycle?.cycle_number || 4;
   // Get the draw number for current cycle (count wins in this cycle + 1 for next)
   const currentDrawNum = activeCycle ? (activeCycle.draws?.filter(d => d.winner_name).length || 0) + 1 : 1;
-  const currentDraw = activeCycle?.draws?.find(
-  d => d.draw_number === currentDrawNum && d.winner_slot === '1'
-);
-  const currentDrawId = currentDraw?._db_id;
 
   const loadDashboardData = useCallback(async () => {
     if (!selectedGroup?.id) {
@@ -142,20 +138,6 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
         ds.listMembers(selectedGroup.id),
       ]);
 
-      // 🔥 NEW: Load ROSCA draw contributions
-if (activeCycle?._db_id) {
-  const currentDraw = activeCycle.draws?.find(
-    d => d.draw_number === currentDrawNum && d.winner_slot === '1'
-  );
-
-  const currentDrawId = currentDraw?._db_id;
-
-  if (currentDrawId) {
-    const res = await ds.listDrawContributions(currentDrawId);
-    setDrawContributions(res.data || []);
-  }
-}
-      
       // Process stats
       if (statsRes.status === 'fulfilled' && statsRes.value?.stats) {
         const s = statsRes.value.stats;
@@ -237,7 +219,7 @@ if (activeCycle?._db_id) {
     }
 
     setLoading(false);
-  }, [selectedGroup?.id, activeCycle, currentDrawNum]);
+  }, [selectedGroup?.id]);
 
   useEffect(() => {
     loadDashboardData();
@@ -454,14 +436,17 @@ if (activeCycle?._db_id) {
 {/* 🔥 NEW: Map member statuses */}
       {(() => {
         const currentCycleKey = `C${currentCycleNum}D${currentDrawNum}`;
-         const memberContributionMap = members.reduce((acc, member) => {
-  const record = drawContributions?.find(
-    r => r.member_id === member.id
-  );
 
-  acc[member.id] = record?.status || 'pending';
-  return acc;
-}, {} as Record<string, string>);
+        const memberContributionMap = members.reduce((acc, member) => {
+          const memberContrib = contributions.find(
+            c =>
+              c.member_id === member.id &&
+              c.period_label === currentCycleKey
+          );
+
+          acc[member.id] = memberContrib?.status || 'pending';
+          return acc;
+        }, {} as Record<string, string>);
 
         const getContributionUI = (status: string) => {
           switch (status) {
