@@ -111,8 +111,6 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-   // ✅ MOVE IT HERE
-  const [cycleStatuses, setCycleStatuses] = useState<Record<string, string>>({});
 
   const roscaTotals = getGroupTotals();
   const roscaCycles = useRoscaData().cycles;
@@ -120,8 +118,7 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   const activeCycle = roscaCycles?.find(c => c.status === 'active' || c.status === 'upcoming');
   const currentCycleNum = activeCycle?.cycle_number || 4;
   // Get the draw number for current cycle (count wins in this cycle + 1 for next)
-  const activeDraw = activeCycle?.draws?.find(d => d.status === 'active');
-  const currentDrawId = activeDraw?.id;
+  const currentDrawNum = activeCycle ? (activeCycle.draws?.filter(d => d.winner_name).length || 0) + 1 : 1;
 
   const loadDashboardData = useCallback(async () => {
     if (!selectedGroup?.id) {
@@ -162,28 +159,6 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
           failed_contributions: 0, pending_loans: 0, collection_rate: 0,
         });
       }
-
-      // Fetch ROSCA contribution statuses for current cycle/draw
-let statusMap: Record<string, string> = {};
-
-if (activeCycle?.id) {
-  try {
-    const res = await ds.getRoscaContributionStatus(
-  activeCycle.id,
-  currentDrawId
-);
-
-    if (res?.data) {
-      res.data.forEach((row: any) => {
-        statusMap[row.member_id] = row.status || 'pending';
-      });
-    }
-  } catch (e) {
-    console.warn('Failed to fetch rosca contribution status', e);
-  }
-}
-
-setCycleStatuses(statusMap);
 
       // Process contributions
       if (contribRes.status === 'fulfilled' && contribRes.value?.contributions) {
@@ -253,26 +228,6 @@ setCycleStatuses(statusMap);
   const userName = user?.full_name?.split(' ')[0] || 'User';
   const groupName = selectedGroup?.name || 'your group';
 
-  const getMemberStatusUI = (status: string) => {
-  switch (status) {
-    case 'paid':
-      return {
-        color: 'bg-emerald-50 border-emerald-300 text-emerald-700',
-        icon: '✅',
-      };
-    case 'defaulted':
-      return {
-        color: 'bg-red-50 border-red-300 text-red-700',
-        icon: '❌',
-      };
-    default:
-      return {
-        color: 'bg-amber-50 border-amber-300 text-amber-700',
-        icon: '⏳',
-      };
-  }
-};
-
   // No group selected empty state
   if (!selectedGroup) {
     return (
@@ -326,9 +281,9 @@ setCycleStatuses(statusMap);
   const isInsuranceType = groupType === 'insurance';
 
   const totalMembers = Math.max(stats?.member_count || 0, members.length);
-  const confirmedCount = Object.values(cycleStatuses).filter(s => s === 'paid').length;
-  const pendingCount = Object.values(cycleStatuses).filter(s => s === 'pending').length;
-  const failedCount = Object.values(cycleStatuses).filter(s => s === 'defaulted').length;
+  const confirmedCount = stats?.confirmed_contributions || 0;
+  const pendingCount = stats?.pending_contributions || 0;
+  const failedCount = stats?.failed_contributions || 0;
   const collectionRate = stats?.collection_rate || 0;
   const pendingLoansCount = loans.filter((l: any) => l.status === 'pending' || l.status === 'treasurer_approved').length;
   const activeLoansList = loans.filter((l: any) => l.status === 'pending' || l.status === 'approved' || l.status === 'treasurer_approved');
@@ -471,20 +426,15 @@ setCycleStatuses(statusMap);
           {totalMembers > 0 ? (
             <>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 mb-3">
-               {members.map(m => {
-  const status = cycleStatuses[m.id] || 'pending';
-  const ui = getMemberStatusUI(status);
-
-  return (
-    <button
-      key={m.id}
-      className={`px-2 py-1.5 rounded-lg border text-xs font-semibold ${ui.color}`}
-    >
-      <span className="mr-1">{ui.icon}</span>
-      {m.full_name.split(' ')[0]}
-    </button>
-  );
-})}
+                {members.map(m => (
+                  <button
+                    key={m.id}
+                    className="px-2 py-1.5 rounded-lg border text-xs font-semibold bg-amber-50 border-amber-300 text-amber-700"
+                  >
+                    <span className="mr-1">⏳</span>
+                    {m.full_name.split(' ')[0]}
+                  </button>
+                ))}
               </div>
               <div className="flex gap-2 text-xs font-bold">
                 <span className="text-emerald-600">✅ {confirmedCount} paid</span>
