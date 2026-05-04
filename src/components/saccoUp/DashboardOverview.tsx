@@ -63,9 +63,6 @@ interface MemberRow {
   loan_balance: number;
 }
 
-// ADD THIS STATE
-const [cycleStatuses, setCycleStatuses] = useState<Record<string, string>>({});
-
 const SkeletonCard: React.FC = () => (
   <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm animate-pulse">
     <div className="flex items-start justify-between">
@@ -114,6 +111,8 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+   // ✅ MOVE IT HERE
+  const [cycleStatuses, setCycleStatuses] = useState<Record<string, string>>({});
 
   const roscaTotals = getGroupTotals();
   const roscaCycles = useRoscaData().cycles;
