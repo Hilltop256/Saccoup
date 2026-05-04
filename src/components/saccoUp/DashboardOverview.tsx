@@ -120,7 +120,8 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   const activeCycle = roscaCycles?.find(c => c.status === 'active' || c.status === 'upcoming');
   const currentCycleNum = activeCycle?.cycle_number || 4;
   // Get the draw number for current cycle (count wins in this cycle + 1 for next)
-  const currentDrawNum = activeCycle ? (activeCycle.draws?.filter(d => d.winner_name).length || 0) + 1 : 1;
+  const activeDraw = activeCycle?.draws?.find(d => d.status === 'active');
+  const currentDrawId = activeDraw?.id;
 
   const loadDashboardData = useCallback(async () => {
     if (!selectedGroup?.id) {
@@ -168,9 +169,9 @@ let statusMap: Record<string, string> = {};
 if (activeCycle?.id) {
   try {
     const res = await ds.getRoscaContributionStatus(
-      activeCycle.id,
-      currentDrawNum
-    );
+  activeCycle.id,
+  currentDrawId
+);
 
     if (res?.data) {
       res.data.forEach((row: any) => {
