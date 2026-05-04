@@ -418,102 +418,35 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Card 1: Contribution Tracker - wider to fit all members */}
-       <div className="lg:col-span-1 bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-  <div className="flex items-center justify-between mb-4">
-    <h2 className="text-lg font-bold text-gray-900">
-      📋 C{currentCycleNum}D{currentDrawNum} Contributions
-    </h2>
-    <button
-      onClick={() => onNavigate('rosca')}
-      className="text-xs text-purple-600 font-medium hover:underline"
-    >
-      Full View
-    </button>
-  </div>
-
-  {totalMembers > 0 ? (
-    <>
-{/* 🔥 NEW: Map member statuses */}
-      {(() => {
-        const currentCycleKey = `C${currentCycleNum}D${currentDrawNum}`;
-
-        const memberContributionMap = members.reduce((acc, member) => {
-          const memberContrib = contributions.find(
-            c =>
-              c.member_id === member.id &&
-              c.period_label === currentCycleKey
-          );
-
-          acc[member.id] = memberContrib?.status || 'pending';
-          return acc;
-        }, {} as Record<string, string>);
-
-        const getContributionUI = (status: string) => {
-          switch (status) {
-            case 'confirmed':
-              return {
-                icon: '✅',
-                className:
-                  'bg-emerald-50 border-emerald-300 text-emerald-700'
-              };
-            case 'failed':
-              return {
-                icon: '❌',
-                className: 'bg-red-50 border-red-300 text-red-700'
-              };
-            default:
-              return {
-                icon: '⏳',
-                className:
-                  'bg-amber-50 border-amber-300 text-amber-700'
-              };
-          }
-        };
-
-        return (
-          <>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 mb-3">
-              {members.map(member => {
-                const status = memberContributionMap[member.id];
-                const ui = getContributionUI(status);
-
-                return (
+        <div className="lg:col-span-1 bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900">📋 C{currentCycleNum}D{currentDrawNum} Contributions</h2>
+            <button onClick={() => onNavigate('rosca')} className="text-xs text-purple-600 font-medium hover:underline">Full View</button>
+          </div>
+          {totalMembers > 0 ? (
+            <>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 mb-3">
+                {members.map(m => (
                   <button
-                    key={member.id}
-                    className={`px-2 py-1.5 rounded-lg border text-xs font-semibold ${ui.className}`}
+                    key={m.id}
+                    className="px-2 py-1.5 rounded-lg border text-xs font-semibold bg-amber-50 border-amber-300 text-amber-700"
                   >
-                    <span className="mr-1">{ui.icon}</span>
-                    {member.full_name.split(' ')[0]}
+                    <span className="mr-1">⏳</span>
+                    {m.full_name.split(' ')[0]}
                   </button>
-                );
-              })}
-            </div>
-             {/* Summary */}
-            <div className="flex gap-2 text-xs font-bold">
-              <span className="text-emerald-600">
-                ✅ {
-                  Object.values(memberContributionMap).filter(s => s === 'confirmed').length
-                } paid
-              </span>
-              <span className="text-amber-600">
-                ⏳ {
-                  Object.values(memberContributionMap).filter(s => s === 'pending').length
-                } pending
-              </span>
-              <span className="text-red-600">
-                ❌ {
-                  Object.values(memberContributionMap).filter(s => s === 'failed').length
-                } defaulted
-              </span>
-            </div>
-          </>
-        );
-      })()}
-    </>
-  ) : (
-    <p className="text-sm text-gray-400">No members</p>
-  )}
-</div>
+                ))}
+              </div>
+              <div className="flex gap-2 text-xs font-bold">
+                <span className="text-emerald-600">✅ {confirmedCount} paid</span>
+                <span className="text-amber-600">⏳ {pendingCount} pending</span>
+                <span className="text-red-600">❌ {failedCount} defaulted</span>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-gray-400">No members</p>
+          )}
+        </div>
+
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900">🏆 Recent Winners</h2>
