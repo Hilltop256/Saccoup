@@ -10,6 +10,17 @@ async function checkTable(table: string): Promise<string | null> {
   return null;
 }
 
+export const getRoscaContributionStatus = async (cycleId: string, drawNumber: number) => {
+  const { data, error } = await supabase
+    .from('rosca_contribution_status')
+    .select('*')
+    .eq('cycle_id', cycleId)
+    .eq('draw_number', drawNumber);
+
+  if (error) throw error;
+  return { data };
+};
+
 // ===== PIN HASHING =====
 // Hash PIN with salt for security (same as AppContext.tsx)
 async function hashPin(pin: string): Promise<string> {
