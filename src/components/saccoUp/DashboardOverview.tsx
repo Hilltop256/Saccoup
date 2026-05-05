@@ -53,6 +53,7 @@ interface AnnouncementRow {
 
 interface MemberRow {
   id: string;
+  member_id: string; // ✅ ADD THIS
   full_name: string;
   phone: string;
   role: string;
@@ -211,18 +212,18 @@ if (statsRes.status === 'fulfilled' && statsRes.value?.success) {
         })));
       }
 
-      if (membersRes.status === 'fulfilled' && membersRes.value?.members) {
-        setMembers(membersRes.value.members.map((m: any) => ({
-          id: m.id,
-          full_name: m.full_name || 'Unknown',
-          phone: m.phone || '',
-          role: m.role || 'member',
-          photo_url: m.photo_url,
-          kyc_verified: m.kyc_verified || false,
-          total_contributions: m.total_contributions || 0,
-          savings_balance: m.savings_balance || 0,
-          loan_balance: m.loan_balance || 0,
-        })));
+      setMembers(membersRes.value.members.map((m: any) => ({
+  id: m.id,
+  member_id: m.member_id || m.id, // <-- ADD THIS
+  full_name: m.full_name || 'Unknown',
+  phone: m.phone || '',
+  role: m.role || 'member',
+  photo_url: m.photo_url,
+  kyc_verified: m.kyc_verified || false,
+  total_contributions: m.total_contributions || 0,
+  savings_balance: m.savings_balance || 0,
+  loan_balance: m.loan_balance || 0,
+})));
       }
     } catch (e: any) {
       console.error('Dashboard load error:', e);
@@ -304,7 +305,7 @@ if (statsRes.status === 'fulfilled' && statsRes.value?.success) {
             <div className="space-y-6">
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {members.map(m => {
-                  const status = memberStatusMap[m.id] || 'pending';
+                  const status = memberStatusMap[m.member_id] || 'pending';
                   const isPaid = status === 'paid' || status === 'confirmed';
                   const isFailed = status === 'failed' || status === 'defaulted';
 
