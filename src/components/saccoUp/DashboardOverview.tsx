@@ -80,36 +80,53 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   const activeCycle = useMemo(() => cycles?.find(c => c.status === 'active') || cycles?.[0], [cycles]);
 
   // Determine current draw number based on contributionStatuses (FIX)
-  const currentDrawNum = useMemo(() => {
-    if (!activeCycle || !contributionStatuses?.length) return 1;
+// Determine current draw from contributionStatuses directly (FIX)
+  const currentDraw = useMemo(() => {
+    if (!contributionStatuses?.length) return null;
 
-    const activeCycleIdNum = Number(activeCycle.id);
+    // pick the entry with the highest draw_number
+    // (and carry along its cycle_id so we filter consistently)
+    let best: { cycle_id: any; draw_number: any } | null = null;
 
-    const drawNums = contributionStatuses
-      .filter(s => Number(s.cycle_id) === activeCycleIdNum)
-      .map(s => Number(s.draw_number))
-      .filter(n => Number.isFinite(n));
+    for (const s of contributionStatuses) {
+      const d = Number(s.draw_number);
+      if (!Number.isFinite(d)) continue;
 
-    // If no draws exist in statuses, fallback to 1
-    return drawNums.length ? Math.max(...drawNums) : 1;
-  }, [activeCycle, contributionStatuses]);
+      if (!best) {
+        best = { cycle_id: s.cycle_id, draw_number: s.draw_number };
+        continue;
+      }
 
-  // Map member contribution statuses for the current draw (FIX)
+      const bd = Number(best.draw_number);
+      if (d > bd) best = { cycle_id: s.cycle_id, draw_number: s.draw_number };
+    }
+
+    if (!best) return null;
+
+    return {
+      cycle_id: String(best.cycle_id),
+      draw_number: Number(best.draw_number),
+    };
+  }, [contributionStatuses]);
+
+  const currentDrawNum = currentDraw?.draw_number ?? 1;
+
+  // Map member contribution statuses for the resolved current draw (FIX)
   const memberStatusMap = useMemo(() => {
-    if (!activeCycle || !contributionStatuses?.length) return {};
-
-    const activeCycleIdNum = Number(activeCycle.id);
-    const drawNumNum = Number(currentDrawNum);
+    if (!currentDraw) return {};
 
     return contributionStatuses
       .filter(s => {
-        return Number(s.cycle_id) === activeCycleIdNum && Number(s.draw_number) === drawNumNum;
+        return (
+          String(s.cycle_id) === currentDraw.cycle_id &&
+          Number(s.draw_number) === currentDraw.draw_number
+        );
       })
       .reduce((acc, curr) => {
         acc[String(curr.member_id)] = curr.status;
         return acc;
       }, {} as Record<string, string>);
-  }, [activeCycle, contributionStatuses, currentDrawNum]);
+  }, [contributionStatuses, currentDraw]);
 
   const roscaStats = useMemo(() => {
     const vals = Object.values(memberStatusMap);
