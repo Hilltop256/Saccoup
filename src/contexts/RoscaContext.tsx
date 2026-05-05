@@ -7,6 +7,7 @@ import { useAppContext } from './AppContext';
 export interface RoscaDrawWithId extends RoscaDraw {
   _db_id?: string;   // rosca_draws.id from Supabase
 }
+
 export interface RoscaCycleWithId extends Omit<RoscaCycle, 'draws'> {
   _db_id?: string;   // rosca_cycles.id from Supabase
   draws: RoscaDrawWithId[];
@@ -20,7 +21,14 @@ interface RoscaContextType {
   isMockData: boolean;
   updateDraw: (cycleNumber: number, updatedDraw: RoscaDraw) => Promise<void>;
   addDraw: (cycleNumber: number, newDraw: RoscaDraw) => Promise<void>;
-  createCycle: (params: { cycle_name: string; start_date: string; total_draws: number; pot_amount_per_draw: number; member_count: number; security_deposit: number }) => Promise<void>;
+  createCycle: (params: { 
+    cycle_name: string; 
+    start_date: string; 
+    total_draws: number; 
+    pot_amount_per_draw: number; 
+    member_count: number; 
+    security_deposit: number 
+  }) => Promise<void>;
   refreshCycles: () => Promise<void>;
   getMemberStats: (memberName: string) => {
     totalWon: number;
@@ -85,74 +93,63 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
   const [cycles, setCycles] = useState<RoscaCycleWithId[]>([]);
   const [loading, setLoading] = useState(true);
   const [isMockData, setIsMockData] = useState(false);
+  const [contributionStatuses, setContributionStatuses] = useState<ds.RoscaContributionStatusRow[]>([]);
 
   // ── Load from Supabase ────────────────────────────────────────────────────
-// Add a state for statuses
-const [contributionStatuses, setContributionStatuses] = useState<ds.RoscaContributionStatusRow[]>([]);
-
-const loadCycles = async () => {
-  try {
-    setCycles(MOCK_PBS_CYCLES.map(c => ({ ...c, _db_id: undefined, draws: c.draws.map(d => ({ ...d, _db_id: undefined })) })));
-    setIsMockData(true);
-    setLoading(false);
-    return;
-    if (active) {
-      // FIX: Ensure we fetch statuses specifically for the active cycle
-      const { statuses } = await listRoscaContributionStatuses(active.id);
-      setContributionStatuses(statuses || []);
-      }
-  } catch (err) {
-    console.error("Failed to load ROSCA data:", err);
-  }
-};
-  }
-
-  setLoading(true);
-  try {
-    const { cycles: dbCycles } = await ds.listRoscaCycles(selectedGroupId);
-
-    if (dbCycles && dbCycles.length > 0) {
-      const drawsMap: Record<string, ds.RoscaDrawRow[]> = {};
-      let allStatuses: ds.RoscaContributionStatusRow[] = [];
-
-      for (const c of dbCycles) {
-        // Fetch draws
-        const { draws } = await ds.listRoscaDraws(c.id);
-        if (draws) drawsMap[c.id] = draws;
-
-        // NEW: Fetch contribution statuses for this cycle
-        // Assuming your dataService has listRoscaContributionStatuses
-        const { statuses } = await ds.listRoscaContributionStatuses(c.id);
-        if (statuses) allStatuses = [...allStatuses, ...statuses];
-      }
-
-      setCycles(mapSupabaseToCycles(dbCycles, drawsMap));
-      setContributionStatuses(allStatuses); // Store the statuses
-      setIsMockData(false);
-    } else {
-      setCycles([]);
-      setContributionStatuses([]);
-      setIsMockData(false);
+  const loadCycles = useCallback(async () => {
+    if (!selectedGroupId) {
+      setLoading(false);
+      return;
     }
-  } catch (e) {
-    console.error('Failed to load ROSCA data:', e);
-  }
-  setLoading(false);
-}, [selectedGroupId]);
 
-  // ── Seed: DISABLED for multi-tenancy — groups create their own cycles via UI ──
-  const seedToSupabase = useCallback(async () => {
-    // No auto-seeding. Groups use "New Cycle" button to create their own ROSCA cycles.
-  }, []);
+    setLoading(true);
+    try {
+      const { cycles: dbCycles } = await ds.listRoscaCycles(selectedGroupId);
 
-  useEffect(() => { loadCycles(); }, [loadCycles]);
+      if (dbCycles && dbCycles.length > 0) {
+        const drawsMap: Record<string, ds.RoscaDrawRow[]> = {};
+        let allStatuses: ds.RoscaContributionStatusRow[] = [];
 
-  // No auto-seed — groups create their own ROSCA cycles via the UI
-  const refreshCycles = useCallback(async () => { await loadCycles(); }, [loadCycles]);
+        for (const c of dbCycles) {
+          // Fetch draws
+          const { draws } = await ds.listRoscaDraws(c.id);
+          if (draws) drawsMap[c.id] = draws;
+
+          // Fetch contribution statuses
+          const { statuses } = await ds.listRoscaContributionStatuses(c.id);
+          if (statuses) allStatuses = [...allStatuses, ...statuses];
+        }
+
+        setCycles(mapSupabaseToCycles(dbCycles, drawsMap));
+        setContributionStatuses(allStatuses);
+        setIsMockData(false);
+      } else {
+        // Fallback to Mock Data if no database cycles exist for this group
+        setCycles(MOCK_PBS_CYCLES.map(c => ({ 
+          ...c, 
+          _db_id: undefined, 
+          draws: c.draws.map(d => ({ ...d, _db_id: undefined })) 
+        })));
+        setContributionStatuses([]);
+        setIsMockData(true);
+      }
+    } catch (e) {
+      console.error('Failed to load ROSCA data:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedGroupId]);
+
+  useEffect(() => {
+    loadCycles();
+  }, [loadCycles]);
+
+  const refreshCycles = useCallback(async () => {
+    await loadCycles();
+  }, [loadCycles]);
 
   // ── Update draw — persists to Supabase then reloads ────────────────────
   const updateDraw = useCallback(async (cycleNumber: number, updatedDraw: RoscaDraw) => {
-    // Optimistic local update first (instant UI feedback)
     setCycles(prev => prev.map(c => {
       if (c.cycle_number !== cycleNumber) return c;
       return {
@@ -165,7 +162,6 @@ const loadCycles = async () => {
       };
     }));
 
-    // Persist to Supabase
     if (!selectedGroupId) return;
     try {
       const cycle = cycles.find(c => c.cycle_number === cycleNumber);
@@ -174,7 +170,6 @@ const loadCycles = async () => {
       );
 
       if (draw?._db_id) {
-        // Row exists — update it
         await ds.updateRoscaDraw(draw._db_id, {
           winner_name: updatedDraw.winner_name,
           winner_id: updatedDraw.winner_id,
@@ -188,7 +183,6 @@ const loadCycles = async () => {
           notes: updatedDraw.notes ?? null,
         });
       } else if (cycle?._db_id) {
-        // Row doesn't exist yet (new draw added to existing cycle) — insert it
         await ds.createRoscaDraw({
           cycle_id: cycle._db_id,
           draw_number: updatedDraw.draw_number,
@@ -203,7 +197,6 @@ const loadCycles = async () => {
           status: updatedDraw.status,
           notes: updatedDraw.notes,
         });
-        // Reload to get the new UUID
         await loadCycles();
       }
     } catch (e) {
@@ -214,49 +207,43 @@ const loadCycles = async () => {
   // ── Add new draw — persists both slots to Supabase ───────────────────────
   const addDraw = useCallback(async (cycleNumber: number, newDraw: RoscaDraw) => {
     const cycle = cycles.find(c => c.cycle_number === cycleNumber);
-    if (!cycle) return;
+    if (!cycle || !cycle._db_id) return;
 
     const maxNum = Math.max(0, ...cycle.draws.map(d => d.draw_number));
     const nextNum = maxNum + 1;
-    const draw1: RoscaDrawWithId = { ...newDraw, draw_number: nextNum, winner_slot: '1', _db_id: undefined };
-    const draw2: RoscaDrawWithId = { ...newDraw, draw_number: nextNum, winner_slot: '2', _db_id: undefined };
 
-    // Optimistic update
-    setCycles(prev => prev.map(c => {
-      if (c.cycle_number !== cycleNumber) return c;
-      return { ...c, draws: [...c.draws, draw1, draw2], total_draws: c.total_draws + 2 };
-    }));
-
-    // Persist to Supabase
-    if (cycle._db_id) {
-      try {
-        for (const slot of ['1', '2'] as const) {
-          const d = slot === '1' ? draw1 : draw2;
-          await ds.createRoscaDraw({
-            cycle_id: cycle._db_id,
-            draw_number: nextNum,
-            winner_slot: slot,
-            winner_name: d.winner_name || undefined,
-            amount_received: d.amount_received,
-            draw_date: d.draw_date,
-            savings: d.savings,
-            paid_out: d.paid_out,
-            deductions: d.deductions,
-            balance: d.balance,
-            status: d.status,
-            notes: d.notes,
-          });
-        }
-        // Reload to populate _db_ids for the new draws
-        await loadCycles();
-      } catch (e) {
-        console.error('Failed to persist new draw:', e);
+    try {
+      for (const slot of ['1', '2'] as const) {
+        await ds.createRoscaDraw({
+          cycle_id: cycle._db_id,
+          draw_number: nextNum,
+          winner_slot: slot,
+          winner_name: newDraw.winner_name || undefined,
+          amount_received: newDraw.amount_received,
+          draw_date: newDraw.draw_date,
+          savings: newDraw.savings,
+          paid_out: newDraw.paid_out,
+          deductions: newDraw.deductions,
+          balance: newDraw.balance,
+          status: newDraw.status,
+          notes: newDraw.notes,
+        });
       }
+      await loadCycles();
+    } catch (e) {
+      console.error('Failed to persist new draw:', e);
     }
   }, [cycles, loadCycles]);
 
   // ── Create new cycle ─────────────────────────────────────────────────────
-  const createCycle = useCallback(async (params: { cycle_name: string; start_date: string; total_draws: number; pot_amount_per_draw: number; member_count: number; security_deposit: number }) => {
+  const createCycle = useCallback(async (params: { 
+    cycle_name: string; 
+    start_date: string; 
+    total_draws: number; 
+    pot_amount_per_draw: number; 
+    member_count: number; 
+    security_deposit: number 
+  }) => {
     if (!selectedGroupId) throw new Error('No group selected.');
     const nextNumber = Math.max(0, ...cycles.map(c => c.cycle_number)) + 1;
 
@@ -273,7 +260,6 @@ const loadCycles = async () => {
     });
 
     if (cycle) {
-      // Auto-generate empty draw slots (2 winners per draw)
       for (let d = 1; d <= params.total_draws; d++) {
         for (const slot of ['1', '2'] as const) {
           await ds.createRoscaDraw({
@@ -336,6 +322,7 @@ const loadCycles = async () => {
     <RoscaContext.Provider value={{
       cycles,
       setCycles,
+      contributionStatuses, // Included this to fix dashboard "Zeros"
       loading,
       isMockData,
       updateDraw,
