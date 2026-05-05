@@ -127,10 +127,8 @@ export async function listGroups(member_id: string) {
 }
 
 export async function getGroupStats(group_id: string) {
-  const [membersRes, membersCountRes, contribRes, loansRes] = await Promise.all([
-    // head:true count (fast but may be blocked by some RLS configs)
-    supabase.from('group_memberships').select('*', { count: 'exact', head: true }).eq('group_id', group_id).eq('is_active', true),
-    // also fetch member_id list so we can count rows directly as a reliable fallback
+  const [membersCountRes, contribRes, loansRes] = await Promise.all([
+    // Fetch member_id list directly as it's the most reliable way to count
     supabase.from('group_memberships').select('member_id').eq('group_id', group_id).eq('is_active', true),
     supabase.from('contributions').select('amount, status').eq('group_id', group_id),
     supabase.from('loans').select('amount, status').eq('group_id', group_id),
@@ -138,32 +136,42 @@ export async function getGroupStats(group_id: string) {
 
   const contributions = contribRes.data || [];
   const loans = loansRes.data || [];
+  const memberCount = (membersCountRes.data || []).length;
+
+  // Use a broader filter for "Confirmed" to include 'paid' and 'confirmed'
+  const confirmedContribs = contributions.filter((c: any) => 
+    ['confirmed', 'paid', 'success'].includes(c.status?.toLowerCase())
+  );
 
   const totalContributions = contributions.reduce((s: number, c: any) => s + Number(c.amount), 0);
-  const confirmedContributions = contributions.filter((c: any) => c.status === 'confirmed').reduce((s: number, c: any) => s + Number(c.amount), 0);
-  const pendingContributions = contributions.filter((c: any) => c.status === 'pending').length;
-  const failedContributions = contributions.filter((c: any) => c.status === 'failed').length;
-  const confirmedCount = contributions.filter((c: any) => c.status === 'confirmed').length;
-  // Use whichever count is larger (head count vs actual row count) for accuracy
-  const memberCount = Math.max(membersRes.count || 0, (membersCountRes.data || []).length);
+  const confirmedSavings = confirmedContribs.reduce((s: number, c: any) => s + Number(c.amount), 0);
+  
+  // Pending should include anything not final
+  const pendingContributions = contributions.filter((c: any) => 
+    ['pending', 'processing'].includes(c.status?.toLowerCase())
+  ).length;
+
+  // Loan Portfolio: Include everything that isn't settled or rejected
   const totalLoansOutstanding = loans
-    .filter((l: any) => ['disbursed', 'repaying'].includes(l.status))
+    .filter((l: any) => ['disbursed', 'repaying', 'approved'].includes(l.status?.toLowerCase()))
     .reduce((s: number, l: any) => s + Number(l.amount), 0);
-  const pendingLoans = loans.filter((l: any) => ['pending', 'treasurer_approved'].includes(l.status)).length;
-  const collectionRate = memberCount > 0 ? (confirmedCount / memberCount) * 100 : 0;
+
+  const pendingLoans = loans.filter((l: any) => 
+    ['pending', 'treasurer_approved'].includes(l.status?.toLowerCase())
+  ).length;
 
   return {
     success: true,
     stats: {
       member_count: memberCount,
-      total_savings: confirmedContributions,
+      total_savings: confirmedSavings,
       total_contributions: totalContributions,
-      confirmed_contributions: confirmedCount,
+      confirmed_contributions: confirmedContribs.length,
       pending_contributions: pendingContributions,
-      failed_contributions: failedContributions,
+      failed_contributions: contributions.filter((c: any) => c.status === 'failed').length,
       total_loans_outstanding: totalLoansOutstanding,
       pending_loans: pendingLoans,
-      collection_rate: collectionRate,
+      collection_rate: memberCount > 0 ? (confirmedContribs.length / memberCount) * 100 : 0,
     },
   };
 }
