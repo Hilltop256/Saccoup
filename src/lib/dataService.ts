@@ -12,40 +12,24 @@ async function checkTable(table: string): Promise<string | null> {
 
 export async function listRoscaContributionStatuses(cycleId: string) {
   const { data, error } = await supabase
-    .from('rosca_member_contributions')
-    .select(`
-      cycle_id,
-      draw_number,
-      member_id,
-      status,
-      member_name
-    `)
+    .from('rosca_contribution_status')
+    .select('*')
     .eq('cycle_id', cycleId);
+  
+  if (error) throw error;
+  return { statuses: data };
+}
+
+export const getRoscaContributionStatus = async (cycleId: string, drawNumber: number) => {
+  const { data, error } = await supabase
+    .from('rosca_contribution_status')
+    .select('*')
+    .eq('cycle_id', cycleId)
+    .eq('draw_number', drawNumber);
 
   if (error) throw error;
-
-  // Map into the shape your dashboard expects from rosca_contribution_status
-  const statuses = (data || []).map((r: any) => ({
-    id: r.id, // may be undefined; dashboard doesn't require it
-    cycle_id: r.cycle_id,
-    draw_number: r.draw_number,
-    member_id: r.member_id,
-    member_name: r.member_name ?? null,
-
-    // This is the important part:
-    status: r.status,
-
-    // Optional extra fields if your type expects them
-    expected_amount: r.expected_amount ?? null,
-    actual_amount: r.actual_amount ?? null,
-    payment_method: r.payment_method ?? null,
-    transaction_ref: r.transaction_ref ?? null,
-    paid_at: r.payment_date ?? null,
-    notes: r.notes ?? null,
-  }));
-
-  return { statuses };
-}
+  return { data };
+};
 
 // ===== PIN HASHING =====
 // Hash PIN with salt for security (same as AppContext.tsx)
