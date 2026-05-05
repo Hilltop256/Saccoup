@@ -9,6 +9,10 @@ interface DashboardOverviewProps {
   onNavigate: (page: DashboardPage) => void;
 }
 
+console.log("Statuses:", contributionStatuses);
+console.log("Member Map:", memberStatusMap);
+console.log("Members:", members);
+
 interface GroupStats {
   total_savings: number;
   total_loans_outstanding: number;
