@@ -10,6 +10,16 @@ async function checkTable(table: string): Promise<string | null> {
   return null;
 }
 
+export async function listRoscaContributionStatuses(cycleId: string) {
+  const { data, error } = await supabase
+    .from('rosca_contribution_status')
+    .select('*')
+    .eq('cycle_id', cycleId);
+  
+  if (error) throw error;
+  return { statuses: data };
+}
+
 export const getRoscaContributionStatus = async (cycleId: string, drawNumber: number) => {
   const { data, error } = await supabase
     .from('rosca_contribution_status')
