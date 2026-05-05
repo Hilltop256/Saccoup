@@ -117,11 +117,11 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   // Current ROSCA Cycle Logic
   const activeCycle = useMemo(() => cycles?.find(c => c.status === 'active') || cycles?.[0], [cycles]);
  
-const currentDraw = useMemo(() => {
-  if (!activeCycle?.draws) return null;
-  // Find the first draw that isn't completed, or the most recent one
-  return activeCycle.draws.find(d => d.status === 'pending') || activeCycle.draws[0];
-}, [activeCycle]);
+const currentDrawNum = useMemo(() => {
+    if (!activeCycle?.draws) return 1;
+    const completedDraws = activeCycle.draws.filter(d => d.status === 'completed' || d.winner_name).length;
+    return completedDraws + 1;
+  }, [activeCycle]);
 
 const memberStatusMap = useMemo(() => {
   if (!activeCycle || !contributionStatuses || !currentDraw) return {};
