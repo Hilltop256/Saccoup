@@ -90,12 +90,21 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
 // Add a state for statuses
 const [contributionStatuses, setContributionStatuses] = useState<ds.RoscaContributionStatusRow[]>([]);
 
-const loadCycles = useCallback(async () => {
-  if (!selectedGroupId) {
+const loadCycles = async () => {
+  try {
     setCycles(MOCK_PBS_CYCLES.map(c => ({ ...c, _db_id: undefined, draws: c.draws.map(d => ({ ...d, _db_id: undefined })) })));
     setIsMockData(true);
     setLoading(false);
     return;
+    if (active) {
+      // FIX: Ensure we fetch statuses specifically for the active cycle
+      const { statuses } = await listRoscaContributionStatuses(active.id);
+      setContributionStatuses(statuses || []);
+      }
+  } catch (err) {
+    console.error("Failed to load ROSCA data:", err);
+  }
+};
   }
 
   setLoading(true);
