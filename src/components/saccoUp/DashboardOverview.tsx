@@ -45,7 +45,6 @@ interface LoanRow {
 
 interface AnnouncementRow {
   id: string;
-  title: string;
   content: string;
   author: string;
   is_pinned: boolean;
@@ -64,7 +63,7 @@ interface MemberRow {
   loan_balance: number;
 }
 
-// Mirrors public.rosca_contribution_status
+/** Mirrors public.rosca_contribution_status */
 interface MemberContribStatus {
   id: string;
   cycle_id: string;
@@ -74,13 +73,13 @@ interface MemberContribStatus {
   member_name: string;
   expected_amount: number;
   paid_amount: number;
-  status: string; // 'pending' | 'paid' | 'confirmed' | 'failed' | 'defaulted'
+  status: string;
   payment_method: string | null;
   transaction_ref: string | null;
   paid_at: string | null;
 }
 
-// Resolved active cycle & draw info fetched directly from DB
+/** Resolved active cycle and draw info fetched directly from DB */
 interface ActiveCycleInfo {
   cycleId: string;
   cycleNumber: number;
@@ -90,6 +89,9 @@ interface ActiveCycleInfo {
   drawDate: string;
 }
 
+// ---------------------------------------------------------------------------
+// Skeleton components
+// ---------------------------------------------------------------------------
 const SkeletonCard: React.FC = () => (
   <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm animate-pulse">
     <div className="flex items-start justify-between">
@@ -117,45 +119,57 @@ const SkeletonRow: React.FC = () => (
   </div>
 );
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 const getPaymentLabel = (method: string | null): string => {
   switch (method) {
-    case 'mtn_momo': return 'MTN MoMo';
-    case 'airtel_money': return 'Airtel Money';
-    case 'cash': return 'Cash';
+    case 'mtn_momo':      return 'MTN MoMo';
+    case 'airtel_money':  return 'Airtel Money';
+    case 'cash':          return 'Cash';
     case 'bank_transfer': return 'Bank Transfer';
-    default: return method || 'N/A';
+    default:              return method || 'N/A';
   }
 };
 
-// Normalize status to a canonical bucket
 const normalizeStatus = (status: string): 'paid' | 'pending' | 'defaulted' => {
   const s = (status || '').toLowerCase();
   if (s === 'paid' || s === 'confirmed' || s === 'completed') return 'paid';
-  if (s === 'failed' || s === 'defaulted' || s === 'missed') return 'defaulted';
+  if (s === 'failed' || s === 'defaulted' || s === 'missed')  return 'defaulted';
   return 'pending';
 };
 
-// Status pill config
 const STATUS_CONFIG: Record<'paid' | 'pending' | 'defaulted', {
   bg: string; border: string; text: string; dot: string; label: string;
 }> = {
   paid: {
-    bg: 'bg-emerald-50', border: 'border-emerald-300', text: 'text-emerald-700',
-    dot: 'bg-emerald-500', label: 'Paid',
+    bg: 'bg-emerald-50', border: 'border-emerald-300',
+    text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'Paid',
   },
   pending: {
-    bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-700',
-    dot: 'bg-amber-400', label: 'Pending',
+    bg: 'bg-amber-50', border: 'border-amber-300',
+    text: 'text-amber-700', dot: 'bg-amber-400', label: 'Pending',
   },
   defaulted: {
-    bg: 'bg-red-50', border: 'border-red-300', text: 'text-red-700',
-    dot: 'bg-red-500', label: 'Defaulted',
+    bg: 'bg-red-50', border: 'border-red-300',
+    text: 'text-red-700', dot: 'bg-red-500', label: 'Defaulted',
   },
 };
 
-// ─── Fetch active cycle + current pending draw directly from Supabase ───────
+/** Safe avatar URL — never returns undefined */
+const safeAvatar = (photoUrl: string | undefined, idx: number): string => {
+  if (photoUrl) return photoUrl;
+  const arr = IMAGES.avatars;
+  if (!arr || arr.length === 0) return '';
+  return arr[Math.abs(idx) % arr.length] ?? arr[0] ?? '';
+};
+
+// ---------------------------------------------------------------------------
+// DB helpers  (module-level — NOT inside the component)
+// ---------------------------------------------------------------------------
+
+/** Step 1 — find the active cycle + current pending draw for a group */
 async function fetchActiveCycleAndDraw(groupId: string): Promise<ActiveCycleInfo | null> {
-  // 1. Find the active (or most recent upcoming) cycle for this group
   const { data: cycles, error: cycleErr } = await supabase
     .from('rosca_cycles')
     .select('id, cycle_number, cycle_name, status')
@@ -171,8 +185,8 @@ async function fetchActiveCycleAndDraw(groupId: string): Promise<ActiveCycleInfo
 
   const cycle = cycles[0];
 
-  // 2. Find the lowest-numbered PENDING draw in this cycle (= current draw)
-  const { data: draws, error: drawErr } = await supabase
+  // Lowest-numbered PENDING draw = the current one
+  const { data: pendingDraws, error: drawErr } = await supabase
     .from('rosca_draws')
     .select('id, draw_number, draw_date, status')
     .eq('cycle_id', cycle.id)
@@ -180,54 +194,61 @@ async function fetchActiveCycleAndDraw(groupId: string): Promise<ActiveCycleInfo
     .order('draw_number', { ascending: true })
     .limit(1);
 
-  if (drawErr || !draws || draws.length === 0) {
-    // Fallback: get the latest completed draw (cycle might be mid-progress)
-    const { data: lastDraw, error: lastDrawErr } = await supabase
-      .from('rosca_draws')
-      .select('id, draw_number, draw_date, status')
-      .eq('cycle_id', cycle.id)
-      .order('draw_number', { ascending: false })
-      .limit(1);
-
-    if (lastDrawErr || !lastDraw || lastDraw.length === 0) {
-      console.warn('[Dashboard] No draws found for cycle:', cycle.id);
-      return null;
-    }
-
+  if (!drawErr && pendingDraws && pendingDraws.length > 0) {
     return {
-      cycleId: cycle.id,
+      cycleId:     cycle.id,
       cycleNumber: cycle.cycle_number,
-      cycleName: cycle.cycle_name,
-      drawId: lastDraw[0].id,
-      drawNumber: lastDraw[0].draw_number,
-      drawDate: lastDraw[0].draw_date,
+      cycleName:   cycle.cycle_name,
+      drawId:      pendingDraws[0].id,
+      drawNumber:  pendingDraws[0].draw_number,
+      drawDate:    pendingDraws[0].draw_date,
     };
   }
 
+  // Fallback — no pending draw, use the latest draw in this cycle
+  const { data: lastDraws, error: lastDrawErr } = await supabase
+    .from('rosca_draws')
+    .select('id, draw_number, draw_date, status')
+    .eq('cycle_id', cycle.id)
+    .order('draw_number', { ascending: false })
+    .limit(1);
+
+  if (lastDrawErr || !lastDraws || lastDraws.length === 0) {
+    console.warn('[Dashboard] No draws found for cycle:', cycle.id);
+    return null;
+  }
+
   return {
-    cycleId: cycle.id,
+    cycleId:     cycle.id,
     cycleNumber: cycle.cycle_number,
-    cycleName: cycle.cycle_name,
-    drawId: draws[0].id,
-    drawNumber: draws[0].draw_number,
-    drawDate: draws[0].draw_date,
+    cycleName:   cycle.cycle_name,
+    drawId:      lastDraws[0].id,
+    drawNumber:  lastDraws[0].draw_number,
+    drawDate:    lastDraws[0].draw_date,
   };
 }
 
-// ─── Fetch per-member contribution statuses for a specific draw ───────────
+/** Step 2 — fetch per-member contribution statuses for a specific draw */
 async function fetchDrawContribStatuses(
   cycleId: string,
+  drawId: string,
   drawNumber: number,
 ): Promise<MemberContribStatus[]> {
-  // Primary source: rosca_contribution_status (most authoritative)
+  // Primary source: rosca_contribution_status
   const { data: statusRows, error: statusErr } = await supabase
     .from('rosca_contribution_status')
-    .select('id, cycle_id, draw_id, draw_number, member_id, member_name, expected_amount, paid_amount, status, payment_method, transaction_ref, paid_at')
+    .select(
+      'id, cycle_id, draw_id, draw_number, member_id, member_name, ' +
+      'expected_amount, paid_amount, status, payment_method, transaction_ref, paid_at',
+    )
     .eq('cycle_id', cycleId)
     .eq('draw_number', drawNumber);
 
   if (!statusErr && statusRows && statusRows.length > 0) {
-    console.log(`[Dashboard] rosca_contribution_status returned ${statusRows.length} rows for cycle ${cycleId} draw ${drawNumber}`);
+    console.log(
+      `[Dashboard] rosca_contribution_status returned ${statusRows.length} rows ` +
+      `for cycle ${cycleId} draw ${drawNumber}`,
+    );
     return statusRows as MemberContribStatus[];
   }
 
@@ -235,57 +256,56 @@ async function fetchDrawContribStatuses(
     console.warn('[Dashboard] rosca_contribution_status query failed:', statusErr.message);
   }
 
-  // Fallback: rosca_draw_contributions if status table has no rows yet
-  console.log('[Dashboard] Falling back to rosca_draw_contributions');
+  // ── Fallback: rosca_draw_contributions ──────────────────────────────────
+  // FIX: extract the draw-id lookup into its own await BEFORE the query chain.
+  // The previous code had `await` nested inside a `.eq()` argument, which
+  // TypeScript rejects at compile time (Vercel build error).
+  console.log('[Dashboard] Falling back to rosca_draw_contributions for draw_id:', drawId);
+
   const { data: drawContribs, error: drawContribErr } = await supabase
     .from('rosca_draw_contributions')
     .select('id, draw_id, member_id, member_name, amount, payment_method, status, transaction_ref, paid_at')
-    .eq('draw_id', (
-      // We need the draw_id for this draw_number - get it from rosca_draws
-      await supabase
-        .from('rosca_draws')
-        .select('id')
-        .eq('cycle_id', cycleId)
-        .eq('draw_number', drawNumber)
-        .single()
-    ).data?.id || '');
+    .eq('draw_id', drawId);   // <-- use the already-resolved drawId param
 
   if (drawContribErr || !drawContribs) {
-    console.warn('[Dashboard] rosca_draw_contributions fallback also failed:', drawContribErr?.message);
+    console.warn('[Dashboard] rosca_draw_contributions fallback failed:', drawContribErr?.message);
     return [];
   }
 
-  // Map rosca_draw_contributions shape to MemberContribStatus shape
-  return drawContribs.map((r: any) => ({
-    id: r.id,
-    cycle_id: cycleId,
-    draw_id: r.draw_id,
-    draw_number: drawNumber,
-    member_id: r.member_id,
-    member_name: r.member_name,
+  // Map rosca_draw_contributions shape -> MemberContribStatus shape
+  return drawContribs.map((r: any): MemberContribStatus => ({
+    id:              r.id,
+    cycle_id:        cycleId,
+    draw_id:         r.draw_id,
+    draw_number:     drawNumber,
+    member_id:       r.member_id,
+    member_name:     r.member_name,
     expected_amount: 0,
-    paid_amount: r.amount || 0,
-    status: r.status || 'pending',
-    payment_method: r.payment_method || null,
-    transaction_ref: r.transaction_ref || null,
-    paid_at: r.paid_at || null,
+    paid_amount:     r.amount || 0,
+    status:          r.status || 'pending',
+    payment_method:  r.payment_method ?? null,
+    transaction_ref: r.transaction_ref ?? null,
+    paid_at:         r.paid_at ?? null,
   }));
 }
 
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => {
   const { user, selectedGroup } = useAppContext();
-  const { getGroupTotals } = useRoscaData();
+  const { getGroupTotals }      = useRoscaData();
 
-  const [stats, setStats] = useState<GroupStats | null>(null);
+  const [stats,         setStats]         = useState<GroupStats | null>(null);
   const [contributions, setContributions] = useState<ContributionRow[]>([]);
-  const [loans, setLoans] = useState<LoanRow[]>([]);
+  const [loans,         setLoans]         = useState<LoanRow[]>([]);
   const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
-  const [members, setMembers] = useState<MemberRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [members,       setMembers]       = useState<MemberRow[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [error,         setError]         = useState<string | null>(null);
 
   // ROSCA-specific state
-  const [activeCycleInfo, setActiveCycleInfo] = useState<ActiveCycleInfo | null>(null);
+  const [activeCycleInfo,      setActiveCycleInfo]      = useState<ActiveCycleInfo | null>(null);
   const [cycleContribStatuses, setCycleContribStatuses] = useState<MemberContribStatus[]>([]);
 
   const roscaTotals = getGroupTotals();
@@ -298,27 +318,32 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
     setLoading(true);
     setError(null);
 
-    const groupType = (selectedGroup?.group_type || '').toLowerCase();
+    const groupType   = (selectedGroup.group_type || '').toLowerCase();
     const isRoscaType = groupType === 'rosca' || groupType === 'hybrid';
 
     try {
-      // ── Step 1: Resolve ROSCA active cycle + current draw (runs in parallel with other fetches)
-      const roscaCyclePromise = isRoscaType
+      // ── Parallel fetch: cycle info + general dashboard data ──────────────
+      const roscaCyclePromise: Promise<ActiveCycleInfo | null> = isRoscaType
         ? fetchActiveCycleAndDraw(selectedGroup.id)
         : Promise.resolve(null);
 
-      // ── Step 2: Fetch general dashboard data in parallel
-      const [cycleInfoResult, statsRes, contribRes, loansRes, announcementsRes, membersRes] =
-        await Promise.allSettled([
-          roscaCyclePromise,
-          ds.getGroupStats(selectedGroup.id),
-          ds.listContributions(selectedGroup.id, { limit: 10 }),
-          ds.listLoans(selectedGroup.id),
-          ds.listAnnouncements(selectedGroup.id),
-          ds.listMembers(selectedGroup.id),
-        ]);
+      const [
+        cycleInfoResult,
+        statsRes,
+        contribRes,
+        loansRes,
+        announcementsRes,
+        membersRes,
+      ] = await Promise.allSettled([
+        roscaCyclePromise,
+        ds.getGroupStats(selectedGroup.id),
+        ds.listContributions(selectedGroup.id, { limit: 10 }),
+        ds.listLoans(selectedGroup.id),
+        ds.listAnnouncements(selectedGroup.id),
+        ds.listMembers(selectedGroup.id),
+      ]);
 
-      // ── Process active cycle info
+      // ── Resolve active cycle info ─────────────────────────────────────────
       let resolvedCycleInfo: ActiveCycleInfo | null = null;
       if (cycleInfoResult.status === 'fulfilled' && cycleInfoResult.value) {
         resolvedCycleInfo = cycleInfoResult.value;
@@ -328,11 +353,12 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
         setActiveCycleInfo(null);
       }
 
-      // ── Step 3: Fetch per-member contribution statuses NOW that we have cycleId + drawNumber
+      // ── Fetch per-member contribution statuses (needs cycle + draw first) ─
       if (resolvedCycleInfo) {
         try {
           const statuses = await fetchDrawContribStatuses(
             resolvedCycleInfo.cycleId,
+            resolvedCycleInfo.drawId,      // FIX: pass drawId explicitly
             resolvedCycleInfo.drawNumber,
           );
           console.log(`[Dashboard] Contribution statuses loaded: ${statuses.length} rows`);
@@ -345,79 +371,81 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
         setCycleContribStatuses([]);
       }
 
-      // ── Process stats
+      // ── Stats ─────────────────────────────────────────────────────────────
       if (statsRes.status === 'fulfilled' && statsRes.value?.stats) {
         const s = statsRes.value.stats;
         setStats({
-          total_savings: s.total_savings || 0,
+          total_savings:           s.total_savings           || 0,
           total_loans_outstanding: s.total_loans_outstanding || 0,
-          member_count: s.member_count || 0,
-          total_contributions: s.total_contributions || 0,
+          member_count:            s.member_count            || 0,
+          total_contributions:     s.total_contributions     || 0,
           confirmed_contributions: s.confirmed_contributions || 0,
-          pending_contributions: s.pending_contributions || 0,
-          failed_contributions: s.failed_contributions || 0,
-          pending_loans: s.pending_loans || 0,
-          collection_rate: s.collection_rate || 0,
+          pending_contributions:   s.pending_contributions   || 0,
+          failed_contributions:    s.failed_contributions    || 0,
+          pending_loans:           s.pending_loans           || 0,
+          collection_rate:         s.collection_rate         || 0,
         });
       } else {
         setStats({
           total_savings: 0, total_loans_outstanding: 0, member_count: 0,
-          total_contributions: 0, confirmed_contributions: 0, pending_contributions: 0,
-          failed_contributions: 0, pending_loans: 0, collection_rate: 0,
+          total_contributions: 0, confirmed_contributions: 0,
+          pending_contributions: 0, failed_contributions: 0,
+          pending_loans: 0, collection_rate: 0,
         });
       }
 
-      // ── Process contributions
+      // ── Contributions ─────────────────────────────────────────────────────
       if (contribRes.status === 'fulfilled' && contribRes.value?.contributions) {
-        setContributions(contribRes.value.contributions.map((c: any) => ({
-          id: c.id,
-          member_name: c.member_name || c.members?.full_name || 'Unknown',
-          member_id: c.member_id,
-          amount: c.amount || 0,
+        setContributions(contribRes.value.contributions.map((c: any): ContributionRow => ({
+          id:             c.id,
+          member_name:    c.member_name || c.members?.full_name || 'Unknown',
+          member_id:      c.member_id,
+          amount:         c.amount         || 0,
           payment_method: c.payment_method || '',
-          status: c.status || 'pending',
-          period_label: c.period_label || '',
-          created_at: c.created_at?.split('T')[0] || '',
+          status:         c.status         || 'pending',
+          period_label:   c.period_label   || '',
+          created_at:     c.created_at?.split('T')[0] || '',
         })));
       }
 
-      // ── Process loans
+      // ── Loans ─────────────────────────────────────────────────────────────
       if (loansRes.status === 'fulfilled' && loansRes.value?.loans) {
-        setLoans(loansRes.value.loans.map((l: any) => ({
-          id: l.id,
+        setLoans(loansRes.value.loans.map((l: any): LoanRow => ({
+          id:          l.id,
           member_name: l.member_name || l.members?.full_name || 'Unknown',
-          member_id: l.member_id,
-          amount: l.amount || 0,
-          purpose: l.purpose || '',
-          status: l.status || 'pending',
-          created_at: l.created_at?.split('T')[0] || '',
+          member_id:   l.member_id,
+          amount:      l.amount  || 0,
+          purpose:     l.purpose || '',
+          status:      l.status  || 'pending',
+          created_at:  l.created_at?.split('T')[0] || '',
         })));
       }
 
-      // ── Process announcements
+      // ── Announcements ─────────────────────────────────────────────────────
       if (announcementsRes.status === 'fulfilled' && announcementsRes.value?.announcements) {
-        setAnnouncements(announcementsRes.value.announcements.slice(0, 3).map((a: any) => ({
-          id: a.id,
-          title: a.title || '',
-          content: a.content || '',
-          author: a.author || 'Admin',
-          is_pinned: a.is_pinned || false,
-          created_at: a.created_at?.split('T')[0] || '',
-        })));
+        setAnnouncements(
+          announcementsRes.value.announcements.slice(0, 3).map((a: any): AnnouncementRow => ({
+            id:         a.id,
+            content:    a.content || '',
+            author:     a.author  || 'Admin',
+            is_pinned:  a.is_pinned || false,
+            created_at: a.created_at?.split('T')[0] || '',
+          })),
+        );
       }
 
-      // ── Process members
+      // ── Members ───────────────────────────────────────────────────────────
       if (membersRes.status === 'fulfilled' && membersRes.value?.members) {
-        setMembers(membersRes.value.members.map((m: any) => ({
-          id: m.id,
-          full_name: m.full_name || 'Unknown',
-          phone: m.phone || '',
-          role: m.role || 'member',
-          photo_url: m.photo_url,
-          kyc_verified: m.kyc_verified || false,
+        setMembers(membersRes.value.members.map((m: any): MemberRow => ({
+          id:                  m.id,
+          full_name:           m.full_name || 'Unknown',
+          phone:               m.phone    || '',
+          role:                m.role     || 'member',
+          photo_url:           m.photo_url,
+          kyc_verified:        m.kyc_verified || false,
           total_contributions: m.totalContributions || m.total_contributions || 0,
-          savings_balance: m.savingsBalance || m.savings_balance || 0,
-          loan_balance: m.loanBalance || m.loan_balance || 0,
+          savings_balance:     m.savingsBalance     || m.savings_balance     || 0,
+          loan_balance:        m.loanBalance        || m.loan_balance        || 0,
         })));
       }
     } catch (e: any) {
@@ -432,10 +460,10 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
     loadDashboardData();
   }, [loadDashboardData]);
 
-  const userName = user?.full_name?.split(' ')[0] || 'User';
+  const userName  = user?.full_name?.split(' ')[0] || 'User';
   const groupName = selectedGroup?.name || 'your group';
 
-  // ── No group selected empty state
+  // ── No group selected ─────────────────────────────────────────────────────
   if (!selectedGroup) {
     return (
       <div className="space-y-6">
@@ -465,11 +493,11 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Getting Started</h2>
           <div className="grid sm:grid-cols-3 gap-4">
-            {[
-              { step: '1', title: 'Create a Group', desc: 'Set up your savings group with contribution rules and schedules.', icon: 'M12 4.5v15m7.5-7.5h-15' },
-              { step: '2', title: 'Invite Members', desc: 'Share the invite code with your group members to join.', icon: 'M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z' },
-              { step: '3', title: 'Start Saving', desc: 'Record contributions, manage loans, and track your group\'s growth.', icon: 'M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z' },
-            ].map((item) => (
+            {([
+              { step: '1', with contribution rules and schedules.', icon: 'M12 4.5v15m7.5-7.5h-15' },
+              { step: '2', title: 'Invite Members',  desc: 'Share the invite code with your group members to join.',           icon: 'M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z' },
+              { step: '3', title: 'Start Saving',    desc: "Record contributions, manage loans, and track your group's growth.", icon: 'M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z' },
+            ] as const).map((item) => (
               <div key={item.step} className="p-4 rounded-xl bg-gray-50 border border-gray-100">
                 <div className="w-8 h-8 rounded-full bg-[#0066CC] text-white flex items-center justify-center text-sm font-bold mb-3">{item.step}</div>
                 <h3 className="text-sm font-semibold text-gray-900">{item.title}</h3>
@@ -482,108 +510,110 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
     );
   }
 
-  // ── Derived values
-  const groupType = (selectedGroup?.group_type || '').toLowerCase();
+  // ── Derived values ────────────────────────────────────────────────────────
+  const groupType   = (selectedGroup.group_type || '').toLowerCase();
   const isRoscaType = groupType === 'rosca' || groupType === 'hybrid';
 
-  const totalMembers = Math.max(stats?.member_count || 0, members.length);
+  const totalMembers     = Math.max(stats?.member_count || 0, members.length);
   const pendingLoansCount = loans.filter((l) => l.status === 'pending' || l.status === 'treasurer_approved').length;
-  const activeLoansList = loans.filter((l) => l.status === 'pending' || l.status === 'approved' || l.status === 'treasurer_approved');
+  const activeLoansList   = loans.filter((l) => ['pending', 'approved', 'treasurer_approved'].includes(l.status));
 
-  // ── ROSCA contribution counts derived from live rosca_contribution_status rows
-  // Build a map: member_id -> status row (for fast lookup)
+  // Build member_id → status row map
   const statusByMemberId = new Map<string, MemberContribStatus>();
   for (const row of cycleContribStatuses) {
     statusByMemberId.set(row.member_id, row);
   }
 
-  // For each group member, determine their draw status
-  // Members with no row in rosca_contribution_status yet are treated as 'pending'
+  // Cross-reference all group members with their ROSCA status rows
   const memberStatusList = members.map((m) => {
     const row = statusByMemberId.get(m.id);
     return {
-      member: m,
-      statusRow: row || null,
-      bucket: row ? normalizeStatus(row.status) : ('pending' as 'paid' | 'pending' | 'defaulted'),
+      member:    m,
+      statusRow: row ?? null,
+      bucket:    row
+        ? normalizeStatus(row.status)
+        : ('pending' as 'paid' | 'pending' | 'defaulted'),
     };
   });
 
-  // Aggregate counts from live ROSCA data
-  const rscPaidCount = memberStatusList.filter((x) => x.bucket === 'paid').length;
-  const rscPendingCount = memberStatusList.filter((x) => x.bucket === 'pending').length;
+  const rscPaidCount     = memberStatusList.filter((x) => x.bucket === 'paid').length;
+  const rscPendingCount  = memberStatusList.filter((x) => x.bucket === 'pending').length;
   const rscDefaultedCount = memberStatusList.filter((x) => x.bucket === 'defaulted').length;
 
-  // For non-ROSCA types, fall back to stats
-  const confirmedCount = isRoscaType ? rscPaidCount : (stats?.confirmed_contributions || 0);
-  const pendingCount = isRoscaType ? rscPendingCount : (stats?.pending_contributions || 0);
-  const failedCount = isRoscaType ? rscDefaultedCount : (stats?.failed_contributions || 0);
+  const confirmedCount = isRoscaType ? rscPaidCount     : (stats?.confirmed_contributions || 0);
+  const pendingCount   = isRoscaType ? rscPendingCount  : (stats?.pending_contributions   || 0);
+  const failedCount    = isRoscaType ? rscDefaultedCount : (stats?.failed_contributions   || 0);
   const collectionRate = stats?.collection_rate || 0;
 
-  const statCards = isRoscaType ? [
-    {
-      label: 'Total Combined Savings',
-      value: formatUGX((stats?.total_savings || 0) + roscaTotals.totalSavings),
-      change: `SACCO: ${formatUGX(stats?.total_savings || 0)} + ROSCA: ${formatUGX(roscaTotals.totalSavings)}`,
-      color: 'from-[#0066CC] to-[#0088FF]',
-      icon: 'M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z',
-    },
-    {
-      label: 'ROSCA Total Paid Out',
-      value: formatUGX(roscaTotals.totalPaidOut),
-      change: `${roscaTotals.totalWinners} winners across all cycles`,
-      color: 'from-emerald-500 to-emerald-400',
-      icon: 'M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-    },
-    {
-      label: 'Active Members',
-      value: totalMembers.toString(),
-      change: `${rscPaidCount} paid for draw ${activeCycleInfo?.drawNumber ?? '--'}`,
-      color: 'from-[#00CC99] to-[#00E6AD]',
-      icon: 'M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z',
-    },
-    {
-      label: 'Outstanding Loans',
-      value: formatUGX(stats?.total_loans_outstanding || 0),
-      change: pendingLoansCount > 0 ? `${pendingLoansCount} pending` : 'No pending loans',
-      color: 'from-amber-500 to-amber-400',
-      icon: 'M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-    },
-  ] : [
-    {
-      label: 'Total Savings',
-      value: formatUGX(stats?.total_savings || 0),
-      change: `${collectionRate}% collection rate`,
-      color: 'from-[#0066CC] to-[#0088FF]',
-      icon: 'M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z',
-    },
-    {
-      label: 'Total Contributions',
-      value: formatUGX(stats?.total_contributions || 0),
-      change: `${confirmedCount} confirmed, ${pendingCount} pending`,
-      color: 'from-emerald-500 to-emerald-400',
-      icon: 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-    },
-    {
-      label: 'Active Members',
-      value: totalMembers.toString(),
-      change: `${confirmedCount} contributed this period`,
-      color: 'from-[#00CC99] to-[#00E6AD]',
-      icon: 'M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z',
-    },
-    {
-      label: 'Outstanding Loans',
-      value: formatUGX(stats?.total_loans_outstanding || 0),
-      change: pendingLoansCount > 0 ? `${pendingLoansCount} pending` : 'No pending loans',
-      color: 'from-amber-500 to-amber-400',
-      icon: 'M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-    },
-  ];
-
-  // ── Progress bar width for collection meter
   const progressPct = totalMembers > 0 ? Math.round((rscPaidCount / totalMembers) * 100) : 0;
 
+  // ── Stat card definitions ─────────────────────────────────────────────────
+  const statCards = isRoscaType
+    ? [
+        {
+          label:  'Total Combined Savings',
+          value:  formatUGX((stats?.total_savings || 0) + roscaTotals.totalSavings),
+          change: `SACCO: ${formatUGX(stats?.total_savings || 0)} + ROSCA: ${formatUGX(roscaTotals.totalSavings)}`,
+          color:  'from-[#0066CC] to-[#0088FF]',
+          icon:   'M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z',
+        },
+        {
+          label:  'ROSCA Total Paid Out',
+          value:  formatUGX(roscaTotals.totalPaidOut),
+          change: `${roscaTotals.totalWinners} winners across all cycles`,
+          color:  'from-emerald-500 to-emerald-400',
+          icon:   'M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+        },
+        {
+          label:  'Active Members',
+          value:  totalMembers.toString(),
+          change: `${rscPaidCount} paid for draw ${activeCycleInfo?.drawNumber ?? '--'}`,
+          color:  'from-[#00CC99] to-[#00E6AD]',
+          icon:   'M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z',
+        },
+        {
+          label:  'Outstanding Loans',
+          value:  formatUGX(stats?.total_loans_outstanding || 0),
+          change: pendingLoansCount > 0 ? `${pendingLoansCount} pending` : 'No pending loans',
+          color:  'from-amber-500 to-amber-400',
+          icon:   'M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+        },
+      ]
+    : [
+        {
+          label:  'Total Savings',
+          value:  formatUGX(stats?.total_savings || 0),
+          change: `${collectionRate}% collection rate`,
+          color:  'from-[#0066CC] to-[#0088FF]',
+          icon:   'M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z',
+        },
+        {
+          label:  'Total Contributions',
+          value:  formatUGX(stats?.total_contributions || 0),
+          change: `${confirmedCount} confirmed, ${pendingCount} pending`,
+          color:  'from-emerald-500 to-emerald-400',
+          icon:   'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+        },
+        {
+          label:  'Active Members',
+          value:  totalMembers.toString(),
+          change: `${confirmedCount} contributed this period`,
+          color:  'from-[#00CC99] to-[#00E6AD]',
+          icon:   'M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z',
+        },
+        {
+          label:  'Outstanding Loans',
+          value:  formatUGX(stats?.total_loans_outstanding || 0),
+          change: pendingLoansCount > 0 ? `${pendingLoansCount} pending` : 'No pending loans',
+          color:  'from-amber-500 to-amber-400',
+          icon:   'M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+        },
+      ];
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
+
       {/* Welcome Banner */}
       <div className="bg-gradient-to-r from-[#0066CC] to-[#004C99] rounded-2xl p-6 lg:p-8 text-white relative overflow-hidden">
         <div className="absolute right-0 top-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4" />
@@ -604,25 +634,16 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
               : `${groupName} is ready. Start by adding members and recording contributions.`}
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <button
-              onClick={() => onNavigate('contributions')}
-              className="px-4 py-2 bg-white text-[#0066CC] rounded-lg text-sm font-semibold hover:bg-blue-50 transition-colors"
-            >
+            <button onClick={() => onNavigate('contributions')} className="px-4 py-2 bg-white text-[#0066CC] rounded-lg text-sm font-semibold hover:bg-blue-50 transition-colors">
               Record Contribution
             </button>
             {isRoscaType && (
-              <button
-                onClick={() => onNavigate('rosca')}
-                className="px-4 py-2 bg-white text-emerald-600 rounded-lg text-sm font-semibold hover:bg-emerald-50 transition-colors"
-              >
+              <button onClick={() => onNavigate('rosca')} className="px-4 py-2 bg-white text-emerald-600 rounded-lg text-sm font-semibold hover:bg-emerald-50 transition-colors">
                 Merry-Go-Round
               </button>
             )}
-            {(groupType === 'savings_club' || groupType === 'investment_club' || groupType === 'sacco') && (
-              <button
-                onClick={() => onNavigate('loans')}
-                className="px-4 py-2 bg-white/20 text-white rounded-lg text-sm font-semibold hover:bg-white/30 transition-colors"
-              >
+            {['savings_club', 'investment_club', 'sacco'].includes(groupType) && (
+              <button onClick={() => onNavigate('loans')} className="px-4 py-2 bg-white/20 text-white rounded-lg text-sm font-semibold hover:bg-white/30 transition-colors">
                 Review Loan Applications
               </button>
             )}
@@ -634,10 +655,7 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
           <span>{error}</span>
-          <button
-            onClick={() => { setError(null); loadDashboardData(); }}
-            className="text-red-600 font-medium hover:underline text-xs"
-          >
+          <button onClick={() => { setError(null); loadDashboardData(); }} className="text-red-600 font-medium hover:underline text-xs">
             Retry
           </button>
         </div>
@@ -645,32 +663,30 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {loading ? (
-          <><SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
-        ) : (
-          statCards.map((card, i) => (
-            <div key={i} className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">{card.label}</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{card.value}</p>
-                  <p className="text-xs text-[#00CC99] font-medium mt-1">{card.change}</p>
-                </div>
-                <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${card.color} flex items-center justify-center flex-shrink-0`}>
-                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d={card.icon} />
-                  </svg>
+        {loading
+          ? <><SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
+          : statCards.map((card, i) => (
+              <div key={i} className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">{card.label}</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-1">{card.value}</p>
+                    <p className="text-xs text-[#00CC99] font-medium mt-1">{card.change}</p>
+                  </div>
+                  <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${card.color} flex items-center justify-center flex-shrink-0`}>
+                    <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d={card.icon} />
+                    </svg>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
-        )}
+            ))
+        }
       </div>
 
       {/* ── ROSCA: Per-Member Contribution Status Tracker ── */}
       {isRoscaType && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-          {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
             <div>
               <h2 className="text-lg font-bold text-gray-900">
@@ -680,14 +696,11 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
               </h2>
               {activeCycleInfo && (
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {activeCycleInfo.cycleName} &bull; Draw date: {activeCycleInfo.drawDate}
+                  {activeCycleInfo.cycleName}&nbsp;&bull;&nbsp;Draw date: {activeCycleInfo.drawDate}
                 </p>
               )}
             </div>
-            <button
-              onClick={() => onNavigate('rosca')}
-              className="self-start sm:self-auto text-xs text-purple-600 font-semibold hover:underline whitespace-nowrap"
-            >
+            <button onClick={() => onNavigate('rosca')} className="self-start sm:self-auto text-xs text-purple-600 font-semibold hover:underline whitespace-nowrap">
               Full ROSCA View
             </button>
           </div>
@@ -724,24 +737,28 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
                 </div>
               </div>
 
-              {/* Member pills grid */}
+              {/* Member pills */}
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 mb-4">
                 {memberStatusList.map(({ member, statusRow, bucket }) => {
-                  const cfg = STATUS_CONFIG[bucket];
-                  const firstName = member.full_name.split(' ')[0];
+                  const cfg         = STATUS_CONFIG[bucket];
+                  const firstName   = member.full_name.split(' ')[0];
                   const amountLabel = statusRow
                     ? bucket === 'paid'
                       ? formatUGX(statusRow.paid_amount)
                       : formatUGX(statusRow.expected_amount)
                     : '';
+                  const tooltip = [
+                    `${member.full_name} - ${cfg.label}`,
+                    statusRow?.payment_method ? `via ${getPaymentLabel(statusRow.payment_method)}` : '',
+                    statusRow?.paid_at ? `on ${statusRow.paid_at.split('T')[0]}` : '',
+                  ].filter(Boolean).join(' ');
 
                   return (
                     <div
                       key={member.id}
-                      title={`${member.full_name} - ${cfg.label}${statusRow?.payment_method ? ' via ' + getPaymentLabel(statusRow.payment_method) : ''}${statusRow?.paid_at ? ' on ' + statusRow.paid_at.split('T')[0] : ''}`}
+                      title={tooltip}
                       className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border ${cfg.bg} ${cfg.border} cursor-default`}
                     >
-                      {/* Status dot */}
                       <span className={`flex-shrink-0 w-2 h-2 rounded-full ${cfg.dot}`} />
                       <div className="min-w-0 flex-1">
                         <p className={`text-xs font-semibold truncate ${cfg.text}`}>{firstName}</p>
@@ -784,9 +801,23 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
         </div>
       )}
 
-      {/* Non-ROSCA contribution tracker card OR ROSCA Recent Winners */}
+      {/* Recent Winners (ROSCA) OR Contribution Tracker (non-ROSCA) + Recent Transactions */}
       <div className="grid lg:grid-cols-2 gap-6">
-        {!isRoscaType && (
+        {isRoscaType ? (
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900">Recent Winners</h2>
+              <button onClick={() => onNavigate('rosca')} className="text-xs text-[#0066CC] font-medium hover:underline">Full History</button>
+            </div>
+            {roscaTotals.totalWinners > 0 ? (
+              <div className="p-2 rounded-lg bg-gray-50 text-center text-sm text-gray-400">Winners from past draws</div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-24 text-gray-400">
+                <p className="text-sm font-medium">No winners yet</p>
+              </div>
+            )}
+          </div>
+        ) : (
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900">Contribution Tracker</h2>
@@ -796,10 +827,7 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
               <>
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 mb-3">
                   {members.map((m) => (
-                    <div
-                      key={m.id}
-                      className="px-2 py-1.5 rounded-lg border text-xs font-semibold bg-amber-50 border-amber-300 text-amber-700 text-center truncate"
-                    >
+                    <div key={m.id} className="px-2 py-1.5 rounded-lg border text-xs font-semibold bg-amber-50 border-amber-300 text-amber-700 text-center truncate">
                       {m.full_name.split(' ')[0]}
                     </div>
                   ))}
@@ -816,24 +844,6 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
           </div>
         )}
 
-        {isRoscaType && (
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Recent Winners</h2>
-              <button onClick={() => onNavigate('rosca')} className="text-xs text-[#0066CC] font-medium hover:underline">Full History</button>
-            </div>
-            {roscaTotals.totalWinners > 0 ? (
-              <div className="space-y-2">
-                <div className="p-2 rounded-lg bg-gray-50 text-center text-sm text-gray-400">Winners from past draws</div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-24 text-gray-400">
-                <p className="text-sm font-medium">No winners yet</p>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Recent Transactions */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
@@ -841,21 +851,21 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
             <button onClick={() => onNavigate('contributions')} className="text-sm text-[#0066CC] font-medium hover:underline">View All</button>
           </div>
           {loading ? (
-            <div className="space-y-3">
-              <SkeletonRow /><SkeletonRow /><SkeletonRow /><SkeletonRow /><SkeletonRow />
-            </div>
+            <div className="space-y-3"><SkeletonRow /><SkeletonRow /><SkeletonRow /><SkeletonRow /><SkeletonRow /></div>
           ) : contributions.length > 0 ? (
             <div className="space-y-3">
               {contributions.slice(0, 5).map((c) => {
-                const memberIdx = members.findIndex((m) => m.id === c.member_id);
-                const avatarUrl = members[memberIdx]?.photo_url || IMAGES.avatars[memberIdx % IMAGES.avatars.length] || IMAGES.avatars[0];
+                // FIX: guard against memberIdx === -1 to prevent NaN modulo
+                const memberIdx  = members.findIndex((m) => m.id === c.member_id);
+                const avatarUrl  = safeAvatar(members[memberIdx]?.photo_url, memberIdx >= 0 ? memberIdx : 0);
+                const fallback   = safeAvatar(undefined, 0);
                 return (
                   <div key={c.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
                     <img
                       src={avatarUrl}
                       alt=""
                       className="w-9 h-9 rounded-full object-cover bg-gray-100"
-                      onError={(e) => { (e.target as HTMLImageElement).src = IMAGES.avatars[0]; }}
+                      onError={(e) => { (e.target as HTMLImageElement).src = fallback; }}
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{c.member_name}</p>
@@ -878,10 +888,7 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
               </svg>
               <p className="text-sm font-medium">No transactions yet</p>
               <p className="text-xs mt-1">Record your first contribution to get started</p>
-              <button
-                onClick={() => onNavigate('contributions')}
-                className="mt-3 px-4 py-1.5 text-xs font-medium text-[#0066CC] bg-[#0066CC]/10 rounded-lg hover:bg-[#0066CC]/20"
-              >
+              <button onClick={() => onNavigate('contributions')} className="mt-3 px-4 py-1.5 text-xs font-medium text-[#0066CC] bg-[#0066CC]/10 rounded-lg hover:bg-[#0066CC]/20">
                 Record Contribution
               </button>
             </div>
@@ -889,9 +896,10 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
         </div>
       </div>
 
-      {/* Pending Loans & Announcements */}
+      {/* Pending Loans and Announcements */}
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Pending Loans */}
+
+        {/* Loan Applications */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900">Loan Applications</h2>
@@ -939,12 +947,10 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
             <button onClick={() => onNavigate('announcements')} className="text-sm text-[#0066CC] font-medium hover:underline">View All</button>
           </div>
           {loading ? (
-            <div className="space-y-3">
-              <div className="p-3 rounded-lg border border-gray-100 animate-pulse">
-                <div className="h-3 bg-gray-200 rounded w-40 mb-2" />
-                <div className="h-2 bg-gray-200 rounded w-full mb-1" />
-                <div className="h-2 bg-gray-200 rounded w-3/4" />
-              </div>
+            <div className="p-3 rounded-lg border border-gray-100 animate-pulse">
+              <div className="h-3 bg-gray-200 rounded w-40 mb-2" />
+              <div className="h-2 bg-gray-200 rounded w-full mb-1" />
+              <div className="h-2 bg-gray-200 rounded w-3/4" />
             </div>
           ) : announcements.length > 0 ? (
             <div className="space-y-3">
@@ -969,10 +975,7 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46" />
               </svg>
               <p className="text-sm font-medium">No announcements</p>
-              <button
-                onClick={() => onNavigate('announcements')}
-                className="mt-2 px-4 py-1.5 text-xs font-medium text-[#0066CC] bg-[#0066CC]/10 rounded-lg hover:bg-[#0066CC]/20"
-              >
+              <button onClick={() => onNavigate('announcements')} className="mt-2 px-4 py-1.5 text-xs font-medium text-[#0066CC] bg-[#0066CC]/10 rounded-lg hover:bg-[#0066CC]/20">
                 Create Announcement
               </button>
             </div>
@@ -980,7 +983,7 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
         </div>
       </div>
 
-      {/* Member Quick View */}
+      {/* Members Overview */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-gray-900">Members Overview</h2>
@@ -999,9 +1002,8 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
         ) : members.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
             {members.map((m, idx) => {
-              // Show ROSCA status ring on avatar if available
               const statusRow = statusByMemberId.get(m.id);
-              const bucket = statusRow ? normalizeStatus(statusRow.status) : null;
+              const bucket    = statusRow ? normalizeStatus(statusRow.status) : null;
               const ringClass = bucket === 'paid'
                 ? 'border-emerald-400'
                 : bucket === 'defaulted'
@@ -1009,19 +1011,17 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
                 : bucket === 'pending'
                 ? 'border-amber-300'
                 : 'border-gray-100';
+              const avatarSrc  = safeAvatar(m.photo_url, idx);
+              const fallbackSrc = safeAvatar(undefined, 0);
 
               return (
-                <div
-                  key={m.id}
-                  className="text-center group cursor-pointer"
-                  onClick={() => onNavigate('members')}
-                >
+                <div key={m.id} className="text-center group cursor-pointer" onClick={() => onNavigate('members')}>
                   <div className="relative mx-auto w-14 h-14 mb-2">
                     <img
-                      src={m.photo_url || IMAGES.avatars[idx % IMAGES.avatars.length]}
+                      src={avatarSrc}
                       alt={m.full_name}
                       className={`w-14 h-14 rounded-full object-cover border-2 ${isRoscaType && bucket ? ringClass : 'border-gray-100 group-hover:border-[#0066CC]'} transition-colors`}
-                      onError={(e) => { (e.target as HTMLImageElement).src = IMAGES.avatars[idx % IMAGES.avatars.length]; }}
+                      onError={(e) => { (e.target as HTMLImageElement).src = fallbackSrc; }}
                     />
                     {m.kyc_verified && (
                       <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-[#00CC99] rounded-full flex items-center justify-center">
@@ -1044,15 +1044,13 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
             </svg>
             <p className="text-sm font-medium">No members yet</p>
             <p className="text-xs mt-1">Add members to your group to get started</p>
-            <button
-              onClick={() => onNavigate('members')}
-              className="mt-3 px-4 py-1.5 text-xs font-medium text-[#0066CC] bg-[#0066CC]/10 rounded-lg hover:bg-[#0066CC]/20"
-            >
+            <button onClick={() => onNavigate('members')} className="mt-3 px-4 py-1.5 text-xs font-medium text-[#0066CC] bg-[#0066CC]/10 rounded-lg hover:bg-[#0066CC]/20">
               Add Members
             </button>
           </div>
         )}
       </div>
+
     </div>
   );
 };
