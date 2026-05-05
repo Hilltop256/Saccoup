@@ -9,10 +9,6 @@ interface DashboardOverviewProps {
   onNavigate: (page: DashboardPage) => void;
 }
 
-console.log("Statuses:", contributionStatuses);
-console.log("Member Map:", memberStatusMap);
-console.log("Members:", members);
-
 interface GroupStats {
   total_savings: number;
   total_loans_outstanding: number;
@@ -147,6 +143,14 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
     };
   }, [memberStatusMap]);
 
+  const roscaStats = useMemo(() => { ... }, [memberStatusMap]);
+
+useEffect(() => {
+  console.log("Statuses:", contributionStatuses);
+  console.log("Member Map:", memberStatusMap);
+  console.log("Members:", members);
+}, [contributionStatuses, memberStatusMap, members]);
+
   const loadDashboardData = useCallback(async () => {
     if (!selectedGroup?.id) {
       setLoading(false);
@@ -205,16 +209,20 @@ if (statsRes.status === 'fulfilled' && statsRes.value?.success) {
         })));
       }
 
-      if (announcementsRes.status === 'fulfilled' && announcementsRes.value?.announcements) {
-        setAnnouncements(announcementsRes.value.announcements.slice(0, 3).map((a: any) => ({
-          id: a.id,
-          title: a.title || '',
-          content: a.content || '',
-          author: a.author || 'Admin',
-          is_pinned: a.is_pinned || false,
-          created_at: a.created_at?.split('T')[0] || '',
-        })));
-      }
+  if (membersRes.status === 'fulfilled' && membersRes.value?.members) {
+  setMembers(membersRes.value.members.map((m: any) => ({
+    id: m.id,
+    member_id: m.member_id || m.id, // ✅ correct fix
+    full_name: m.full_name || 'Unknown',
+    phone: m.phone || '',
+    role: m.role || 'member',
+    photo_url: m.photo_url,
+    kyc_verified: m.kyc_verified || false,
+    total_contributions: m.total_contributions || 0,
+    savings_balance: m.savings_balance || 0,
+    loan_balance: m.loan_balance || 0,
+  })));
+}
 
       setMembers(membersRes.value.members.map((m: any) => ({
   id: m.id,
