@@ -159,20 +159,21 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
         ds.listMembers(selectedGroup.id),
       ]);
 
-      if (statsRes.status === 'fulfilled' && statsRes.value?.stats) {
-        const s = statsRes.value.stats;
-        setStats({
-          total_savings: s.total_savings || 0,
-          total_loans_outstanding: s.total_loans_outstanding || 0,
-          member_count: s.member_count || 0,
-          total_contributions: s.total_contributions || 0,
-          confirmed_contributions: s.confirmed_contributions || 0,
-          pending_contributions: s.pending_contributions || 0,
-          failed_contributions: s.failed_contributions || 0,
-          pending_loans: s.pending_loans || 0,
-          collection_rate: s.collection_rate || 0,
-        });
-      }
+     // Inside loadDashboardData in DashboardOverview.tsx
+if (statsRes.status === 'fulfilled' && statsRes.value?.success) {
+  const s = statsRes.value.stats;
+  setStats({
+    total_savings: s.total_savings || 0,
+    total_loans_outstanding: s.total_loans_outstanding || 0,
+    member_count: s.member_count || 0,
+    total_contributions: s.total_contributions || 0,
+    confirmed_contributions: s.confirmed_contributions || 0,
+    pending_contributions: s.pending_contributions || 0,
+    failed_contributions: s.failed_contributions || 0,
+    pending_loans: s.pending_loans || 0,
+    collection_rate: s.collection_rate || 0,
+  });
+}
 
       if (contribRes.status === 'fulfilled' && contribRes.value?.contributions) {
         setContributions(contribRes.value.contributions.map((c: any) => ({
