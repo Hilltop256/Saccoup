@@ -76,27 +76,34 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
 
   const roscaTotals = getGroupTotals();
 
-  // Current ROSCA Cycle Logic
+  // Current ROSCA Cycle Logic (keep as-is)
   const activeCycle = useMemo(() => cycles?.find(c => c.status === 'active') || cycles?.[0], [cycles]);
 
+  // Determine current draw number based on contributionStatuses (FIX)
   const currentDrawNum = useMemo(() => {
-    if (!activeCycle?.draws) return 1;
-    const completedDraws = activeCycle.draws.filter(d => d.status === 'completed' || d.winner_name).length;
-    return completedDraws + 1;
-  }, [activeCycle]);
+    if (!activeCycle || !contributionStatuses?.length) return 1;
 
-  // Map member contribution statuses for the current draw (FIXED: normalize id/draw types)
+    const activeCycleIdNum = Number(activeCycle.id);
+
+    const drawNums = contributionStatuses
+      .filter(s => Number(s.cycle_id) === activeCycleIdNum)
+      .map(s => Number(s.draw_number))
+      .filter(n => Number.isFinite(n));
+
+    // If no draws exist in statuses, fallback to 1
+    return drawNums.length ? Math.max(...drawNums) : 1;
+  }, [activeCycle, contributionStatuses]);
+
+  // Map member contribution statuses for the current draw (FIX)
   const memberStatusMap = useMemo(() => {
-    if (!activeCycle || !contributionStatuses) return {};
+    if (!activeCycle || !contributionStatuses?.length) return {};
 
     const activeCycleIdNum = Number(activeCycle.id);
     const drawNumNum = Number(currentDrawNum);
 
     return contributionStatuses
       .filter(s => {
-        const cycleIdNum = Number(s.cycle_id);
-        const drawNum = Number(s.draw_number);
-        return cycleIdNum === activeCycleIdNum && drawNum === drawNumNum;
+        return Number(s.cycle_id) === activeCycleIdNum && Number(s.draw_number) === drawNumNum;
       })
       .reduce((acc, curr) => {
         acc[String(curr.member_id)] = curr.status;
