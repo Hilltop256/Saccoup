@@ -13,6 +13,7 @@ export interface RoscaCycleWithId extends Omit<RoscaCycle, 'draws'> {
 }
 
 interface RoscaContextType {
+  contributionStatuses: ds.RoscaContributionStatusRow[];
   cycles: RoscaCycleWithId[];
   setCycles: React.Dispatch<React.SetStateAction<RoscaCycleWithId[]>>;
   loading: boolean;
@@ -86,39 +87,49 @@ export const RoscaProvider: React.FC<RoscaProviderProps> = ({ children }) => {
   const [isMockData, setIsMockData] = useState(false);
 
   // ── Load from Supabase ────────────────────────────────────────────────────
-  const loadCycles = useCallback(async () => {
-    if (!selectedGroupId) {
-      // No group yet — show mock data so UI is never empty
-      setCycles(MOCK_PBS_CYCLES.map(c => ({ ...c, _db_id: undefined, draws: c.draws.map(d => ({ ...d, _db_id: undefined })) })));
-      setIsMockData(true);
-      setLoading(false);
-      return;
-    }
+// Add a state for statuses
+const [contributionStatuses, setContributionStatuses] = useState<ds.RoscaContributionStatusRow[]>([]);
 
-    setLoading(true);
-    try {
-      const { cycles: dbCycles } = await ds.listRoscaCycles(selectedGroupId);
-
-      if (dbCycles && dbCycles.length > 0) {
-        const drawsMap: Record<string, ds.RoscaDrawRow[]> = {};
-        for (const c of dbCycles) {
-          const { draws } = await ds.listRoscaDraws(c.id);
-          if (draws) drawsMap[c.id] = draws;
-        }
-        setCycles(mapSupabaseToCycles(dbCycles, drawsMap));
-        setIsMockData(false);
-      } else {
-        // No data yet — will trigger seed
-        setCycles([]);
-        setIsMockData(false);
-      }
-    } catch (e) {
-      console.error('Failed to load ROSCA cycles:', e);
-      setCycles(MOCK_PBS_CYCLES.map(c => ({ ...c, _db_id: undefined, draws: c.draws.map(d => ({ ...d, _db_id: undefined })) })));
-      setIsMockData(true);
-    }
+const loadCycles = useCallback(async () => {
+  if (!selectedGroupId) {
+    setCycles(MOCK_PBS_CYCLES.map(c => ({ ...c, _db_id: undefined, draws: c.draws.map(d => ({ ...d, _db_id: undefined })) })));
+    setIsMockData(true);
     setLoading(false);
-  }, [selectedGroupId]);
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const { cycles: dbCycles } = await ds.listRoscaCycles(selectedGroupId);
+
+    if (dbCycles && dbCycles.length > 0) {
+      const drawsMap: Record<string, ds.RoscaDrawRow[]> = {};
+      let allStatuses: ds.RoscaContributionStatusRow[] = [];
+
+      for (const c of dbCycles) {
+        // Fetch draws
+        const { draws } = await ds.listRoscaDraws(c.id);
+        if (draws) drawsMap[c.id] = draws;
+
+        // NEW: Fetch contribution statuses for this cycle
+        // Assuming your dataService has listRoscaContributionStatuses
+        const { statuses } = await ds.listRoscaContributionStatuses(c.id);
+        if (statuses) allStatuses = [...allStatuses, ...statuses];
+      }
+
+      setCycles(mapSupabaseToCycles(dbCycles, drawsMap));
+      setContributionStatuses(allStatuses); // Store the statuses
+      setIsMockData(false);
+    } else {
+      setCycles([]);
+      setContributionStatuses([]);
+      setIsMockData(false);
+    }
+  } catch (e) {
+    console.error('Failed to load ROSCA data:', e);
+  }
+  setLoading(false);
+}, [selectedGroupId]);
 
   // ── Seed: DISABLED for multi-tenancy — groups create their own cycles via UI ──
   const seedToSupabase = useCallback(async () => {
