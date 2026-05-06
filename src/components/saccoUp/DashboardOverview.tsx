@@ -76,33 +76,9 @@ const SkeletonCard: React.FC = () => (
   </div>
 );
 
-const SkeletonRow: React.FC = () => (
-  <div className="flex items-center gap-3 p-3 rounded-lg animate-pulse">
-    <div className="w-9 h-9 rounded-full bg-gray-200" />
-    <div className="flex-1 space-y-1">
-      <div className="h-3 bg-gray-200 rounded w-28" />
-      <div className="h-2 bg-gray-200 rounded w-20" />
-    </div>
-    <div className="space-y-1 text-right">
-      <div className="h-3 bg-gray-200 rounded w-20 ml-auto" />
-      <div className="h-2 bg-gray-200 rounded w-14 ml-auto" />
-    </div>
-  </div>
-);
-
-const getPaymentLabel = (method: string): string => {
-  switch (method) {
-    case 'mtn_momo': return 'MTN MoMo';
-    case 'airtel_money': return 'Airtel Money';
-    case 'cash': return 'Cash';
-    case 'bank_transfer': return 'Bank Transfer';
-    default: return method || 'N/A';
-  }
-};
-
 const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => {
   const { user, selectedGroup } = useAppContext();
-  const { getGroupTotals, cycles, contributionStatuses } = useRoscaData();
+  const { getGroupTotals, cycles } = useRoscaData();
 
   const [stats, setStats] = useState<GroupStats | null>(null);
   const [contributions, setContributions] = useState<ContributionRow[]>([]);
@@ -114,31 +90,58 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
 
   const roscaTotals = getGroupTotals();
   
-  // Current ROSCA Cycle Logic
+  // 1. Identify the current Active Cycle and Draw
   const activeCycle = useMemo(() => cycles?.find(c => c.status === 'active') || cycles?.[0], [cycles]);
+  
   const currentDrawNum = useMemo(() => {
     if (!activeCycle?.draws) return 1;
     const completedDraws = activeCycle.draws.filter(d => d.status === 'completed' || d.winner_name).length;
-    return completedDraws + 1;
+    // Assuming 2 slots per draw based on your previous logic
+    return Math.ceil((completedDraws || 0) / 2) || 1;
   }, [activeCycle]);
 
-  // Map member contribution statuses for the current draw
+  // 2. Map member status based on Savings and Balance logic
   const memberStatusMap = useMemo(() => {
-    if (!activeCycle || !contributionStatuses) return {};
-    return contributionStatuses
-      .filter(s => s.cycle_id === activeCycle.id && s.draw_number === currentDrawNum)
-      .reduce((acc, curr) => {
-        acc[curr.member_id] = curr.status;
-        return acc;
-      }, {} as Record<string, string>);
-  }, [activeCycle, contributionStatuses, currentDrawNum]);
+    if (!activeCycle || !activeCycle.draws) return {};
 
+    const statusMap: Record<string, string> = {};
+
+    members.forEach(member => {
+      // Comparison logic with normalization for safer matching
+      const memberDraw = activeCycle.draws.find(d => 
+        d.winner_name?.toLowerCase().trim() === member.full_name?.toLowerCase().trim() && 
+        d.draw_number === currentDrawNum
+      );
+
+      if (memberDraw) {
+        const hasSavings = (memberDraw.savings || 0) >= 500000;
+        const isEmptySavings = !memberDraw.savings || memberDraw.savings === 0;
+        const hasNegativeBalance = (memberDraw.balance || 0) <= -500000;
+
+        if (hasSavings) {
+          statusMap[member.id] = 'confirmed';
+        } else if (isEmptySavings && hasNegativeBalance) {
+          statusMap[member.id] = 'pending';
+        } else if (activeCycle.status === 'completed' && isEmptySavings) {
+          statusMap[member.id] = 'defaulted';
+        } else {
+          statusMap[member.id] = 'pending';
+        }
+      } else {
+        statusMap[member.id] = 'pending';
+      }
+    });
+
+    return statusMap;
+  }, [activeCycle, currentDrawNum, members]);
+
+  // 3. Tally the status totals for the summary box
   const roscaStats = useMemo(() => {
     const vals = Object.values(memberStatusMap);
     return {
-      paid: vals.filter(v => v === 'paid' || v === 'confirmed').length,
+      confirmed: vals.filter(v => v === 'confirmed').length,
       pending: vals.filter(v => v === 'pending').length,
-      failed: vals.filter(v => v === 'failed' || v === 'defaulted').length
+      defaulted: vals.filter(v => v === 'defaulted').length
     };
   }, [memberStatusMap]);
 
@@ -159,21 +162,20 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
         ds.listMembers(selectedGroup.id),
       ]);
 
-     // Inside loadDashboardData in DashboardOverview.tsx
-if (statsRes.status === 'fulfilled' && statsRes.value?.success) {
-  const s = statsRes.value.stats;
-  setStats({
-    total_savings: s.total_savings || 0,
-    total_loans_outstanding: s.total_loans_outstanding || 0,
-    member_count: s.member_count || 0,
-    total_contributions: s.total_contributions || 0,
-    confirmed_contributions: s.confirmed_contributions || 0,
-    pending_contributions: s.pending_contributions || 0,
-    failed_contributions: s.failed_contributions || 0,
-    pending_loans: s.pending_loans || 0,
-    collection_rate: s.collection_rate || 0,
-  });
-}
+      if (statsRes.status === 'fulfilled' && statsRes.value?.success) {
+        const s = statsRes.value.stats;
+        setStats({
+          total_savings: s.total_savings || 0,
+          total_loans_outstanding: s.total_loans_outstanding || 0,
+          member_count: s.member_count || 0,
+          total_contributions: s.total_contributions || 0,
+          confirmed_contributions: s.confirmed_contributions || 0,
+          pending_contributions: s.pending_contributions || 0,
+          failed_contributions: s.failed_contributions || 0,
+          pending_loans: s.pending_loans || 0,
+          collection_rate: s.collection_rate || 0,
+        });
+      }
 
       if (contribRes.status === 'fulfilled' && contribRes.value?.contributions) {
         setContributions(contribRes.value.contributions.map((c: any) => ({
@@ -197,17 +199,6 @@ if (statsRes.status === 'fulfilled' && statsRes.value?.success) {
           purpose: l.purpose || '',
           status: l.status || 'pending',
           created_at: l.created_at?.split('T')[0] || '',
-        })));
-      }
-
-      if (announcementsRes.status === 'fulfilled' && announcementsRes.value?.announcements) {
-        setAnnouncements(announcementsRes.value.announcements.slice(0, 3).map((a: any) => ({
-          id: a.id,
-          title: a.title || '',
-          content: a.content || '',
-          author: a.author || 'Admin',
-          is_pinned: a.is_pinned || false,
-          created_at: a.created_at?.split('T')[0] || '',
         })));
       }
 
@@ -235,13 +226,23 @@ if (statsRes.status === 'fulfilled' && statsRes.value?.success) {
     loadDashboardData();
   }, [loadDashboardData]);
 
+  if (!selectedGroup) return <div className="p-8 text-center text-gray-500 font-medium">Please select a group to view the dashboard.</div>;
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-48 bg-gray-100 animate-pulse rounded-2xl" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard />
+        </div>
+      </div>
+    );
+  }
+
   const userName = user?.full_name?.split(' ')[0] || 'User';
   const groupType = (selectedGroup?.group_type || '').toLowerCase();
   const isRoscaType = groupType === 'rosca' || groupType === 'hybrid';
-
-  const activeLoansList = loans.filter((l: any) => l.status === 'pending' || l.status === 'approved' || l.status === 'treasurer_approved');
-
-  if (!selectedGroup) return <div className="p-8 text-center">Please select a group to view the dashboard.</div>;
+  const activeLoansList = loans.filter((l: any) => ['pending', 'approved', 'treasurer_approved'].includes(l.status));
 
   return (
     <div className="space-y-6">
@@ -271,11 +272,11 @@ if (statsRes.status === 'fulfilled' && statsRes.value?.success) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
           <p className="text-sm text-gray-500">Combined Savings</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{formatUGX((stats?.total_savings || 0) + roscaTotals.totalSavings)}</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{formatUGX((stats?.total_savings || 0) + (roscaTotals.totalSavings || 0))}</p>
         </div>
         <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
           <p className="text-sm text-gray-500">ROSCA Payouts</p>
-          <p className="text-2xl font-bold text-emerald-600 mt-1">{formatUGX(roscaTotals.totalPaidOut)}</p>
+          <p className="text-2xl font-bold text-emerald-600 mt-1">{formatUGX(roscaTotals.totalPaidOut || 0)}</p>
         </div>
         <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
           <p className="text-sm text-gray-500">Active Members</p>
@@ -305,24 +306,24 @@ if (statsRes.status === 'fulfilled' && statsRes.value?.success) {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {members.map(m => {
                   const status = memberStatusMap[m.id] || 'pending';
-                  const isPaid = status === 'paid' || status === 'confirmed';
-                  const isFailed = status === 'failed' || status === 'defaulted';
+                  const isConfirmed = status === 'confirmed';
+                  const isDefaulted = status === 'defaulted';
 
                   return (
                     <div 
                       key={m.id} 
                       className={`flex flex-col items-center p-3 rounded-xl border transition-all ${
-                        isPaid ? 'bg-emerald-50 border-emerald-100' : 
-                        isFailed ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'
+                        isConfirmed ? 'bg-emerald-50 border-emerald-100' : 
+                        isDefaulted ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'
                       }`}
                     >
                       <div className="relative">
                         <img 
                           src={m.photo_url || IMAGES.avatars[0]} 
-                          className={`w-10 h-10 rounded-full border-2 ${isPaid ? 'border-emerald-500' : 'border-white'}`}
+                          className={`w-10 h-10 rounded-full border-2 ${isConfirmed ? 'border-emerald-500' : 'border-white'}`}
                           alt="" 
                         />
-                        {isPaid && (
+                        {isConfirmed && (
                           <div className="absolute -top-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5">
                             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                           </div>
@@ -332,7 +333,7 @@ if (statsRes.status === 'fulfilled' && statsRes.value?.success) {
                         {m.full_name.split(' ')[0]}
                       </span>
                       <span className={`text-[9px] uppercase font-black mt-1 ${
-                        isPaid ? 'text-emerald-600' : isFailed ? 'text-red-600' : 'text-amber-600'
+                        isConfirmed ? 'text-emerald-600' : isDefaulted ? 'text-red-600' : 'text-amber-600'
                       }`}>
                         {status}
                       </span>
@@ -341,9 +342,10 @@ if (statsRes.status === 'fulfilled' && statsRes.value?.success) {
                 })}
               </div>
 
+              {/* Status Totals Tally - Fixed variable names here */}
               <div className="flex items-center justify-around py-4 bg-gray-50 rounded-xl border border-gray-100">
                 <div className="text-center">
-                  <p className="text-xl font-black text-emerald-600">{roscaStats.paid}</p>
+                  <p className="text-xl font-black text-emerald-600">{roscaStats.confirmed}</p>
                   <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Confirmed</p>
                 </div>
                 <div className="w-px h-8 bg-gray-200" />
@@ -353,13 +355,13 @@ if (statsRes.status === 'fulfilled' && statsRes.value?.success) {
                 </div>
                 <div className="w-px h-8 bg-gray-200" />
                 <div className="text-center">
-                  <p className="text-xl font-black text-red-500">{roscaStats.failed}</p>
+                  <p className="text-xl font-black text-red-500">{roscaStats.defaulted}</p>
                   <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Defaulted</p>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="text-center py-10 text-gray-400">No cycle data found.</div>
+            <div className="text-center py-10 text-gray-400">No member data found for this group.</div>
           )}
         </div>
 
@@ -423,6 +425,11 @@ if (statsRes.status === 'fulfilled' && statsRes.value?.success) {
                   </td>
                 </tr>
               ))}
+              {contributions.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="py-10 text-center text-gray-400 text-sm">No recent contributions found.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
