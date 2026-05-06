@@ -94,11 +94,22 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   const activeCycle = useMemo(() => cycles?.find(c => c.status === 'active') || cycles?.[0], [cycles]);
   
   const currentDrawNum = useMemo(() => {
-    if (!activeCycle?.draws) return 1;
-    const completedDraws = activeCycle.draws.filter(d => d.status === 'completed' || d.winner_name).length;
-    // Assuming 2 slots per draw based on your previous logic
-    return Math.ceil((completedDraws || 0) / 2) || 1;
-  }, [activeCycle]);
+  if (!activeCycle?.draws || activeCycle.draws.length === 0) return 1;
+
+  // 1. Find the highest draw_number/sequence among completed draws
+  const completedDraws = activeCycle.draws.filter(d => d.status === 'completed' || d.winner_name);
+  
+  if (completedDraws.length > 0) {
+    // If your data has a draw_number field, use the maximum one found
+    const maxDraw = Math.max(...completedDraws.map(d => d.draw_number || 0));
+    
+    // If draw_number isn't available, we assume 1 draw per row 
+    // and use the count of unique draw identifiers/indices.
+    return maxDraw > 0 ? maxDraw : completedDraws.length;
+  }
+
+  return 1;
+}, [activeCycle]);
 
 // 2. Map member status based on Cumulative Cycle Savings
 const memberStatusMap = useMemo(() => {
