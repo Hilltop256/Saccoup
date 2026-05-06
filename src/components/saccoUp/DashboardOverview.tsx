@@ -120,27 +120,25 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
     const statusMap: Record<string, string> = {};
 
     members.forEach(member => {
-      const memberDraws = activeCycle.draws.filter(d => 
-        String(d.member_id) === String(member.id) || 
-        d.winner_name?.toLowerCase().trim() === member.full_name?.toLowerCase().trim()
-      );
+const memberStatusMap = useMemo(() => {
+  if (!members.length) return {};
 
-      const totalCycleSavings = memberDraws.reduce((sum, d) => {
-        const val = Number(d.savings) || Number(d.amount) || 0;
-        return sum + val;
-      }, 0);
+  const statusMap: Record<string, string> = {};
 
-      if (totalCycleSavings >= 500000) {
-        statusMap[member.id] = 'confirmed';
-      } else if (totalCycleSavings > 0) {
-        statusMap[member.id] = 'partial payment';
-      } else {
-        statusMap[member.id] = 'defaulted';
-      }
-    });
+  members.forEach(member => {
+    const totalCycleSavings = Number(member.total_contributions) || 0;
 
-    return statusMap;
-  }, [activeCycle, members]);
+    if (totalCycleSavings >= 500000) {
+      statusMap[member.id] = 'confirmed';
+    } else if (totalCycleSavings > 0) {
+      statusMap[member.id] = 'partial payment';
+    } else {
+      statusMap[member.id] = 'defaulted';
+    }
+  });
+
+  return statusMap;
+}, [members]);
 
   // 4. Updated Tally
   const roscaStats = useMemo(() => {
