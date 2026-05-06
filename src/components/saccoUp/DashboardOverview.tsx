@@ -102,13 +102,6 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
 
 // 2. Map member status based on Cumulative Cycle Savings
 const memberStatusMap = useMemo(() => {
-  if (!activeCycle || !activeCycle.draws || !members.length) return {};
-
-  const statusMap: Record<string, string> = {};
-
-  members.forEach(member => {
-    // Look for draws matching this specific member
-  const memberStatusMap = useMemo(() => {
   if (!members.length) return {};
 
   const statusMap: Record<string, string> = {};
