@@ -91,25 +91,30 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   const roscaTotals = getGroupTotals();
   
   // 1. Identify the current Active Cycle and Draw
-  const activeCycle = useMemo(() => cycles?.find(c => c.status === 'active') || cycles?.[0], [cycles]);
-  
-  const currentDrawNum = useMemo(() => {
+const currentDrawNum = useMemo(() => {
   if (!activeCycle?.draws || activeCycle.draws.length === 0) return 1;
 
-  // 1. Find the highest draw_number/sequence among completed draws
-  const completedDraws = activeCycle.draws.filter(d => d.status === 'completed' || d.winner_name);
-  
-  if (completedDraws.length > 0) {
-    // If your data has a draw_number field, use the maximum one found
-    const maxDraw = Math.max(...completedDraws.map(d => d.draw_number || 0));
-    
-    // If draw_number isn't available, we assume 1 draw per row 
-    // and use the count of unique draw identifiers/indices.
-    return maxDraw > 0 ? maxDraw : completedDraws.length;
-  }
+  // 1. Get all draws that have already happened (completed status OR has a winner)
+  const completedDraws = activeCycle.draws.filter(d => 
+    d.status === 'completed' || 
+    (d.winner_name && d.winner_name.trim() !== '')
+  );
 
-  return 1;
+  // 2. Identify the highest draw number recorded so far
+  const maxDrawNum = completedDraws.reduce((max, d) => {
+    // Fallback: use draw_number if it exists, otherwise use the array index + 1
+    const currentNum = d.draw_number || 0;
+    return currentNum > max ? currentNum : max;
+  }, 0);
+
+  // 3. Logic: If we found draw_numbers, the current one is max + 1.
+  // If no draw_numbers exist, we use the count of completed draws + 1.
+  const nextDraw = maxDrawNum > 0 ? maxDrawNum + 1 : completedDraws.length + 1;
+
+  // 4. Cap it at the total number of draws in the cycle so it doesn't overflow
+  return Math.min(nextDraw, activeCycle.draws.length || nextDraw);
 }, [activeCycle]);
+
 
 // 2. Map member status based on Cumulative Cycle Savings
 const memberStatusMap = useMemo(() => {
