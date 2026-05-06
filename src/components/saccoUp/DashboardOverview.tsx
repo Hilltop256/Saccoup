@@ -104,28 +104,27 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
 
 // 2. Map member status based on Cumulative Cycle Savings
 const memberStatusMap = useMemo(() => {
-  if (!activeCycle || !activeCycle.draws || !members.length) return {};
+  if (!members.length) return {};
 
   const statusMap: Record<string, string> = {};
 
   members.forEach(member => {
-    // Look for draws matching this specific member
-    const memberDraws = activeCycle.draws.filter(d => 
-      String(d.member_id) === String(member.id) || 
-      d.winner_name?.toLowerCase().trim() === member.full_name?.toLowerCase().trim()
+    const memberContributions = contributions.filter(c => 
+      String(c.member_id) === String(member.id) &&
+      c.status === 'confirmed'
     );
 
-    // Sum up savings. We check both 'savings' and 'amount' keys just in case.
-    const totalCycleSavings = memberDraws.reduce((sum, d) => {
-      const val = Number(d.savings) || Number(d.amount) || 0;
-      return sum + val;
+    const cycleFiltered = memberContributions.filter(c =>
+      c.period_label?.includes(`Cycle ${activeCycle?.cycle_number}`)
+    );
+
+    const totalCycleSavings = cycleFiltered.reduce((sum, c) => {
+      return sum + (Number(c.amount) || 0);
     }, 0);
 
-    // Explicit Threshold Checks
     if (totalCycleSavings >= 500000) {
       statusMap[member.id] = 'confirmed';
     } else if (totalCycleSavings > 0) {
-      // This will catch any value between 1 and 499,999
       statusMap[member.id] = 'partial payment';
     } else {
       statusMap[member.id] = 'defaulted';
@@ -133,7 +132,7 @@ const memberStatusMap = useMemo(() => {
   });
 
   return statusMap;
-}, [activeCycle, members]);
+}, [members, contributions, activeCycle]);
 
   // 3. Updated Tally to include Partial Payments
 const roscaStats = useMemo(() => {
