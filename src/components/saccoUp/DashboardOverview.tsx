@@ -100,40 +100,39 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
     return Math.ceil((completedDraws || 0) / 2) || 1;
   }, [activeCycle]);
 
-  // 2. Map member status based on Savings and Balance logic
+// 2. Map member status based on Cumulative Cycle Savings
   const memberStatusMap = useMemo(() => {
     if (!activeCycle || !activeCycle.draws) return {};
 
     const statusMap: Record<string, string> = {};
 
     members.forEach(member => {
-      // Comparison logic with normalization for safer matching
-      const memberDraw = activeCycle.draws.find(d => 
-        d.winner_name?.toLowerCase().trim() === member.full_name?.toLowerCase().trim() && 
-        d.draw_number === currentDrawNum
+      // Find ALL draws for this member in the active cycle to calculate cumulative savings
+      const memberDraws = activeCycle.draws.filter(d => 
+        d.winner_name?.toLowerCase().trim() === member.full_name?.toLowerCase().trim()
       );
 
-      if (memberDraw) {
-        const hasSavings = (memberDraw.savings || 0) >= 500000;
-        const isEmptySavings = !memberDraw.savings || memberDraw.savings === 0;
-        const hasNegativeBalance = (memberDraw.balance || 0) <= -500000;
+      // Sum up savings across all draws in this cycle
+      const totalCycleSavings = memberDraws.reduce((sum, d) => sum + (d.savings || 0), 0);
+      
+      // Calculate net balance across the cycle
+      const totalCycleBalance = memberDraws.reduce((sum, d) => sum + (d.balance || 0), 0);
 
-        if (hasSavings) {
-          statusMap[member.id] = 'confirmed';
-        } else if (isEmptySavings && hasNegativeBalance) {
-          statusMap[member.id] = 'pending';
-        } else if (activeCycle.status === 'completed' && isEmptySavings) {
-          statusMap[member.id] = 'defaulted';
-        } else {
-          statusMap[member.id] = 'pending';
-        }
+      // Business Logic: 
+      // 11 members paid 500k, so we check if cumulative savings >= 500k
+      if (totalCycleSavings >= 500000) {
+        statusMap[member.id] = 'confirmed';
+      } else if (totalCycleSavings === 0 && totalCycleBalance <= -500000) {
+        statusMap[member.id] = 'pending';
+      } else if (activeCycle.status === 'completed' && totalCycleSavings < 500000) {
+        statusMap[member.id] = 'defaulted';
       } else {
         statusMap[member.id] = 'pending';
       }
     });
 
     return statusMap;
-  }, [activeCycle, currentDrawNum, members]);
+  }, [activeCycle, members]); // Removed currentDrawNum dependency to focus on cycle-wide totals
 
   // 3. Tally the status totals for the summary box
   const roscaStats = useMemo(() => {
