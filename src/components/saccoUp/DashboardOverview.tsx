@@ -114,11 +114,7 @@ const memberStatusMap = useMemo(() => {
       c.status === 'confirmed'
     );
 
-    const cycleFiltered = memberContributions.filter(c =>
-      c.period_label?.includes(`Cycle ${activeCycle?.cycle_number}`)
-    );
-
-    const totalCycleSavings = cycleFiltered.reduce((sum, c) => {
+    const totalCycleSavings = memberContributions.reduce((sum, c) => {
       return sum + (Number(c.amount) || 0);
     }, 0);
 
@@ -132,7 +128,7 @@ const memberStatusMap = useMemo(() => {
   });
 
   return statusMap;
-}, [members, contributions, activeCycle]);
+}, [members, contributions]);
 
   // 3. Updated Tally to include Partial Payments
 const roscaStats = useMemo(() => {
