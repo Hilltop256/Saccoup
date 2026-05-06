@@ -101,29 +101,29 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   }, [activeCycle]);
 
 // 2. Map member status based on Cumulative Cycle Savings
+// 2. Map member status based on Current Draw Contributions
 const memberStatusMap = useMemo(() => {
-  if (!activeCycle || !activeCycle.draws || !members.length) return {};
+  if (!activeCycle || !members.length || !contributionStatuses) return {};
 
   const statusMap: Record<string, string> = {};
 
   members.forEach(member => {
-    // Look for draws matching this specific member
-    const memberDraws = activeCycle.draws.filter(d => 
-      String(d.member_id) === String(member.id) || 
-      d.winner_name?.toLowerCase().trim() === member.full_name?.toLowerCase().trim()
+    // Filter the contribution records for this specific member AND the current draw
+    const memberDrawContribs = contributionStatuses.filter(s => 
+      String(s.member_id) === String(member.id) && 
+      Number(s.draw_number) === currentDrawNum
     );
 
-    // Sum up savings. We check both 'savings' and 'amount' keys just in case.
-    const totalCycleSavings = memberDraws.reduce((sum, d) => {
-      const val = Number(d.savings) || Number(d.amount) || 0;
-      return sum + val;
+    // Sum up what they have actually paid for this draw
+    const totalPaidForDraw = memberDrawContribs.reduce((sum, c) => {
+      return sum + (Number(c.paid_amount) || 0);
     }, 0);
 
-    // Explicit Threshold Checks
-    if (totalCycleSavings >= 500000) {
+    // Apply your business logic thresholds
+    if (totalPaidForDraw >= 500000) {
       statusMap[member.id] = 'confirmed';
-    } else if (totalCycleSavings > 0) {
-      // This will catch any value between 1 and 499,999
+    } else if (totalPaidForDraw > 0) {
+      // This correctly catches values between 1 and 499,999
       statusMap[member.id] = 'partial payment';
     } else {
       statusMap[member.id] = 'defaulted';
@@ -131,7 +131,7 @@ const memberStatusMap = useMemo(() => {
   });
 
   return statusMap;
-}, [activeCycle, members]);
+}, [activeCycle, members, contributionStatuses, currentDrawNum]);
 
   // 3. Updated Tally to include Partial Payments
 const roscaStats = useMemo(() => {
