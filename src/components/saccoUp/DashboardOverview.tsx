@@ -101,48 +101,40 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
   }, [activeCycle]);
 
 // 2. Map member status based on Cumulative Cycle Savings
-  const memberStatusMap = useMemo(() => {
-    if (!activeCycle || !activeCycle.draws) return {};
+const memberStatusMap = useMemo(() => {
+  if (!activeCycle || !activeCycle.draws) return {};
 
-    const statusMap: Record<string, string> = {};
+  const statusMap: Record<string, string> = {};
 
-    members.forEach(member => {
-      // Find ALL draws for this member in the active cycle to calculate cumulative savings
-      const memberDraws = activeCycle.draws.filter(d => 
-        d.winner_name?.toLowerCase().trim() === member.full_name?.toLowerCase().trim()
-      );
+  members.forEach(member => {
+    const memberDraws = activeCycle.draws.filter(d => 
+      d.winner_name?.toLowerCase().trim() === member.full_name?.toLowerCase().trim()
+    );
 
-      // Sum up savings across all draws in this cycle
-      const totalCycleSavings = memberDraws.reduce((sum, d) => sum + (d.savings || 0), 0);
-      
-      // Calculate net balance across the cycle
-      const totalCycleBalance = memberDraws.reduce((sum, d) => sum + (d.balance || 0), 0);
+    const totalCycleSavings = memberDraws.reduce((sum, d) => sum + (d.savings || 0), 0);
 
-      // Business Logic: 
-      // 11 members paid 500k, so we check if cumulative savings >= 500k
-      if (totalCycleSavings >= 500000) {
-        statusMap[member.id] = 'confirmed';
-      } else if (totalCycleSavings === 0 && totalCycleBalance <= -500000) {
-        statusMap[member.id] = 'pending';
-      } else if (activeCycle.status === 'completed' && totalCycleSavings < 500000) {
-        statusMap[member.id] = 'defaulted';
-      } else {
-        statusMap[member.id] = 'pending';
-      }
-    });
+    if (totalCycleSavings >= 500000) {
+      statusMap[member.id] = 'confirmed';
+    } else if (totalCycleSavings > 0 && totalCycleSavings < 500000) {
+      statusMap[member.id] = 'partial payment';
+    } else {
+      // If savings are 0 or null
+      statusMap[member.id] = 'defaulted';
+    }
+  });
 
-    return statusMap;
-  }, [activeCycle, members]); // Removed currentDrawNum dependency to focus on cycle-wide totals
+  return statusMap;
+}, [activeCycle, members]);
 
-  // 3. Tally the status totals for the summary box
-  const roscaStats = useMemo(() => {
-    const vals = Object.values(memberStatusMap);
-    return {
-      confirmed: vals.filter(v => v === 'confirmed').length,
-      pending: vals.filter(v => v === 'pending').length,
-      defaulted: vals.filter(v => v === 'defaulted').length
-    };
-  }, [memberStatusMap]);
+  // 3. Updated Tally to include Partial Payments
+const roscaStats = useMemo(() => {
+  const vals = Object.values(memberStatusMap);
+  return {
+    confirmed: vals.filter(v => v === 'confirmed').length,
+    partial: vals.filter(v => v === 'partial payment').length,
+    defaulted: vals.filter(v => v === 'defaulted').length
+  };
+}, [memberStatusMap]);
 
   const loadDashboardData = useCallback(async () => {
     if (!selectedGroup?.id) {
@@ -303,62 +295,72 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
           {members.length > 0 ? (
             <div className="space-y-6">
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {members.map(m => {
-                  const status = memberStatusMap[m.id] || 'pending';
-                  const isConfirmed = status === 'confirmed';
-                  const isDefaulted = status === 'defaulted';
+{members.map(m => {
+  const status = memberStatusMap[m.id] || 'defaulted';
+  const isConfirmed = status === 'confirmed';
+  const isPartial = status === 'partial payment';
+  const isDefaulted = status === 'defaulted';
 
-                  return (
-                    <div 
-                      key={m.id} 
-                      className={`flex flex-col items-center p-3 rounded-xl border transition-all ${
-                        isConfirmed ? 'bg-emerald-50 border-emerald-100' : 
-                        isDefaulted ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'
-                      }`}
-                    >
-                      <div className="relative">
-                        <img 
-                          src={m.photo_url || IMAGES.avatars[0]} 
-                          className={`w-10 h-10 rounded-full border-2 ${isConfirmed ? 'border-emerald-500' : 'border-white'}`}
-                          alt="" 
-                        />
-                        {isConfirmed && (
-                          <div className="absolute -top-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5">
-                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                          </div>
-                        )}
-                      </div>
-                      <span className="text-[11px] font-bold text-gray-800 mt-2 truncate w-full text-center">
-                        {m.full_name.split(' ')[0]}
-                      </span>
-                      <span className={`text-[9px] uppercase font-black mt-1 ${
-                        isConfirmed ? 'text-emerald-600' : isDefaulted ? 'text-red-600' : 'text-amber-600'
-                      }`}>
-                        {status}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+  return (
+    <div 
+      key={m.id} 
+      className={`flex flex-col items-center p-3 rounded-xl border transition-all ${
+        isConfirmed ? 'bg-emerald-50 border-emerald-100' : 
+        isPartial ? 'bg-amber-50 border-amber-100' : 
+        'bg-red-50 border-red-100'
+      }`}
+    >
+      <div className="relative">
+        <img 
+          src={m.photo_url || IMAGES.avatars[0]} 
+          className={`w-10 h-10 rounded-full border-2 ${
+            isConfirmed ? 'border-emerald-500' : 
+            isPartial ? 'border-amber-500' : 
+            'border-red-500'
+          }`}
+          alt="" 
+        />
+        {isConfirmed && (
+          <div className="absolute -top-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5">
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+          </div>
+        )}
+      </div>
+      <span className="text-[11px] font-bold text-gray-800 mt-2 truncate w-full text-center">
+        {m.full_name.split(' ')[0]}
+      </span>
+      <span className={`text-[9px] uppercase font-black mt-1 ${
+        isConfirmed ? 'text-emerald-600' : 
+        isPartial ? 'text-amber-600' : 
+        'text-red-600'
+      }`}>
+        {status}
+      </span>
+    </div>
+  );
+})}
+</div>
 
-              {/* Status Totals Tally - Fixed variable names here */}
-              <div className="flex items-center justify-around py-4 bg-gray-50 rounded-xl border border-gray-100">
-                <div className="text-center">
-                  <p className="text-xl font-black text-emerald-600">{roscaStats.confirmed}</p>
-                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Confirmed</p>
-                </div>
-                <div className="w-px h-8 bg-gray-200" />
-                <div className="text-center">
-                  <p className="text-xl font-black text-amber-500">{roscaStats.pending}</p>
-                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Pending</p>
-                </div>
-                <div className="w-px h-8 bg-gray-200" />
-                <div className="text-center">
-                  <p className="text-xl font-black text-red-500">{roscaStats.defaulted}</p>
-                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Defaulted</p>
-                </div>
-              </div>
-            </div>
+            {/* Status Totals Tally */}
+<div className="flex items-center justify-around py-4 bg-gray-50 rounded-xl border border-gray-100">
+  <div className="text-center">
+    <p className="text-xl font-black text-emerald-600">{roscaStats.confirmed}</p>
+    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Confirmed</p>
+  </div>
+  <div className="w-px h-8 bg-gray-200" />
+  <div className="text-center">
+    <p className="text-xl font-black text-amber-500">{roscaStats.partial}</p>
+    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Partial</p>
+  </div>
+  <div className="w-px h-8 bg-gray-200" />
+  <div className="text-center">
+    <p className="text-xl font-black text-red-500">{roscaStats.defaulted}</p>
+    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Defaulted</p>
+  </div>
+</div>
+</div>
           ) : (
             <div className="text-center py-10 text-gray-400">No member data found for this group.</div>
           )}
