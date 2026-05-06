@@ -77,6 +77,8 @@ const SkeletonCard: React.FC = () => (
 );
 
 const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => {
+  // Inside DashboardOverview component
+const { getGroupTotals, cycles, contributionStatuses } = useRoscaData();
   const { user, selectedGroup } = useAppContext();
   const { getGroupTotals, cycles } = useRoscaData();
 
