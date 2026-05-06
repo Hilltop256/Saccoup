@@ -1,3 +1,5 @@
+Current Dashboard
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAppContext } from '@/contexts/AppContext';
 import { useRoscaData } from '@/contexts/RoscaContext';
@@ -90,47 +92,40 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
 
   const roscaTotals = getGroupTotals();
   
-// 1. Identify the current Active Cycle (MOVE THIS TO THE TOP)
+  // 1. Identify the current Active Cycle and Draw
   const activeCycle = useMemo(() => cycles?.find(c => c.status === 'active') || cycles?.[0], [cycles]);
-
-  // 2. Identify the current Draw Number
+  
   const currentDrawNum = useMemo(() => {
-    // Check activeCycle here AFTER it has been defined above
-    if (!activeCycle?.draws || activeCycle.draws.length === 0) return 1;
-
-    const completedDraws = activeCycle.draws.filter(d => 
-      d.status === 'completed' || 
-      (d.winner_name && d.winner_name.trim() !== '')
-    );
-
-    const maxDrawNum = completedDraws.reduce((max, d) => {
-      const currentNum = d.draw_number || 0;
-      return currentNum > max ? currentNum : max;
-    }, 0);
-
-    // If 20 are done, this returns 21
-    const nextDraw = maxDrawNum > 0 ? maxDrawNum + 1 : completedDraws.length + 1;
-    return Math.min(nextDraw, activeCycle.draws.length || nextDraw);
+    if (!activeCycle?.draws) return 1;
+    const completedDraws = activeCycle.draws.filter(d => d.status === 'completed' || d.winner_name).length;
+    // Assuming 2 slots per draw based on your previous logic
+    return Math.ceil((completedDraws || 0) / 2) || 1;
   }, [activeCycle]);
 
-  // 3. Map member status based on Cumulative Cycle Savings
-  const memberStatusMap = useMemo(() => {
-    if (!activeCycle || !activeCycle.draws || !members.length) return {};
-
-    const statusMap: Record<string, string> = {};
-
-    members.forEach(member => {
+// 2. Map member status based on Cumulative Cycle Savings
 const memberStatusMap = useMemo(() => {
-  if (!members.length) return {};
+  if (!activeCycle || !activeCycle.draws || !members.length) return {};
 
   const statusMap: Record<string, string> = {};
 
   members.forEach(member => {
-    const totalCycleSavings = Number(member.total_contributions) || 0;
+    // Look for draws matching this specific member
+    const memberDraws = activeCycle.draws.filter(d => 
+      String(d.member_id) === String(member.id) || 
+      d.winner_name?.toLowerCase().trim() === member.full_name?.toLowerCase().trim()
+    );
 
+    // Sum up savings. We check both 'savings' and 'amount' keys just in case.
+    const totalCycleSavings = memberDraws.reduce((sum, d) => {
+      const val = Number(d.savings) || Number(d.amount) || 0;
+      return sum + val;
+    }, 0);
+
+    // Explicit Threshold Checks
     if (totalCycleSavings >= 500000) {
       statusMap[member.id] = 'confirmed';
     } else if (totalCycleSavings > 0) {
+      // This will catch any value between 1 and 499,999
       statusMap[member.id] = 'partial payment';
     } else {
       statusMap[member.id] = 'defaulted';
@@ -138,17 +133,17 @@ const memberStatusMap = useMemo(() => {
   });
 
   return statusMap;
-}, [members]);
+}, [activeCycle, members]);
 
-  // 4. Updated Tally
-  const roscaStats = useMemo(() => {
-    const vals = Object.values(memberStatusMap);
-    return {
-      confirmed: vals.filter(v => v === 'confirmed').length,
-      partial: vals.filter(v => v === 'partial payment').length,
-      defaulted: vals.filter(v => v === 'defaulted').length
-    };
-  }, [memberStatusMap]);
+  // 3. Updated Tally to include Partial Payments
+const roscaStats = useMemo(() => {
+  const vals = Object.values(memberStatusMap);
+  return {
+    confirmed: vals.filter(v => v === 'confirmed').length,
+    partial: vals.filter(v => v === 'partial payment').length,
+    defaulted: vals.filter(v => v === 'defaulted').length
+  };
+}, [memberStatusMap]);
 
   const loadDashboardData = useCallback(async () => {
     if (!selectedGroup?.id) {
