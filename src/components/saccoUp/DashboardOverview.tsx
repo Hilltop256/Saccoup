@@ -102,23 +102,29 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => 
 
 // 2. Map member status based on Cumulative Cycle Savings
 const memberStatusMap = useMemo(() => {
-  if (!activeCycle || !activeCycle.draws) return {};
+  if (!activeCycle || !activeCycle.draws || !members.length) return {};
 
   const statusMap: Record<string, string> = {};
 
   members.forEach(member => {
+    // 1. Find all draws associated with this member
+    // We try to match by member_id first, then fallback to name matching
     const memberDraws = activeCycle.draws.filter(d => 
+      d.member_id === member.id || 
       d.winner_name?.toLowerCase().trim() === member.full_name?.toLowerCase().trim()
     );
 
-    const totalCycleSavings = memberDraws.reduce((sum, d) => sum + (d.savings || 0), 0);
+    // 2. Sum up the savings for the current cycle
+    const totalCycleSavings = memberDraws.reduce((sum, d) => sum + (Number(d.savings) || 0), 0);
 
+    // 3. Explicit status logic
     if (totalCycleSavings >= 500000) {
       statusMap[member.id] = 'confirmed';
-    } else if (totalCycleSavings > 0 && totalCycleSavings < 500000) {
+    } else if (totalCycleSavings > 0) {
+      // Any amount between 1 and 499,999
       statusMap[member.id] = 'partial payment';
     } else {
-      // If savings are 0 or null
+      // Exactly 0 or no records found
       statusMap[member.id] = 'defaulted';
     }
   });
