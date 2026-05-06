@@ -107,24 +107,25 @@ const memberStatusMap = useMemo(() => {
   const statusMap: Record<string, string> = {};
 
   members.forEach(member => {
-    // 1. Find all draws associated with this member
-    // We try to match by member_id first, then fallback to name matching
+    // Look for draws matching this specific member
     const memberDraws = activeCycle.draws.filter(d => 
-      d.member_id === member.id || 
+      String(d.member_id) === String(member.id) || 
       d.winner_name?.toLowerCase().trim() === member.full_name?.toLowerCase().trim()
     );
 
-    // 2. Sum up the savings for the current cycle
-    const totalCycleSavings = memberDraws.reduce((sum, d) => sum + (Number(d.savings) || 0), 0);
+    // Sum up savings. We check both 'savings' and 'amount' keys just in case.
+    const totalCycleSavings = memberDraws.reduce((sum, d) => {
+      const val = Number(d.savings) || Number(d.amount) || 0;
+      return sum + val;
+    }, 0);
 
-    // 3. Explicit status logic
+    // Explicit Threshold Checks
     if (totalCycleSavings >= 500000) {
       statusMap[member.id] = 'confirmed';
     } else if (totalCycleSavings > 0) {
-      // Any amount between 1 and 499,999
+      // This will catch any value between 1 and 499,999
       statusMap[member.id] = 'partial payment';
     } else {
-      // Exactly 0 or no records found
       statusMap[member.id] = 'defaulted';
     }
   });
