@@ -77,11 +77,11 @@ const SkeletonCard: React.FC = () => (
 );
 
 const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate }) => {
-  // Inside DashboardOverview component
-const { getGroupTotals, cycles, contributionStatuses } = useRoscaData();
+  // 1. Extract all needed values from Contexts in single calls
   const { user, selectedGroup } = useAppContext();
-  const { getGroupTotals, cycles } = useRoscaData();
+  const { getGroupTotals, cycles, contributionStatuses } = useRoscaData();
 
+  // 2. Initialize State
   const [stats, setStats] = useState<GroupStats | null>(null);
   const [contributions, setContributions] = useState<ContributionRow[]>([]);
   const [loans, setLoans] = useState<LoanRow[]>([]);
@@ -90,6 +90,7 @@ const { getGroupTotals, cycles, contributionStatuses } = useRoscaData();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // 3. Initialize Totals
   const roscaTotals = getGroupTotals();
   
   // 1. Identify the current Active Cycle and Draw
