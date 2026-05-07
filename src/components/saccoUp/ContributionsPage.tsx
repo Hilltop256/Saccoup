@@ -375,7 +375,7 @@ const ContributionsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Transaction Reference</label>
+ <label className="text-sm font-medium text-gray-700 mb-1 block">Transaction Reference (Phone Number and Transaction ID For Verification)</label>
                 <input
                   type="text"
                   value={newContribution.transaction_ref}
