@@ -552,7 +552,7 @@ const ContributionsPage: React.FC = () => {
               {(!isMoMoMethod || !newContribution.use_momo_push) && (
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1 block">
-                    Transaction {newContribution.payment_method !== 'cash' ? '(Enter Phone Number and Transaction Ref For Verification)' : '(optional)'}
+                    Transaction {newContribution.payment_method !== 'cash' ? '(Enter Phone Number and Transaction ID For Chairman Verification)' : '(optional)'}
                   </label>
                   <input
                     type="text"
