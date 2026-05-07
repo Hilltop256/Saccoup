@@ -110,15 +110,15 @@ const ContributionsPage: React.FC = () => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Auto-populate MoMo phone when member selected
+  // Auto-populate MoMo phone when member selected (for admins/elevated roles)
   useEffect(() => {
-    if (newContribution.member_id) {
+    if (isElevated && newContribution.member_id) {
       const m = members.find(m => m.id === newContribution.member_id);
       if (m?.phone) {
         setNewContribution(prev => ({ ...prev, momo_phone: m.phone }));
       }
     }
-  }, [newContribution.member_id, members]);
+  }, [newContribution.member_id, members, isElevated]);
 
   const isMoMoMethod = newContribution.payment_method === 'mtn_momo' || newContribution.payment_method === 'airtel_money';
 
@@ -204,6 +204,9 @@ const ContributionsPage: React.FC = () => {
     );
   }
 
+  // Helper variable to dynamically resolve the member ID being recorded for validation
+  const resolvedMemberId = isElevated ? newContribution.member_id : (user?.member_id || '');
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -212,7 +215,19 @@ const ContributionsPage: React.FC = () => {
           <p className="text-sm text-gray-500">Track and manage group contributions for {selectedGroup.name}</p>
         </div>
         <button
-          onClick={() => setShowRecordModal(true)}
+          onClick={() => {
+            // Correctly initialize state variables upon opening the modal
+            setNewContribution({
+              member_id: isElevated ? '' : (user?.member_id || ''),
+              amount: '',
+              payment_method: 'mtn_momo',
+              transaction_ref: '',
+              period_label: CURRENT_PERIOD,
+              use_momo_push: false,
+              momo_phone: isElevated ? '' : (user?.phone || ''),
+            });
+            setShowRecordModal(true);
+          }}
           className="px-4 py-2 text-sm font-medium text-white bg-[#0066CC] rounded-lg hover:bg-[#004C99] transition-colors flex items-center gap-2"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -446,24 +461,24 @@ const ContributionsPage: React.FC = () => {
 
             <div className="space-y-4">
               {isElevated ? (
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Member *</label>
-                <select
-                  value={newContribution.member_id}
-                  onChange={(e) => setNewContribution({ ...newContribution, member_id: e.target.value })}
-                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0066CC] focus:border-transparent outline-none bg-white"
-                >
-                  <option value="">Select member</option>
-                  {members.map(m => <option key={m.id} value={m.id}>{m.full_name}</option>)}
-                </select>
-              </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Member *</label>
+                  <select
+                    value={newContribution.member_id}
+                    onChange={(e) => setNewContribution({ ...newContribution, member_id: e.target.value })}
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#0066CC] focus:border-transparent outline-none bg-white"
+                  >
+                    <option value="">Select member</option>
+                    {members.map(m => <option key={m.id} value={m.id}>{m.full_name}</option>)}
+                  </select>
+                </div>
               ) : (
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Member</label>
-                <p className="px-3 py-2.5 text-sm font-bold text-gray-900 bg-gray-50 rounded-lg border border-gray-200">
-                  {user?.full_name || 'You'}
-                </p>
-              </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Member</label>
+                  <p className="px-3 py-2.5 text-sm font-bold text-gray-900 bg-gray-50 rounded-lg border border-gray-200">
+                    {user?.full_name || 'You'}
+                  </p>
+                </div>
               )}
 
               <div>
@@ -587,7 +602,7 @@ const ContributionsPage: React.FC = () => {
               </button>
               <button
                 onClick={handleRecord}
-                disabled={isRecording || !newContribution.member_id || !newContribution.amount}
+                disabled={isRecording || !resolvedMemberId || !newContribution.amount}
                 className="flex-1 py-2.5 text-sm font-medium text-white bg-[#0066CC] rounded-lg hover:bg-[#004C99] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isRecording ? (
