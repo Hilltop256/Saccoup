@@ -125,7 +125,8 @@ const ContributionsPage: React.FC = () => {
   useEffect(() => { loadData(); }, [loadData]);
 
   const filtered = contributions.filter(c => {
-    const matchesSearch = c.member_name.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = c.member_name.toLowerCase().includes(search.toLowerCase()) || 
+                         (c.transaction_ref?.toLowerCase().includes(search.toLowerCase()) ?? false);
     const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
     const matchesMethod = methodFilter === 'all' || c.payment_method === methodFilter;
     return matchesSearch && matchesStatus && matchesMethod;
@@ -136,7 +137,6 @@ const ContributionsPage: React.FC = () => {
   const totalFailed = contributions.filter(c => c.status === 'failed').reduce((s, c) => s + c.amount, 0);
 
   const handleRecord = async () => {
-    // Correctly determine member ID based on user permissions
     const targetMemberId = isElevated ? newContribution.member_id : (user?.member_id || '');
     
     if (!targetMemberId || !newContribution.amount || !selectedGroup?.id) return;
@@ -184,7 +184,6 @@ const ContributionsPage: React.FC = () => {
     }
   };
 
-  // Validation logic to enable the submit button for both roles
   const isFormValid = isElevated ? !!newContribution.member_id : !!user?.member_id;
 
   if (!selectedGroup) {
@@ -249,7 +248,7 @@ const ContributionsPage: React.FC = () => {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search member name..."
+          placeholder="Search member or reference..."
           className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#0066CC]"
         />
         <select
@@ -285,7 +284,8 @@ const ContributionsPage: React.FC = () => {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="px-6 py-3 font-semibold text-gray-600">Member</th>
-                  <th className="px-6 py-3 font-semibold text-gray-600 hidden sm:table-cell">Period</th>
+                  <th className="px-6 py-3 font-semibold text-gray-600 hidden md:table-cell">Period</th>
+                  <th className="px-6 py-3 font-semibold text-gray-600 hidden sm:table-cell">Reference</th>
                   <th className="px-6 py-3 font-semibold text-gray-600 text-right">Amount</th>
                   <th className="px-6 py-3 font-semibold text-gray-600 text-center">Status</th>
                   <th className="px-6 py-3 font-semibold text-gray-600 text-right">Actions</th>
@@ -298,7 +298,16 @@ const ContributionsPage: React.FC = () => {
                       <p className="font-medium text-gray-900">{c.member_name}</p>
                       <p className="text-xs text-gray-500">{getPaymentMethodLabel(c.payment_method)}</p>
                     </td>
-                    <td className="px-6 py-4 text-gray-500 hidden sm:table-cell">{c.period_label}</td>
+                    <td className="px-6 py-4 text-gray-500 hidden md:table-cell">{c.period_label}</td>
+                    <td className="px-6 py-4 hidden sm:table-cell">
+                      {c.transaction_ref ? (
+                        <span className="font-mono text-[10px] sm:text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded border border-gray-200">
+                          {c.transaction_ref}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 text-xs italic">No reference</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-right font-bold text-gray-900">{formatUGX(c.amount)}</td>
                     <td className="px-6 py-4 text-center">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize ${getStatusColor(c.status)}`}>
@@ -308,8 +317,8 @@ const ContributionsPage: React.FC = () => {
                     <td className="px-6 py-4 text-right">
                       {c.status === 'pending' && isElevated && (
                         <div className="flex justify-end gap-2">
-                          <button onClick={() => handleStatusChange(c.id, 'confirmed')} className="text-emerald-600 hover:underline">Confirm</button>
-                          <button onClick={() => handleStatusChange(c.id, 'failed')} className="text-red-600 hover:underline">Fail</button>
+                          <button onClick={() => handleStatusChange(c.id, 'confirmed')} className="text-emerald-600 hover:underline font-medium">Confirm</button>
+                          <button onClick={() => handleStatusChange(c.id, 'failed')} className="text-red-600 hover:underline font-medium">Fail</button>
                         </div>
                       )}
                     </td>
@@ -375,13 +384,13 @@ const ContributionsPage: React.FC = () => {
               </div>
 
               <div>
- <label className="text-sm font-medium text-gray-700 mb-1 block">Transaction Reference (Phone Number and Transaction ID For Verification)</label>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Transaction Reference (Phone / ID)</label>
                 <input
                   type="text"
                   value={newContribution.transaction_ref}
                   onChange={(e) => setNewContribution({ ...newContribution, transaction_ref: e.target.value })}
                   className="w-full px-3 py-2.5 text-sm border rounded-lg outline-none font-mono"
-                  placeholder="ID or Phone Number used"
+                  placeholder="Verification Phone or ID"
                 />
               </div>
 
