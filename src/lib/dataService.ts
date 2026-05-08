@@ -473,20 +473,10 @@ export async function recordContribution(params: {
   return { success: true, contribution: data };
 }
 
-// dataService.ts
-
-// dataService.ts - Corrected listContributions function
-
 export async function listContributions(group_id: string, filters?: { member_id?: string; status?: string; limit?: number }) {
   let query = supabase
     .from('contributions')
-    .select(`
-      *,
-      members (
-        full_name,
-        photo_url
-      )
-    `) // ✅ Fix: Properly join members table to get photo and name
+    .select('*')
     .eq('group_id', group_id)
     .order('created_at', { ascending: false });
 
@@ -496,10 +486,9 @@ export async function listContributions(group_id: string, filters?: { member_id?
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
-  
+
   return { success: true, contributions: data || [] };
 }
-    
 
 export async function updateContributionStatus(contribution_id: string, new_status: string, updated_by?: string) {
   const { error } = await supabase
