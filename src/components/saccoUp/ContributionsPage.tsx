@@ -85,29 +85,33 @@ const ContributionsPage: React.FC = () => {
         ds.listMembers(selectedGroup.id),
       ]);
 
-      if (contribResult.success) {
-        setContributions((contribResult.contributions || []).map((c: any) => {
-          let amountDue = Number(c.amount_due || 0);
-          if (!amountDue && c.notes) {
-            const match = c.notes.match(/Due: (\d+)/);
-            if (match) amountDue = parseInt(match[1]);
-          }
-          return {
-            id: c.id, 
-            member_name: c.member_name, 
-            member_id: c.member_id,
-            amount: Number(c.amount), 
-            amount_due: amountDue,
-            payment_method: c.payment_method,
-            status: c.status, 
-            period_label: c.period_label || '',
-            transaction_ref: c.transaction_ref, 
-            created_at: c.created_at?.split('T')[0] || '',
-            member_photo: c.member_photo, 
-            notes: c.notes,
-          };
-        }));
-      }
+// ContributionsPage.tsx inside loadData
+
+if (contribResult.success) {
+  setContributions((contribResult.contributions || []).map((c: any) => {
+    let amountDue = Number(c.amount_due || 0);
+    if (!amountDue && c.notes) {
+      const match = c.notes.match(/Due: (\d+)/);
+      if (match) amountDue = parseInt(match[1]);
+    }
+    return {
+      id: c.id, 
+      // Prioritize the joined name, then the denormalized name, then fallback
+      member_name: c.members?.full_name || c.member_name || 'Unknown Member',
+      member_id: c.member_id,
+      amount: Number(c.amount), 
+      amount_due: amountDue,
+      payment_method: c.payment_method,
+      status: c.status, 
+      period_label: c.period_label || '',
+      transaction_ref: c.transaction_ref, 
+      created_at: c.created_at?.split('T')[0] || '',
+      // Use the joined photo URL if available
+      member_photo: c.members?.photo_url || c.member_photo,
+      notes: c.notes,
+    };
+  }));
+}
 
       if (memberResult.success) {
         setMembers((memberResult.members || []).map((m: any) => ({
