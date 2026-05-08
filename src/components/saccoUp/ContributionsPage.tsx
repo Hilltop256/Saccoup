@@ -128,13 +128,15 @@ if (contribResult.success) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const filtered = contributions.filter(c => {
-    const matchesSearch = c.member_name.toLowerCase().includes(search.toLowerCase()) || 
-                         (c.transaction_ref?.toLowerCase().includes(search.toLowerCase()) ?? false);
-    const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
-    const matchesMethod = methodFilter === 'all' || c.payment_method === methodFilter;
-    return matchesSearch && matchesStatus && matchesMethod;
-  });
+// ContributionsPage.tsx inside filtered constant
+
+const filtered = contributions.filter(c => {
+  const matchesSearch = (c.member_name || '').toLowerCase().includes(search.toLowerCase()) || 
+                       (c.transaction_ref?.toLowerCase().includes(search.toLowerCase()) ?? false);
+  const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
+  const matchesMethod = methodFilter === 'all' || c.payment_method === methodFilter;
+  return matchesSearch && matchesStatus && matchesMethod;
+});
 
   const totalConfirmed = contributions.filter(c => c.status === 'confirmed').reduce((s, c) => s + c.amount, 0);
   const totalPending = contributions.filter(c => c.status === 'pending').reduce((s, c) => s + c.amount, 0);
